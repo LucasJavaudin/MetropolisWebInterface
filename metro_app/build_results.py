@@ -11,9 +11,13 @@ Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 # Execute the script with the virtualenv.
-activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
-with open(activate_this_file) as f:
-	exec(f.read(), {'__file__': activate_this_file})
+try:
+    activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
+    with open(activate_this_file) as f:
+            exec(f.read(), {'__file__': activate_this_file})
+except FileNotFoundError:
+    print('Running script without a virtualenv.')
+    pass
 
 import os
 import os.path
