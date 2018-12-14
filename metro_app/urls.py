@@ -58,6 +58,8 @@ urlpatterns = [
         views.simulation_run_view, name='simulation_run_view'),
     url(r'^(?P<simulation_id>[0-9]+)/run_list$',
         views.simulation_run_list, name='simulation_run_list'),
+    url(r'^(?P<simulation_id>[0-9]+)/run/(?P<run_id>[0-9]+)/link_output$',
+        views.simulation_run_link_output, name='simulation_run_link_output'),
     url(r'^(?P<simulation_id>[0-9]+)/run/(?P<run_id>[0-9]+)/user_output$',
         views.simulation_run_user_output, name='simulation_run_user_output'),
     url(r'^register$',

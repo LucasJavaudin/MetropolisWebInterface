@@ -935,6 +935,7 @@ class SimulationRun(models.Model):
     end_time = models.DateTimeField(blank=True, null=True)
     time_taken = models.DurationField(blank=True, null=True)
     network_output = models.BooleanField(default=False)
+    link_output = models.BooleanField(default=False)
     user_output = models.BooleanField(default=False)
     class Meta:
         db_table = 'SimulationRun'

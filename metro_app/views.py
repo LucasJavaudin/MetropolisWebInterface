@@ -2070,6 +2070,23 @@ def simulation_run_list(request, simulation):
 
 @public_required
 @check_run_relation
+def simulation_run_link_output(request, simulation, run):
+    """Simple view to send the link-specific results of the run to the user."""
+    try:
+        db_name = settings.DATABASES['default']['NAME']
+        file_path = (
+            '{0}/website_files/network_output/link_results_{1}_{2}.txt'
+            .format(settings.BASE_DIR, simulation.id, run.id)
+        )
+        return FileResponse(open(file_path, 'rb'),
+                            filename='link_results.tsv',
+                            content_type='application/octet-stream')
+    except FileNotFoundError:
+        # Should notify an admin that the file is missing.
+        raise Http404()
+
+@public_required
+@check_run_relation
 def simulation_run_user_output(request, simulation, run):
     """Simple view to send the user-specific results of the run to the user."""
     try:

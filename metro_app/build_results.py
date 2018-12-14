@@ -95,6 +95,46 @@ def import_output(run):
         output[output_type] = np.array(output[output_type], dtype=np.int16)
     return output
 
+def export_link_results(output, export_file):
+    # Create a dictionary to map the link ids with the link user ids.
+    link_mapping = dict()
+    links = get_query('link', SIMULATION.id)
+    for link in links:
+        link_mapping[link.id] = link.user_id
+    # Check size of network.
+    large_network = len(output['link_ids']) >= NETWORK_THRESHOLD
+    # Write a csv.
+    with codecs.open(export_file, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Writer a custom header.
+        if large_network:
+            labels = ['in-flow_H']
+        else:
+            labels = ['in-flow_H', 'in-flow_S', 'out-flow_H', 'out-flow_S',
+                      'ttime_H', 'ttime_S']
+        nb_periods = len(output['phi_in_H'][0])
+        headers = ['{}_{}'.format(l, i+1) 
+                   for l in labels 
+                   for i in range(nb_periods)]
+        headers = ['link'] + headers
+        writer.writerow(headers)
+        # Write rows.
+        if large_network:
+            # Large network, only store one type of results (phi_in_H).
+            output_types = ['phi_in_H']
+        else:
+            # Small network, we can store everything.
+            output_types = ['phi_in_H', 'phi_in_S', 'phi_out_H', 'phi_out_S',
+                            'ttime_H', 'ttime_S']
+        for i, link_id in enumerate(output['link_ids']):
+            link_id = int(link_id)
+            link_user_id = link_mapping[link_id]
+            row = [link_user_id]
+            for output_type in output_types:
+                values = output[output_type][i]
+                row += list(values)
+            writer.writerow(row)
+
 def build_results(output):
     """Convert the results to color values.
     
@@ -155,7 +195,7 @@ def build_results(output):
 
     return results
 
-def export_results(run, results):
+def export_network_results(run, results):
     """Sore the built results to a json file."""
     simulation = run.simulation
     output_file = (
@@ -249,6 +289,7 @@ except SimulationRun.DoesNotExist:
     raise SystemExit('MetroDoesNotExist: No SimulationRun object corresponding'
                      + ' to the given id.')
 
+SIMULATION = RUN.simulation
 # Change the status of the run.
 RUN.status = 'Ending'
 RUN.save()
@@ -256,10 +297,16 @@ RUN.save()
 try:
     print('Importing output...')
     OUTPUT = import_output(RUN)
+    print('Writing link-specific results file...')
+    EXPORT_FILE = (
+        '{0}/website_files/network_output/link_results_{1}_{2}.txt'
+        .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
+    )
+    export_link_results(OUTPUT, EXPORT_FILE)
     print('Preparing the network view...')
     RESULTS = build_results(OUTPUT)
     print('Exporting results...')
-    export_results(RUN, RESULTS)
+    export_network_results(RUN, RESULTS)
     print('Cleaning files...')
     clean_files(RUN)
 except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
@@ -268,17 +315,20 @@ except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
     end_run(RUN, failed=True)
     raise e
 
-print('Checking if results are correctly stored...')
-SIMULATION = RUN.simulation
+print('Checking if network results are correctly stored...')
 FILE = (
     '{0}/website_files/network_output/results_{1}_{2}.json'
     .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
 )
 if os.path.isfile(FILE):
     RUN.network_output = True
+if os.path.isfile(EXPORT_FILE):
+    RUN.link_output = True
+
+DB_NAME = settings.DATABASES['default']['NAME']
 
 # Create a tsv file with a readable user-specific output.
-DB_NAME = settings.DATABASES['default']['NAME']
+print('Writing traveler-specific output...')
 FILE = (
     '{0}/metrosim_files/output/metrosim_users_{1}_{2}.txt'
     .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
@@ -323,7 +373,7 @@ if os.path.isfile(FILE):
                                      row[9], row[10], row[11], row[12], row[13],
                                      row[14]])
     except Exception as e:
-        print('Error while reading user-specific results file')
+        print('Error while writing user-specific results file')
         print(e)
 
 if os.path.isfile(EXPORT_FILE):
