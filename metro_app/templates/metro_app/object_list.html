@@ -1,0 +1,34 @@
+{% extends 'metro_app/base.html' %}
+{% load render_table from django_tables2 %}
+{% load bootstrap4 %}
+{% load custom_template %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<center>
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:object_view' simulation.id object %}" title="Go back to the demand page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+</center>
+
+<br>
+
+{% if filter %}
+<h5>Filter the table</h5>
+<form action="" method="get" class="form form-inline">
+	{% bootstrap_form filter.form layout='inline' %}
+	{% bootstrap_button 'filter' %}
+	<a role="button" class="btn btn-info ml-1" href="{% url 'metro:object_list' simulation.id object %}">
+		reset
+	</a>
+</form>
+{% endif %}
+<center>
+{% render_table table 'django_tables2/bootstrap.html' %}
+</center>
+
+{% endblock %}

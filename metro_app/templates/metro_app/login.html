@@ -1,0 +1,32 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Login - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	{% if login_error %}
+	<div class="alert alert-danger" role="alert">
+		Username or password incorrect.
+	</div>
+	{% endif %}
+
+	<form action="{% url 'metro:login_action' %}" method="post">
+		{% csrf_token %}
+		{% bootstrap_form form show_label=False %}
+		<center>
+			<button type="submit" class="btn btn-primary btn-lg">Login</button>
+		</center>
+	</form>
+
+	<center>
+		<div>No account yet? <a href="{% url 'metro:register' %}">Register</a>.</div>
+	</center>
+
+</div>
+
+{% endblock %}

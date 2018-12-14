@@ -1,0 +1,96 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+<script src="{% static 'js/jquery.formset.js' %}"></script>
+
+
+<center>
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:object_view' simulation.id object %}" title="Go back to the demand page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+</center>
+
+<br>
+
+<form id="objectForm" action="{% url 'metro:object_edit_save' simulation.id object %}" method="post">
+	{% csrf_token %}
+	{{ formset.management_form }}
+
+	<center>
+		<button type="submit" class="btn btn-primary btn-lg my-3" title="Save the O-D Matrix">
+			Save
+		</button>
+	</center>
+
+	<div class="table-responsive">
+
+		<table class="table table-bordered table-sm" id="{{ formset.prefix }}">
+			<thead>
+				<tr>
+					{% for field in formset.empty_form.visible_fields %}
+					{% if field.name == 'DELETE' %}
+					<th scope="col" class="d-none">
+						{{ field.label_tag }}
+					</th>
+					{% else %}
+					<th scope="col">
+						{{ field.label_tag }}
+					</th>
+					{% endif %}
+					{% endfor %}
+				</tr>
+			</thead>
+			<tbody>
+				{% for form in formset %}
+				<tr>
+					{% for field in form.visible_fields %}
+					{% if field.name == 'DELETE' %}
+					<td class="d-none">
+						{{ field }}
+					</td>
+					{% else %}
+					<td>
+						{% if field.name == 'name' %}
+						{% render_field field class="form-control" %}
+						{% else %}
+						{% render_field field|attr:"required" class="form-control" %}
+						{% endif %}
+					</td>
+					{% endif %}
+					{% endfor %}
+					{% for field in form.hidden_fields %}
+					<td>
+						{% render_field field class="d-none" %}
+					</td>
+					{% endfor %}
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+
+	</div>
+
+	<center>
+		<button type="submit" class="btn btn-primary btn-lg my-3" title="Save the O-D Matrix">
+			Save
+		</button>
+	</center>
+
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+$(function() {
+    $('#objectForm tbody tr').formset({
+	    prefix: '{{ formset.prefix }}'
+    });
+})
+{% endblock %}

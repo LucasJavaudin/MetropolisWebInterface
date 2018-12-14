@@ -1,0 +1,27 @@
+{% extends 'metro_app/base.html' %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+	
+	<div class="alert alert-danger">
+		The import file could not be processed.
+		<br>
+		Please, make sure that the headers are correctly specified and that all rows are filled.
+	</div>
+
+	<br>
+
+	<center>
+		<a role="button" class="btn btn-primary" href="{% url 'metro:simulation_view' simulation.id %}">
+			Back
+		</a>
+	</center>
+
+</div>
+
+{% endblock %}

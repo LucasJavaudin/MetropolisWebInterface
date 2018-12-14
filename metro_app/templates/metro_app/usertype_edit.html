@@ -1,0 +1,658 @@
+{% extends 'metro_app/base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	<form action="{% url 'metro:usertype_edit_save' simulation.id demandsegment.id %}" method="post" id="id_form">
+		{% csrf_token %}
+		{{ form.id }}
+
+		<center>
+			<button type="submit" class="btn btn-primary btn-lg mt-3" title="Save the traveler type">
+				Save
+			</button>
+		</center>
+
+		<div class="row">
+
+			<div class="col">
+
+				<center>
+					<h4 class="mt-5">General</h4>
+				</center>
+
+				<label for="id_name" class="mt-3">Name</label>
+				<div class="input-group">
+					{% render_field form.name class="form-control" %}
+				</div>
+
+				<label for="id_comment" class="mt-3">Comment</label>
+				<div class="input-group">
+					{% render_field form.comment class="form-control" %}
+				</div>
+
+				<label for="id_scale" class="mt-3">O-D matrix scale</label>
+				<div class="input-group">
+					{% render_field form.scale class="form-control" %}
+				</div>
+
+			</div>
+
+		</div>
+
+		<div class="row">
+
+			<div class="col">
+
+				<center>
+					<h4 class="mt-5">Modal choice</h4>
+				</center>
+
+				<div class="form-row mt-3">
+
+					<div class="col">
+
+						<div class="custom-control custom-checkbox">
+							{% render_field form.modeChoice class="custom-control-input" %}
+							<label for="id_modeChoice" class="custom-control-label" title="{{ form.modeChoice.help_text }}">Enable modal choice</label>
+						</div>
+
+					</div>
+
+				</div>
+
+				<fieldset id="id_modeChoiceSet">
+
+					<div class="form-row mt-3">
+
+						<div class="col">
+
+							<div class="custom-control custom-checkbox col">
+								{% render_field form.modeShortRun class="custom-control-input" %}
+								<label for="id_modeShortRun" class="custom-control-label" title="{{ form.modeShortRun.help_text }}">Short term choice</label>
+							</div>
+
+						</div>
+
+					</div>
+
+					<h5 class="mt-3">Mode mu</h5>
+
+					<div class="form-row">
+
+						<div class="col">
+
+							<label for"id_modeMu_type">Distribution</label>
+							<div class="input-group">
+								{% render_field form.modeMu_type class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_modeMu_mean">Mean</label>
+							<div class="input-group">
+								{% render_field form.modeMu_mean class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_modeMu_std">Standard-deviation</label>
+							<div class="input-group">
+								{% render_field form.modeMu_std class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_typeOfModeMu">Type</label>
+							<div class="input-group">
+								{% render_field form.typeOfModeMu class="form-control" %}
+							</div>
+
+						</div>
+
+					</div>
+
+					<h5 class="mt-3">Value of time (public transit)</h5>
+
+					<div class="form-row">
+
+						<div class="col">
+
+							<label for"id_alphaTP_type">Distribution</label>
+							<div class="input-group">
+								{% render_field form.alphaTP_type class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_alphaTP_mean">Mean</label>
+							<div class="input-group">
+								{% render_field form.alphaTP_mean class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_alphaTP_std">Standard-deviation</label>
+							<div class="input-group">
+								{% render_field form.alphaTP_std class="form-control" %}
+							</div>
+
+						</div>
+
+					</div>
+
+					<h5 class="mt-3">Penalty (public transit)</h5>
+
+					<div class="form-row">
+
+						<div class="col">
+
+							<label for"id_penaltyTP_type">Distribution</label>
+							<div class="input-group">
+								{% render_field form.penaltyTP_type class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_penaltyTP_mean">Mean</label>
+							<div class="input-group">
+								{% render_field form.penaltyTP_mean class="form-control" %}
+							</div>
+
+						</div>
+						
+						<div class="col">
+
+							<label for"id_penaltyTP_std">Standard-deviation</label>
+							<div class="input-group">
+								{% render_field form.penaltyTP_std class="form-control" %}
+							</div>
+
+						</div>
+
+					</div>
+
+				</fieldset>
+
+			</div>
+
+		</div>
+
+		<div class="row">
+
+			<div class="col">
+
+				<center>
+					<h4 class="mt-5">Departure time choice</h4>
+				</center>
+
+				<label for="id_commuteType" class="mt-3">Commute type</label>
+				<div class="input-group">
+					{% render_field form.commuteType class="form-control" %}
+				</div>
+
+				<h5 class="mt-3">Departure mu</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_departureMu_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.departureMu_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_departureMu_mean">Mean</label>
+						<div class="input-group">
+							{% render_field form.departureMu_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_departureMu_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.departureMu_std class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_typeOfDepartureMu">Type</label>
+						<div class="input-group">
+							{% render_field form.typeOfDepartureMu class="form-control" %}
+						</div>
+
+					</div>
+
+				</div>
+
+				<h5 class="mt-3" id="id_desired">Desired arrival time (t*)</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_tstar_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.tstar_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_tstar_mean">Mean</label>
+						<small id="id_timeHelp" class="tex-muted"></small>
+						<div class="input-group">
+							{% render_field form.tstar_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_tstar_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.tstar_std class="form-control" %}
+						</div>
+
+					</div>
+					
+				</div>
+
+				<h5 class="mt-3">On-time period length δ</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_delta_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.delta_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_delta_mean">Mean</label>
+						<div class="input-group">
+							{% render_field form.delta_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_delta_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.delta_std class="form-control" %}
+						</div>
+
+					</div>
+					
+				</div>
+
+				<h5 class="mt-3">Value of time α (car)</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_alphaTI_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.alphaTI_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_alphaTI_mean">Mean</label>
+						<div class="input-group">
+							{% render_field form.alphaTI_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_alphaTI_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.alphaTI_std class="form-control" %}
+						</div>
+
+					</div>
+					
+				</div>
+
+				<h5 class="mt-3">Early penalty β</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_beta_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.beta_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_beta_mean">Mean</label>
+						<div class="input-group">
+							{% render_field form.beta_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_beta_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.beta_std class="form-control" %}
+						</div>
+
+					</div>
+					
+				</div>
+
+				<h5 class="mt-3">Late penalty γ</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_gamma_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.gamma_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_gamma_mean">Mean</label>
+						<div class="input-group">
+							{% render_field form.gamma_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_gamma_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.gamma_std class="form-control" %}
+						</div>
+
+					</div>
+					
+				</div>
+
+			</div>
+
+		</div>
+
+		<div class="row">
+
+			<div class="col">
+
+				<center>
+					<h4 class="mt-5">Route choice</h4>
+				</center>
+
+				<label for="id_typeOfRouteChoice" class="mt-3">Type of route choice</label>
+				<div class="input-group">
+					{% render_field form.typeOfRouteChoice class="form-control" %}
+				</div>
+
+				<div class="form-row mt-3">
+
+					<div class="col">
+
+						<div class="custom-control custom-checkbox col">
+							{% render_field form.localATIS class="custom-control-input" %}
+							<label for="id_localATIS" class="custom-control-label" title="{{ form.localATIS.help_text }}">Travelers observe congestion on the next link</label>
+						</div>
+
+					</div>
+
+				</div>
+
+				<h5 class="mt-3">Route mu</h5>
+
+				<div class="form-row">
+
+					<div class="col">
+
+						<label for"id_routeMu_type">Distribution</label>
+						<div class="input-group">
+							{% render_field form.routeMu_type class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_routeMu_mean">Mean</label>
+						<div class="input-group">
+							{% render_field form.routeMu_mean class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_routeMu_std">Standard-deviation</label>
+						<div class="input-group">
+							{% render_field form.routeMu_std class="form-control" %}
+						</div>
+
+					</div>
+					
+					<div class="col">
+
+						<label for"id_typeOfRouteMu">Type</label>
+						<div class="input-group">
+							{% render_field form.typeOfRouteMu class="form-control" %}
+						</div>
+
+					</div>
+
+				</div>
+
+			</div>
+
+		</div>
+
+		<center>
+			<button type="submit" class="btn btn-primary btn-lg mt-5" title="Save the traveler type">
+				Save
+			</button>
+		</center>
+
+	</form>
+
+	<br>
+	<center>
+		<a role="button" class="btn btn-secondary mt-5" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the demand page">
+			<span class="far fa-caret-square-left"></span> Back
+		</a>
+	</center>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+// Disable or enable mode choice inputs according to the mode choice checkbox
+var modeChoice = $('#id_modeChoice');
+modeChoice.change(function() {
+	if (modeChoice.prop('checked')) {
+		$('#id_modeChoiceSet').children().children().children().children('input').prop('disabled', false)
+		$('#id_modeChoiceSet').children().children().children().children('select').prop('disabled', false)
+	} else {
+		$('#id_modeChoiceSet').children().children().children().children('input').prop('disabled', true)
+		$('#id_modeChoiceSet').children().children().children().children('select').prop('disabled', true)
+	}
+	$('#id_modeChoiceSet').children().children().children().children('select').change()
+});
+modeChoice.change();
+
+// Toggle between desired arrival and desired departure time when commute type change
+var commuteType = $('#id_commuteType');
+commuteType.change(function() {
+	if (commuteType.val() == 'MORNING') {
+		$('#id_desired').html('Desired arrival time (t*)');
+	} else if (commuteType.val() == 'EVENING') {
+		$('#id_desired').html('Desired departure time (t*)');
+	}
+});
+commuteType.change();
+
+// Disable standard-deviation if distribution is NONE (constant)
+alphaTIType = $('#id_alphaTI_type');
+alphaTIType.change(function() {
+	if (alphaTIType.val() == 'NONE') {
+		$('#id_alphaTI_std').prop('disabled', true);
+	} else {
+		$('#id_alphaTI_std').prop('disabled', false);
+	}
+});
+alphaTIType.change();
+alphaTPType = $('#id_alphaTP_type');
+alphaTPType.change(function() {
+	if (alphaTPType.val() == 'NONE') {
+		$('#id_alphaTP_std').prop('disabled', true);
+	} else {
+		$('#id_alphaTP_std').prop('disabled', false);
+	}
+});
+alphaTPType.change();
+betaType = $('#id_beta_type');
+betaType.change(function() {
+	if (betaType.val() == 'NONE') {
+		$('#id_beta_std').prop('disabled', true);
+	} else {
+		$('#id_beta_std').prop('disabled', false);
+	}
+});
+betaType.change();
+deltaType = $('#id_delta_type');
+deltaType.change(function() {
+	if (deltaType.val() == 'NONE') {
+		$('#id_delta_std').prop('disabled', true);
+	} else {
+		$('#id_delta_std').prop('disabled', false);
+	}
+});
+deltaType.change();
+departureMuType = $('#id_departureMu_type');
+departureMuType.change(function() {
+	if (departureMuType.val() == 'NONE') {
+		$('#id_departureMu_std').prop('disabled', true);
+	} else {
+		$('#id_departureMu_std').prop('disabled', false);
+	}
+});
+departureMuType.change();
+gammaType = $('#id_gamma_type');
+gammaType.change(function() {
+	if (gammaType.val() == 'NONE') {
+		$('#id_gamma_std').prop('disabled', true);
+	} else {
+		$('#id_gamma_std').prop('disabled', false);
+	}
+});
+gammaType.change();
+modeMuType = $('#id_modeMu_type');
+modeMuType.change(function() {
+	if (modeMuType.val() == 'NONE') {
+		$('#id_modeMu_std').prop('disabled', true);
+	} else {
+		$('#id_modeMu_std').prop('disabled', false);
+	}
+});
+modeMuType.change();
+penaltyTPType = $('#id_penaltyTP_type');
+penaltyTPType.change(function() {
+	if (penaltyTPType.val() == 'NONE') {
+		$('#id_penaltyTP_std').prop('disabled', true);
+	} else {
+		$('#id_penaltyTP_std').prop('disabled', false);
+	}
+});
+penaltyTPType.change();
+routeMuType = $('#id_routeMu_type');
+routeMuType.change(function() {
+	if (routeMuType.val() == 'NONE') {
+		$('#id_routeMu_std').prop('disabled', true);
+	} else {
+		$('#id_routeMu_std').prop('disabled', false);
+	}
+});
+routeMuType.change();
+tstarType = $('#id_tstar_type');
+tstarType.change(function() {
+	if (tstarType.val() == 'NONE') {
+		$('#id_tstar_std').prop('disabled', true);
+	} else {
+		$('#id_tstar_std').prop('disabled', false);
+	}
+});
+tstarType.change();
+
+// Function to convert a nb of minutes to a time (ex.: 360 -> '6:00 AM')
+function valueToTime(val) {
+	var hours = Math.floor(val / 60);
+	var minutes = val % 60;
+	if(val >= 780){ hours = hours-12 }
+	if(val < 60){ hours=hours+12 }
+	hours = "" + hours;
+	if(minutes < 10){ minutes = "0" + minutes }else{ minutes = "" + minutes }
+	var string = hours + ":" + minutes + " ";
+   	if(val < 720 || val >= 1440){ string += "AM" }else{ string += "PM" }
+	return string
+}
+
+// Enable all form elements before submiting (Django does not like disabeld elements...)
+$('#id_form').on('submit', function() {
+    $('input').prop('disabled', false);
+    $('select').prop('disabled', false);
+});
+
+// Add human-readable time below the tstar mean
+var tstarMean = $('#id_tstar_mean');
+tstarMean.change(function() {
+	$('#id_timeHelp').html('(' + valueToTime(tstarMean.val()) + ')');
+});
+tstarMean.change()
+{% endblock %}

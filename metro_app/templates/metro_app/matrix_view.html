@@ -1,0 +1,64 @@
+{% extends 'metro_app/base.html' %}
+{% load humanize %}
+
+{% block title %}
+{{ simulation }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<center>
+	{% if public_transit %}
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	{% else %}
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the demand page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	{% endif %}
+</center>
+
+<br>
+
+{% if total %}
+<center>
+	<h5 class="my-3">
+	Total population: {{ total|intcomma }}
+	</h5>
+</center>
+{% endif %}
+
+{% if od_matrix %}
+<div class="table-responsive">
+	<table class="table table-bordered">
+		<thead>
+			<tr>
+				<th scope="col">Origin\Destination</th>
+				{% for centroid in centroids %}
+				<th scope="col" style="min-width:150px;">{{ centroid }}</th>
+				{% endfor %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for row in od_matrix %}
+			<tr>
+				{% for cell in row %}
+				{% if forloop.counter == 1 %}
+				<th scope="row">{{ cell }}</th>
+				{% elif cell == -1 %}
+				<td class="table-secondary"></td>
+				{% else %}
+				<td>{{ cell }}</td>
+				{% endif %}
+				{% endfor %}
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% else %}
+	Unable to display the O-D Matrix.
+{% endif %}
+
+{% endblock %}

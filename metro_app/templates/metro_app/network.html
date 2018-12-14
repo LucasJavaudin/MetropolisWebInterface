@@ -1,0 +1,186 @@
+{% load static %}
+{% load bootstrap4 %}
+
+<script src="{% static 'js/jquery-3.3.1.slim.min.js' %}"></script>
+
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+
+<style>
+	body {
+		margin: 8px;
+	}
+</style>
+
+<head>
+	<link rel="shortcut icon" type="image/png" href="{% static 'metro_app/favicon.ico' %}"/>
+	<title>Network - {{ simulation.name }}</title>
+</head>
+
+<body>
+	<div class="row h-100 w-100">
+
+		<div class="col border p-0 mx-3" id="graph-container">
+			{% if not large_network %}
+			<svg id="main-svg"></svg>
+			{% endif %}
+		</div>
+
+		<div id="legendColumn" class="col-3 d-block h-100">
+			<div id="controls">
+				<center>
+					<a role="button" class="btn btn-secondary" href="{% url 'metro:simulation_view' simulation.id %}">
+						Back
+					</a>
+				</center>
+				<div class="form-group w-75 mx-auto">
+					<label for="sizeSlider">Size: <span id="sizeValue"></span></label>
+					<input type="range" min="10" max="500" value="100" class="form-control-range" id="sizeSlider">
+				</div>
+				<div class="form-group w-75 mx-auto">
+					<label for="zoneSelector" class="sr-only">Zones</label>
+					<select id="zoneSelector" class="form-control" onchange="drawZones()">
+						<option value="none">Zones...</option>
+						<option value="departures">Departures</option>
+						<option value="arrivals">Arrivals</option>
+						<option value="averages">Average</option>
+					</select>
+				</div>
+				<div class="form-group w-75 mx-auto">
+					<label for="linkSelector" class="sr-only">Links</label>
+					<select id="linkSelector" class="form-control" onchange="drawLinks()">
+						<option value="none">Links...</option>
+						<option value="lanes">Lanes (input)</option>
+						<option value="length">Length (input)</option>
+						<option value="speed">Speed (input)</option>
+						<option value="capacity">Capacity (input)</option>
+						<option value="type">Type (input)</option>
+						{% if results %}
+						{% if large_network %}
+						<option value="phi_in">Flows (output)</option>
+						{% else %}
+						<option value="phi_in">Entry Flows (output)</option>
+						<option value="phi_out">Exit Flows (output)</option>
+						<option value="ttime">Travel Times (output)</option>
+						{% endif %}
+						{% endif %}
+					</select>
+				</div>
+				{% if results %}
+				<div class="form-group w-75 mx-auto invisible" id="sliderDiv">
+					<label for="form-control-range">Time: <span id="slideValue"></span></label>
+					<input type="range" min="0" max="0" value="0" class="form-control-range" id="timeSlider">
+				</div>
+				{% if not large_network %}
+				<div class="form-group w-75 mx-auto invisible" id="hssDiv">
+					<label class="sr-only" for="HSSelector">Historical or Simulated values</label>
+					<select id="HSSelector" class="form-control" onchange="drawLinks()">
+						<option value="h">Historical values</option>
+						<option value="s">Simulated values (last day)</option>
+					</select>
+				</div>
+				{% endif %}
+				{% endif %}
+			</div>
+
+			<div class="row mx-auto">
+				<div class="col w-50">
+					<div id="zoneLabel" style="height:30px;display:none">
+						<label for="legend-zones-svg">Zones</label>
+					</div>
+					<div id="legend-zones-container">
+						<svg id="legend-zones-svg" class="h-100 w-100"></svg>
+					</div>
+				</div>
+				<div class="col w-50">
+					<div id="linkLabel" style="height:30px;display:none">
+						<label for="legend-links-svg">Links</label>
+					</div>
+					<div id="legend-links-container">
+						<svg id="legend-links-svg" class="h-100 w-100"></svg>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+</body>
+
+<script>
+var output = {{ output | safe }};
+{% if parameters %}
+var parameters = {{ parameters | safe }};
+{% endif %}
+{% if results %}
+var results = {{ results | safe }};
+{% endif %}
+{% if large_network %}
+var largeNetwork = true;
+{% else %}
+var largeNetwork = false;
+{% endif %}
+</script>
+
+<script src="https://d3js.org/d3.v5.min.js"></script>
+
+<script type="text/javascript" src="{% static 'js/network.js' %}"></script>
+
+{% if large_network %}
+<!-- START SIGMA IMPORTS -->
+<script src="{% static 'js/sigma/src/sigma.core.js' %}"></script>
+<script src="{% static 'js/sigma/src/conrad.js' %}"></script>
+<script src="{% static 'js/sigma/src/utils/sigma.utils.js' %}"></script>
+<script src="{% static 'js/sigma/src/utils/sigma.polyfills.js' %}"></script>
+<script src="{% static 'js/sigma/src/sigma.settings.js' %}"></script>
+<script src="{% static 'js/sigma/src/classes/sigma.classes.dispatcher.js' %}"></script>
+<script src="{% static 'js/sigma/src/classes/sigma.classes.configurable.js' %}"></script>
+<script src="{% static 'js/sigma/src/classes/sigma.classes.graph.js' %}"></script>
+<script src="{% static 'js/sigma/src/classes/sigma.classes.camera.js' %}"></script>
+<script src="{% static 'js/sigma/src/classes/sigma.classes.quad.js' %}"></script>
+<script src="{% static 'js/sigma/src/classes/sigma.classes.edgequad.js' %}"></script>
+<script src="{% static 'js/sigma/src/captors/sigma.captors.mouse.js' %}"></script>
+<script src="{% static 'js/sigma/src/captors/sigma.captors.touch.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/sigma.renderers.canvas.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/sigma.renderers.webgl.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/sigma.renderers.svg.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/sigma.renderers.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/webgl/sigma.webgl.nodes.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/webgl/sigma.webgl.nodes.fast.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/webgl/sigma.webgl.edges.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/webgl/sigma.webgl.edges.fast.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/webgl/sigma.webgl.edges.arrow.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.labels.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.hovers.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.nodes.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edges.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edges.curve.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edges.arrow.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edges.curvedArrow.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edgehovers.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edgehovers.curve.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edgehovers.arrow.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.edgehovers.curvedArrow.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/canvas/sigma.canvas.extremities.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/svg/sigma.svg.utils.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/svg/sigma.svg.nodes.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/svg/sigma.svg.edges.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/svg/sigma.svg.edges.curve.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/svg/sigma.svg.labels.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/renderers/svg/sigma.svg.hovers.def.js' %}"></script>
+<script src="{% static 'js/sigma/src/middlewares/sigma.middlewares.rescale.js' %}"></script>
+<script src="{% static 'js/sigma/src/middlewares/sigma.middlewares.copy.js' %}"></script>
+<script src="{% static 'js/sigma/src/misc/sigma.misc.animation.js' %}"></script>
+<script src="{% static 'js/sigma/src/misc/sigma.misc.bindEvents.js' %}"></script>
+<script src="{% static 'js/sigma/src/misc/sigma.misc.bindDOMEvents.js' %}"></script>
+<script src="{% static 'js/sigma/src/misc/sigma.misc.drawHovers.js' %}"></script>
+<script src="{% static 'js/sigma/plugins/sigma.renderers.edgeLabels/settings.js' %}"></script>
+<script src="{% static 'js/sigma/plugins/sigma.renderers.edgeLabels/sigma.canvas.edges.labels.def.js' %}"></script>
+<script src="{% static 'js/sigma/plugins/sigma.renderers.edgeLabels/sigma.canvas.edges.labels.curve.js' %}"></script>
+<script src="{% static 'js/sigma/plugins/sigma.renderers.edgeLabels/sigma.canvas.edges.labels.curvedArrow.js' %}"></script>
+<script src="{% static 'js/sigma/plugins/sigma.renderers.customEdgeShapes/sigma.canvas.edges.parallel.js' %}"></script>
+<script src="{% static 'js/sigma/plugins/sigma.renderers.customEdgeShapes/sigma.canvas.edgehovers.parallel.js' %}"></script>
+<!-- END SIGMA IMPORTS -->
+<script type="text/javascript" src="{% static 'js/network_sigma.js' %}"></script>
+{% else %}
+<script type="text/javascript" src="{% static 'js/network_d3.js' %}"></script>
+{% endif %}

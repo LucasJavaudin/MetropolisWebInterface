@@ -1,0 +1,78 @@
+{% extends 'metro_app/base.html' %}
+{% load humanize %}
+
+{% block title %}
+{{ simulation }} - O-D Matrix
+{% endblock %}
+
+{% block main %}
+
+<center>
+	{% if public_transit %}
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	{% else %}
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the demand page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	{% endif %}
+</center>
+
+<br>
+
+{% if total %}
+<center>
+	<h5>
+	Total population: {{ total|intcomma }}
+	</h5>
+</center>
+{% endif %}
+
+{% if public_transit %}
+<form action="{% url 'metro:public_transit_edit_save' simulation.id %}" method="post">
+{% else %}
+<form action="{% url 'metro:matrix_save' simulation.id demandsegment.id %}" method="post">
+{% endif %}
+{% csrf_token %}
+
+	<center>
+		<button type="submit" class="btn btn-primary btn-lg my-3" title="Save the O-D Matrix">
+			Save
+		</button>
+	</center>
+
+	{{ formset.management_form }}
+
+	<table class="table table-bordered table-responsive">
+		<thead>
+			<tr>
+				<th scope="col">Origin\Destination</th>
+				{% for centroid in centroids %}
+				<th scope="col" style="min-width:150px;">{{ centroid }}</th>
+				{% endfor %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for row in od_matrix %}
+			<tr>
+				{% for cell in row %}
+				{% if forloop.counter == 1 %}
+				<th scope="row">{{ cell }}</th>
+				{% elif cell %}
+				<td class="p-1">
+					<input type="number" step="any" class="form-control" min="0" value="{{ cell.1 }}" id="id_form-{{ cell.2 }}-r" name="form-{{ cell.2 }}-r">
+					<input type="hidden" value="{{ cell.0 }}" id="id_form-{{ cell.2 }}-id" name="form-{{ cell.2 }}-id">
+				</td>
+				{% else %}
+				<td class="table-secondary"></td>
+				{% endif %}
+				{% endfor %}
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+
+</form>
+
+{% endblock %}

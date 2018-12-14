@@ -1,0 +1,17 @@
+{% extends 'metro_app/base.html' %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="alert alert-warning">
+	Sorry, it seems that the network view is not available for this run!
+</div>
+
+<a role="button" class="btn btn-primary" href="{% url 'metro:simulation_view' simulation.id %}">
+	Back
+</a>
+
+{% endblock %}

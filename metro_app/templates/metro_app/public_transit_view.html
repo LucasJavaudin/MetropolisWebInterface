@@ -1,0 +1,207 @@
+{% extends 'metro_app/base.html' %}
+{% load custom_template %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+<h3>Public transit system</h3>
+The public transit system of the network is represented by the public-transit travel time between all possible origin-destination pairs of the network (i.e. all possible couple of zones).
+
+<br>
+
+{% if is_empty %}
+This network has no public transit system.
+{% elif is_complete %}
+This network has a complete public transit system.
+{% else %}
+This network has an incomplete public transit system.
+{% endif %}
+
+<br>
+
+<div class="row">
+
+	<div class="col text-center">
+
+		<div class="btn-group my-3" role="group">
+			{% if not is_empty %}
+			<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:public_transit_list' simulation.id %}">
+				View 
+			</a>
+			{% else %}
+			<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no public transit system" disabled>
+				View 
+			</button>
+			{% endif %}
+			{% if owner %}
+			{% if large_matrix %}
+			<button type="button" class="btn btn-outline-primary" title="The O-D matrix is too large to be edited, use the import button" disabled>
+				Edit 
+			</button>
+			{% elif not has_centroid %}
+			<button type="button" class="btn btn-outline-primary" title="The network must have at least two zones" disabled>
+				Edit 
+			</button>
+			{% else %}
+			<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:public_transit_edit' simulation.id %}">
+				Edit 
+			</a>
+			{% endif %}
+			{% endif %}
+		</div>
+
+		<br>
+
+		<div class="btn-group my-3" role="group">
+			{% if not is_empty %}
+			<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:public_transit_export' simulation.id %}">
+				Export 
+			</a>
+			{% else %}
+			<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no public transit system" disabled>
+				Export 
+			</button>
+			{% endif %}
+			{% if owner %}
+			{% if not has_centroid %}
+			<button type="button" class="btn btn-outline-primary" title="The network must have at least two zones" disabled>
+				Import 
+			</button>
+			{% else %}
+			<button type="button" class="btn btn-outline-primary w-50" data-toggle="modal" data-target="#importModal">
+				Import 
+			</button>
+			{% endif %}
+			{% endif %}
+		</div>
+
+		<br>
+
+		{% if owner %}
+		{% if not is_empty %}
+		<button type="button" class="btn btn-outline-danger my-3" data-toggle="modal" data-target="#deleteModal">
+			Delete 
+		</button>
+		{% else %}
+		<button type="button" class="btn btn-outline-danger my-3" title="The network has no public transit system" disabled>
+			Delete 
+		</button>
+		{% endif %}
+		{% endif %}
+
+	</div>
+
+</div>
+
+<br>
+
+<center>
+
+	<a role="button" class="btn btn-secondary mt-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	
+</center>
+
+</div>
+
+{% if owner %}
+{% if not is_empty %}
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Delete the public transit system</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to delete all public-transit travel times?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:public_transit_delete' simulation.id %}">Delete</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
+{% if has_centroid %}
+<div class="modal fade" id="importModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Import the public transit system</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:public_transit_import' simulation.id %}" method="post" enctype="multipart/form-data">
+				{% csrf_token %}
+				<div class="modal-body form-group">
+					{% render_field import_form.import_file class="form-control-file my-3" %}
+					<div id="importDiv" style="display:none;">
+						<div class="progress">
+							<div class="progress-bar progress-bar-striped" role="progressbar" style="width: 50%; margin-right: 100%;"></div>
+						</div>
+						<div class="text-warning">
+							Please be patient, this operation can take several minutes if the file imported has a large number of rows.
+							<br>
+							The import process does not stop if you close this pop-up.
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto" onclick="runProgressBar()">Import</a>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+function runProgressBar() {
+	var progressBar = $('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Show the progress bar
+	$('#importDiv').css("display", "block")
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+{% endblock %}

@@ -1,0 +1,588 @@
+{% extends 'metro_app/base.html' %}
+{% load humanize %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	<div class="row my-5">
+
+		<div class="col">
+			<center>
+				<div class="alert alert-primary" role="alert" style="max-width:1200px;">
+					<h3 class="alert-heading">{{ simulation.name }}</h4>
+					{{ simulation.comment }}
+				</div>
+				{% if user.is_authenticated %}
+				<button type="button" class="btn btn-outline-primary mx-3" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});">
+					<i class="far fa-clone"></i> Copy
+				</button>
+				<button type="button" class="btn btn-outline-primary mx-3" data-toggle="modal" data-target="#editModal">
+					<i class="fas fa-pencil-alt"></i> Modify
+				</button>
+				{% endif %}
+				{% if owner %}
+				<button type="button" class="btn btn-outline-primary mx-3" data-toggle="modal" data-target="#deleteModal">
+					<i class="far fa-trash-alt"></i> Delete
+				</button>
+				{% endif %}
+				</center>
+		</div>
+
+	</div>
+
+	<div class="row my-5">
+
+		<div class="col border border-primary rounded mx-3">
+			<center>
+				<h4 class="mt-3">Network</h4>
+
+				The network has {{ network.centroids|intcomma }}
+				{% if network.centroids > 1 %}
+				zones,
+				{% else %}
+				zone,
+				{% endif %}
+				{{ network.crossings|intcomma }}
+				{% if network.crossings > 1 %}
+				intersections,
+				{% else %}
+				intersection,
+				{% endif %}
+				{{ network.links|intcomma }}
+				{% if network.links > 1 %}
+				links
+				{% else %}
+				link
+				{% endif %}
+				and  
+				{{ network.functions|intcomma }} link
+				{% if network.functions > 1 %}
+				functions.
+				{% else %}
+				function.
+				{% endif %}
+
+				<br>
+
+				{% if network.generated %}
+				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:network_view' simulation.id %}" title="View a graph of the network">
+					<i class="fas fa-road"></i> Network View
+				</a>
+				{% elif network.links %}
+				<a role="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#loadingNetwork" onclick="runNetworkProgressBar()" href="{% url 'metro:network_view' simulation.id %}" title="View a graph of the network">
+					<i class="fas fa-road"></i> Network View
+				</a>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="Cannot display an empty network" disabled>
+					<i class="fas fa-road"></i> Network View
+				</button>
+				{% endif %}
+				<br>
+				<div class="btn-group-vertical my-3" role="group">
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:object_view' simulation.id 'centroid' %}" title="View and edit the zones">
+						Zones
+					</a>
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:object_view' simulation.id 'crossing' %}" title="View and edit the intersections">
+						Intersections
+					</a>
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:object_view' simulation.id 'function' %}" title="View and edit the congestion functions">
+						Congestion functions
+					</a>
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:object_view' simulation.id 'link' %}" title="View and edit the links">
+						Links
+					</a>
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:public_transit_view' simulation.id %}" title="View and edit the public transit system">
+						Public transit
+					</a>
+				</div>
+			</center>
+		</div>
+
+	</div>
+
+	<div class="row my-5">
+
+		<div class="col border border-primary rounded mx-3">
+			<center>
+				<h4 class="mt-3">Travelers</h4>
+
+				{% if travelers.type > 1 %}
+				There are {{ travelers.type|intcomma }} types of travelers
+				{% else %}
+				There is {{ travelers.type }} type of travelers
+				{% endif %}
+				for a total of {{ travelers.nb_travelers|intcomma }}
+				{% if travelers.nb_travelers > 1 %}
+				travelers.
+				{% else %}
+				traveler.
+				{% endif %}
+
+				<br>
+
+				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:demand_view' simulation.id %}" title="View and edit the different traveler types">
+					<i class="fas fa-car"></i> Travelers
+				</a>
+			</center>
+		</div>
+
+	</div>
+
+	<div class="row my-5 border border-primary rounded">
+
+		<div class="col">
+
+			<center>
+				<h4 class="mt-3">Runs</h4>
+
+				The simulation was 
+				{% if runs.nb_run > 1 %}
+				run {{ runs.nb_run }} times.
+				{% elif runs.nb_run == 1 %}
+				run once.
+				{% else %}
+				never run.
+				{% endif %}
+				{% if runs.in_progress %}
+				The simulation is currently running.
+				{% endif %}
+
+				<br>
+
+				{% if runs.in_progress %}
+				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:simulation_run_view' simulation.id runs.last.id %}" title="View details on the current run">
+					<i class="fas fa-spinner"></i> Current run
+				</a>
+				{% else %}
+				{% if owner %}
+				{% if complete_simulation and good_pt %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#runModal" title="Run the simulation">
+					<i class="fas fa-play"></i> Run
+				</button>
+				{% elif not complete_simulation %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to create a network or to add travelers in order to run the simulation" disabled>
+					<i class="fas fa-play"></i> Run
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="Modal choice is enable but you have not added a public transit system" disabled>
+					<i class="fas fa-play"></i> Run
+				</button>
+				{% endif %}
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to be owner of the simulation to run it" disabled>
+					<i class="fas fa-play"></i> Run
+				</button>
+				{% endif %}
+				{% endif %}
+				{% if runs.nb_run %}
+				<br>
+				<a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:simulation_run_list' simulation.id %}" title="View information of the previous runs">
+					Run history
+				</a>
+				{% endif %}
+
+			</center>
+
+		</div>
+
+	</div>
+
+	<div class="row my-5 border border-primary rounded">
+
+		<div class="col">
+			<center>
+				<h4 class="mt-3">Parameters</h4>
+			</center>
+
+			<form id="paramForm" action="{% url 'metro:simulation_view_save' simulation.id %}" method="post">
+				{% csrf_token %}
+				{{ simulation_form.id }}
+
+				<div class="row">
+
+					<div class="col">
+
+						<center>
+							<h5>Stopping criteria</h5>
+						</center>
+
+						<label for="id_stacLim" class="mt-3">EXPECT</label>
+						<div class="input-group">
+							<div class="input-group-prepend">
+								<div class="input-group-text">
+									{% render_field simulation_form.stac_check %}
+								</div>
+							</div>
+							{% render_field simulation_form.stacLim class="form-control" %}
+							<div class="input-group-append">
+								<div class="input-group-text">
+									%
+								</div>
+							</div>
+						</div>
+
+						<label for="id_iterations" class="mt-3">Iterations</label>
+						<div class="input-group">
+							<div class="input-group-prepend">
+								<div class="input-group-text">
+									{{ simulation_form.iterations_check }}
+								</div>
+							</div>
+							{% render_field simulation_form.iterations class="form-control" %}
+						</div>
+
+						<center>
+							<h5 class="mt-5">Learning model</h5>
+						</center>
+
+						<label for="id_advancedLearningProcess" class="mt-3">
+							Learning process
+						</label>
+						<div class="input-group">
+							{% render_field simulation_form.advancedLearningProcess|append_attr:"multiple" class="form-control" %}
+						</div>
+
+					</div>
+
+					<div class="col">
+
+						<center>
+							<h5>Recording period</h5>
+						</center>
+
+						<label id="periodDiv" class="my-3">
+							From {{ simulation.startTime }} to {{ simulation.lastRecord }}
+						</label>
+						<div id="periodRange"></div>
+						{% render_field simulation_form.startTime class="d-none" %}
+						{% render_field simulation_form.lastRecord class="d-none" %}
+
+						<label for="id_recordsInterval" class="mt-3">
+							Recording interval for output
+						</label>
+						<div class="input-group">
+							{% render_field simulation_form.recordsInterval|append_attr:"multiple" class="form-control" %}
+						</div>
+
+						<center>
+							<h5 class="mt-5">Queuing model</h5>
+						</center>
+
+						<label for="id_jamDensity" class="mt-3">Spillback</label>
+						<div class="input-group">
+							<div class="input-group-prepend">
+								<div class="input-group-text">
+									{{ simulation_form.horizontalQueueing }}
+								</div>
+							</div>
+							{% render_field simulation_form.jamDensity class="form-control" %}
+							<div class="input-group-append">
+								<div class="input-group-text">
+									m
+								</div>
+							</div>
+						</div>
+
+					</div>
+
+				</div>
+
+				{% if owner %}
+				<center>
+					<button type="submit" class="btn btn-outline-primary mt-5">Save</button>
+				</center>
+				{% endif %}
+
+			</form>
+		</div>
+
+	</div>
+
+</div>
+
+{% if owner %}
+<div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Modify</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:simulation_view_edit' simulation.id %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					{% bootstrap_form edit_form show_help=False %}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">
+						Close
+					</button>
+					<button type="submit" class="btn btn-primary mx-auto" >
+						OK
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Delete a simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to delete '{{ simulation.name }}'?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:simulation_delete' simulation.id %}">Delete</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% if user.is_authenticated %}
+<div class="modal fade" id="copyModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Copy a simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:copy_simulation' %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					<input type="hidden" name="copy_id" id="copyId" value="">
+					{% bootstrap_form copy_form show_help=False %}
+					<div id="copyDiv" style="display:none;">
+						<div class="progress">
+							<div class="progress-bar progress-bar-striped" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 50%; margin-right: 100%;"></div>
+						</div>
+						<div class="text-warning">
+							Please be patient, this operation can take up to one hour for very large networks due to limitations of the database.
+							<br>
+							If you close this pop-up, you can still browse the website. Your simulation will appear in the list when it will be ready.
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto" onclick="runCopyProgressBar()">Copy</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% if owner and complete_simulation %}
+<div class="modal fade" id="runModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Run the simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:simulation_run_action' simulation.id %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					{% bootstrap_form run_form %}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Run</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% if not network.generated and network.links %}
+<div class="modal fade" id="loadingNetwork" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Loading network</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				<div id="networkBar" class="progress">
+					<div class="progress-bar progress-bar-striped" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 50%; margin-right: 100%;"></div>
+				</div>
+				<div class="text-warning">
+					Please be patient, this operation can take a few minutes for large networks.
+					<br>
+					This operation needs to be performed only once per simulation (unless the network or the O-D matrix is modified).
+				</div>
+			</div>
+			<div class="modal-footer">
+				<a role="button" class="btn btn-primary mx-auto" href="{% url 'metro:simulation_view' simulation.id %}">Cancel</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+// Add id and name to copy form
+function updateCopyInput(name, id) {
+	$('#copyId').val(id);
+	$('#id_copy-name').val('Copy of ' + name.substring(0, 41));
+}
+
+// Show and animate the copy progress bar
+function runCopyProgressBar() {
+	var progressBar = $('#copyDiv').children().children('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Show the progress bar
+	$('#copyDiv').css("display", "block")
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+
+// Animate the network progress bar
+function runNetworkProgressBar() {
+	var progressBar = $('#networkBar').children('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Start loading the network page
+	window.location.href = '{% url 'metro:network_view' simulation.id %}';
+
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+
+// Create a slider to choose record period
+$( function() {
+	$( "#periodRange" ).slider({
+		range: true,
+		min: 0,
+		max: 1440,
+		step: 5,
+		values: [ {{ simulation.startTime }}, {{ simulation.lastRecord }} ],
+		{% if not owner %}
+		disabled: true,
+		{% endif %}
+		slide: function( event, ui ) {
+			$( "#periodDiv" ).html( "From " + valueToTime(ui.values[ 0 ]) + " to " + valueToTime(ui.values[ 1 ]) );
+			$( "#id_startTime" ).val(ui.values[0]);
+			$( "#id_lastRecord" ).val(ui.values[1]);
+		}
+	});
+} );
+
+// Set initial values for the slider label
+$( "#periodDiv" ).html( "From " + valueToTime({{ simulation.startTime }}) + " to " + valueToTime({{ simulation.lastRecord }}) );
+
+// Function to convert a nb of minutes to a time (ex.: 360 -> '6:00 AM')
+function valueToTime(val) {
+	var hours = Math.floor(val / 60);
+	var minutes = val % 60;
+	if(val >= 780){ hours = hours-12 }
+	if(val < 60){ hours=hours+12 }
+	hours = "" + hours;
+	if(minutes < 10){ minutes = "0" + minutes }else{ minutes = "" + minutes }
+	var string = hours + ":" + minutes + " ";
+   	if(val < 720 || val >= 1440){ string += "AM" }else{ string += "PM" }
+	return string
+}
+
+// Disable some inputs if the associated checkbox is not checked
+function updateInput() {
+	if($('#id_stac_check').prop('checked')){
+		$('#id_stacLim').prop('disabled', false);
+	} else {
+		$('#id_stacLim').prop('disabled', true);
+	}
+	if($('#id_iterations_check').prop('checked')){
+		$('#id_iterations').prop('disabled', false);
+	} else {
+		$('#id_iterations').prop('disabled', true);
+	}
+	if($('#id_horizontalQueueing').prop('checked')){
+		$('#id_jamDensity').prop('disabled', false);
+	} else {
+		$('#id_jamDensity').prop('disabled', true);
+	}
+}
+
+// Enable all input when submitting (django cannot validate them if they are disabled)
+$('#paramForm').submit( function(event) {
+	$('#id_stacLim').prop('disabled', false);
+	$('#id_iterations').prop('disabled', false);
+	$('#id_jamDensity').prop('disabled', false);
+});
+
+updateInput();
+{% endblock %}

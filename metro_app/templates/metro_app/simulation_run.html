@@ -1,0 +1,70 @@
+{% extends 'metro_app/base.html' %}
+{% load render_table from django_tables2 %}
+
+{% block meta %}
+{% if run.status == 'Preparing' or run.status == 'Running' or run.status == 'Ending' %}
+<meta http-equiv="refresh" content="30" />
+{% endif %}
+{% endblock %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<center>
+	<a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+</center>
+
+<h2 class="my-3">{{ run.name }}</h2>
+
+{% if run.status == 'Preparing' %}
+The server is currently preparing the simulation for the run.
+{% elif run.status == 'Running' %}
+This run is in progress.
+<a role="button" class="btn btn-outline-danger" href="{% url 'metro:simulation_run_stop' simulation.id run.id %}">Cancel run</a>
+{% elif run.status == 'Ending' %}
+This run has ended, the server is preparing the results.
+{% elif run.status == 'Over' %}
+The run successfully ended. End time: {{ run.end_time }}. Running time: {{ run.time_taken }}.
+{% elif run.status == 'Failed' %}
+The run ended but an error occurred while building the disaggregated results. End time: {{ run.end_time }}. Running time: {{ run.time_taken }}.
+{% elif run.status == 'Aborted' %}
+The run was canceled.
+{% endif %}
+
+{% if run.network_output %}
+<br>
+<a role="button" class="btn btn-outline-primary" href="{% url 'metro:network_view_run' simulation.id run.id %}">Results on network</a>
+{% endif %}
+{% if run.user_output %}
+<br>
+<a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_user_output' simulation.id run.id %}">Download traveler-specific results</a>
+{% endif %}
+
+{% if results %}
+
+<h4 class="my-3">Results</h4>
+
+<div class="table-responsive">
+
+	{% render_table result_table 'django_tables2/bootstrap.html' %}
+
+</div>
+
+{% endif %}
+
+{% if log %}
+
+<h4 class="my-3">Log</h4>
+
+<div class="alert alert-secondary" role="alert">
+	{{ log|safe }}
+</div>
+
+{% endif %}
+
+{% endblock %}

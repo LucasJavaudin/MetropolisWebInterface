@@ -1,0 +1,236 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Metropolis
+{% endblock %}
+
+{% block main %}
+
+{% if user.is_authenticated %}
+<center>
+<button type="button" class="btn btn-primary btn-lg" title="Create a new simulation from scratch" data-toggle="modal" data-target="#newSimulationForm">
+	<i class="fas fa-plus-circle"></i> New Simulation
+</button>
+</center>
+
+<div class="modal fade" id="newSimulationForm" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="modalTitle">Create a new simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:simulation_add_action' %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					{% bootstrap_form simulation_form show_help=False %}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Create</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<br>
+{% endif %}
+
+{% if simulation_user_list %}
+<h3>Your Simulations:</h3>
+
+
+<table class="table table-hover table-bordered">
+	<thead class="thead-light">
+		<tr>
+			<th scope="col">Name</th>
+			<th scope="col">Comment</th>
+			<th scope="col">Status</th>
+			<th scope="col">Actions</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for simulation in simulation_user_list %}
+		<tr>
+			<td class="align-middle">{{ simulation.name }}</td>
+			<td class="align-middle">{{ simulation.comment }}</td>
+			<td class="align-middle">{% if simulation.public %}Public{% else %}Private{% endif %}</td>
+			<td>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-edit"></i> Edit</a>
+				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#deleteModal_{{ simulation.id }}"><i class="far fa-trash-alt"></i> Delete</button>
+			</td>
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endif %}
+
+{% if simulation_public_list %}
+<h3>Public Simulations:</h3>
+
+<table class="table table-hover table-bordered">
+	<thead class="thead-light">
+		<tr>
+			<th scope="col">Name</th>
+			<th scope="col">Comment</th>
+			<th scope="col">Author</th>
+			<th scope="col">Actions</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for simulation in simulation_public_list %}
+		<tr>
+			<td class="align-middle">{{ simulation.name }}</td>
+			<td class="align-middle">{{ simulation.comment }}</td>
+			<td class="align-middle">{{ simulation.user }}</td>
+			<td>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-eye"></i> View</a>
+				{% if user.is_authenticated %}
+				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				{% endif %}
+			</td>
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endif %}
+
+{% if simulation_private_list %}
+<h3>Private Simulations:</h3>
+
+<table class="table table-hover table-bordered">
+	<thead class="thead-light">
+		<tr>
+			<th scope="col">Name</th>
+			<th scope="col">Comment</th>
+			<th scope="col">Author</th>
+			<th scope="col">Actions</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for simulation in simulation_private_list %}
+		<tr>
+			<td class="align-middle">{{ simulation.name }}</td>
+			<td class="align-middle">{{ simulation.comment }}</td>
+			<td class="align-middle">{{ simulation.user }}</td>
+			<td>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-eye"></i> View</a>
+				{% if user.is_authenticated %}
+				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				{% endif %}
+			</td>
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endif %}
+
+
+
+{% if user.is_authenticated %}
+<div class="modal fade" id="copyModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Copy a simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:copy_simulation' %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					<input type="hidden" name="copy_id" id="copyId" value="">
+					{% bootstrap_form copy_form show_help=False %}
+					<div id="copyDiv" style="display:none;">
+						<div class="progress">
+							<div class="progress-bar progress-bar-striped" role="progressbar" style="width: 50%; margin-right: 100%;"></div>
+						</div>
+						<div class="text-warning">
+							Please be patient, this operation can take up to one hour for very large networks due to limitations of the database.
+							<br>
+							If you close this pop-up, you can still browse the website. Your simulation will appear in the list when it will be ready.
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto" onclick="runProgressBar()">Copy</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% if simulation_user_list %}
+{% for simulation in simulation_user_list %}
+<div class="modal fade" id="deleteModal_{{ simulation.id }}" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Delete a simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to delete '{{ simulation.name }}'?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:simulation_delete' simulation.id %}">Delete</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+
+function updateCopyInput(name, id) {
+	$('#copyId').val(id);
+	$('#id_copy-name').val('Copy of ' + name.substring(0, 41));
+}
+
+function runProgressBar() {
+	var progressBar = $('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Show the progress bar
+	$('#copyDiv').css("display", "block")
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+{% endblock %}

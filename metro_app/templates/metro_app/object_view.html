@@ -1,0 +1,242 @@
+{% extends 'metro_app/base.html' %}
+{% load custom_template %}
+{% load humanize %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	{% if object == 'centroid' %}
+	<h3>Zones</h3>
+	The zones are points in the network that correspond the origin and/or the destination of some travelers.
+	Each traveler departs from their origin zone and arrive at their destination zone.
+	The travelers cannot choose a path that go through another zone.
+	<br>
+	Attributes:
+	<ul>
+		<li>Name (optional)</li>
+		<li>Coordinates x and y</li>
+	</ul>
+	{% elif object == 'crossing' %}
+	<h3>Intersections</h3>
+	The intersections are points of the network used to connect links. Contrarily to zones, the intersections cannot be the origin or the destination of travelers.
+	<br>
+	Attributes:
+	<ul>
+		<li>Name (optional)</li>
+		<li>Coordinates x and y</li>
+	</ul>
+	{% elif object == 'link' %}
+	<h3>Links</h3>
+	The links are the roads of the network. The links connect the zones and the intersections of the network. Each link is associated with a congestion function.
+	<br>
+	Attributes:
+	<ul>
+		<li>Name (optional)</li>
+		<li>Origin and destination node (can be a zone or an intersection)</li>
+		<li>Congestion function that describe the congestion model of the link</li>
+		<li>Number of lanes on the link</li>
+		<li>Length of the link</li>
+		<li>Free flow speed of the link</li>
+		<li>Capacity per lane of the link (in vehicle per hour)</li>
+	</ul>
+	{% elif object == 'function' %}
+	<h3>Congestion functions</h3>
+	Congestion functions describe the congestion model of the links.
+	{% endif %}
+
+	<br>
+
+	{% if count > 1 %}
+	The simulation has {{ count|intcomma }} {{ object|metro_to_user }}s.
+	{% else %}
+	The simulation has {{ count }} {{ object|metro_to_user }}.
+	{% endif %}
+
+	<br>
+
+	<div class="row">
+
+		<div class="col text-center">
+
+			<div class="btn-group my-3" role="group">
+				{% if count %}
+				<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:object_list' simulation.id object %}">
+					List {{ object|metro_to_user }}s
+				</a>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no {{ object|metro_to_user }}" disabled>
+					List {{ object|metro_to_user }}s
+				</button>
+				{% endif %}
+				{% if owner %}
+				{% if large_count %}
+				<button type="button" class="btn btn-outline-primary" title="There are too many {{ object|metro_to_user }}s to edit them, use the import button" disabled>
+					Edit {{ object|metro_to_user }}s
+				</button>
+				{% elif network_empty %}
+				<button type="button" class="btn btn-outline-primary" title="The network must have at least two zones, one intersection and one congestion function before links can be added" disabled>
+					Edit {{ object|metro_to_user }}s
+				</button>
+				{% else %}
+				<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:object_edit' simulation.id object %}">
+					Edit {{ object|metro_to_user }}s
+				</a>
+				{% endif %}
+				{% endif %}
+			</div>
+
+			<br>
+
+			<div class="btn-group my-3" role="group">
+				{% if count %}
+				<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:object_export' simulation.id object %}">
+					Export {{ object|metro_to_user }}s
+				</a>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no {{ object|metro_to_user }}" disabled>
+					Export {{ object|metro_to_user }}s
+				</button>
+				{% endif %}
+				{% if owner %}
+				{% if network_empty %}
+				<button type="button" class="btn btn-outline-primary" title="The network must have at least two zones, one intersection and one congestion function before links can be added" disabled>
+					Import {{ object|metro_to_user }}s
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary w-50" data-toggle="modal" data-target="#importModal">
+					Import {{ object|metro_to_user }}s
+				</button>
+				{% endif %}
+				{% endif %}
+			</div>
+
+			<br>
+
+			{% if owner %}
+			{% if count %}
+			<button type="button" class="btn btn-outline-danger my-3" data-toggle="modal" data-target="#deleteModal">
+				Delete {{ object|metro_to_user }}s
+			</button>
+			{% else %}
+			<button type="button" class="btn btn-outline-danger my-3" title="The network has no {{ object|metro_to_user }}" disabled>
+				Delete {{ object|metro_to_user }}s
+			</button>
+			{% endif %}
+			{% endif %}
+
+		</div>
+
+	</div>
+
+	<br>
+
+	<center>
+
+		<a role="button" class="btn btn-secondary mt-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+			<span class="far fa-caret-square-left"></span> Back
+		</a>
+		
+	</center>
+
+</div>
+
+{% if owner %}
+{% if count %}
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Delete {{ object|metro_to_user }}s</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to delete all {{ object|metro_to_user }}s?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:object_delete' simulation.id object %}">Delete</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
+{% if not empty_network %}
+<div class="modal fade" id="importModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Import {{ object|metro_to_user }}s</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:object_import' simulation.id object %}" method="post" enctype="multipart/form-data">
+				{% csrf_token %}
+				<div class="modal-body form-group">
+					{% render_field import_form.import_file class="form-control-file my-3" %}
+					<div id="importDiv" style="display:none;">
+						<div class="progress">
+							<div class="progress-bar progress-bar-striped" role="progressbar" style="width: 50%; margin-right: 100%;"></div>
+						</div>
+						<div class="text-warning">
+							Please be patient, this operation can take several minutes if the file imported has a large number of rows.
+							<br>
+							The import process does not stop if you close this pop-up.
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto" onclick="runProgressBar()">Import</a>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+function runProgressBar() {
+	var progressBar = $('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Show the progress bar
+	$('#importDiv').css("display", "block")
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+{% endblock %}

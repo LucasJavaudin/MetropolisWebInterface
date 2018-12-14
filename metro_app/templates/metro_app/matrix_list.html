@@ -1,0 +1,56 @@
+{% extends 'metro_app/base.html' %}
+{% load render_table from django_tables2 %}
+{% load bootstrap4 %}
+{% load custom_template %}
+{% load humanize %}
+
+{% block title %}
+{{ simulation.name }} | Metropolis
+{% endblock %}
+
+{% block main %}
+
+<center>
+	{% if public_transit %}
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	{% else %}
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the demand page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+	{% endif %}
+</center>
+
+<br>
+
+{% if total %}
+<center>
+	<h5>
+	Total population: {{ total|intcomma }}
+	</h5>
+</center>
+{% endif %}
+
+{% if filter %}
+<h5>Filter the table</h5>
+<form action="" method="get" class="form form-inline">
+	{% bootstrap_form filter.form layout='inline' %}
+	{% bootstrap_button 'filter' %}
+	{% if public_transit %}
+	<a role="button" class="btn btn-info ml-1" href="{% url 'metro:public_transit_list' simulation.id %}">
+		reset
+	</a>
+	{% else %}
+	<a role="button" class="btn btn-info ml-1" href="{% url 'metro:matrix_view' simulation.id demandsegment.id %}">
+		reset
+	</a>
+	{% endif %}
+</form>
+</h5>
+{% endif %}
+<center>
+{% render_table table 'django_tables2/bootstrap.html' %}
+</center>
+
+{% endblock %}

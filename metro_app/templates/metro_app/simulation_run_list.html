@@ -1,0 +1,73 @@
+{% extends 'metro_app/base.html' %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<center>
+	<a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+</center>
+
+<div class="table-responsive">
+	<table class="table table-hover table-bordered">
+		<thead class="thead-light">
+			<tr>
+				<th scope="col">Name</th>
+				<th scope="col">Status</th>
+				<th scope="col">Start time</th>
+				<th scope="col">End time</th>
+				<th scope="col">Time taken</th>
+				<th scope="col">Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for run in runs %}
+			<tr>
+				<td>{{ run.name }}</td>
+				<td>{{ run.status }}</td>
+				<td>
+					{% if run.start_time %}
+					{{ run.start_time }}
+					{% endif %}
+				</td>
+				<td>
+					{% if run.end_time %}
+					{{ run.end_time }}
+					{% endif %}
+				</td>
+				<td>
+					{% if run.time_taken %}
+					{{ run.time_taken }}
+					{% endif %}
+				</td>
+				<td>
+					<center>
+						<div class="btn-group" role="group">
+							<a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_view' simulation.id run.id %}">
+								Log and results
+							</a>
+							{% if run.network_output %}
+							<a role="button" class="btn btn-outline-primary" href="{% url 'metro:network_view_run' simulation.id run.id %}">
+								Results on network
+							</a>
+							{% endif %}
+							{% if run.user_output %}
+							<a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_user_output' simulation.id run.id %}">
+								Download traveler-specific results
+							</a>
+							{% endif %}
+						</div>
+					</center>
+				</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+
+
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends 'metro_app/base.html' %}
+{% load widget_tweaks %}
+{% load custom_template %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	<div class="row">
+
+		<div class="col">
+
+			<center>
+				<h4 class="mt-5">General</h4>
+			</center>
+
+			<ul class="list-group">
+				<li class="list-group-item">
+					<strong>Name:</strong> {{ usertype }}
+				</li>
+				{% if usertype.comment %}
+				<li class="list-group-item">
+					<strong>Comment:</strong> {{ usertype.comment }}
+				</li>
+				{% endif %}
+				<li class="list-group-item">
+					<strong>Number of travelers:</strong> {{ demandsegment.matrix.total }}
+				</li>
+				<li class="list-group-item">
+					<strong>Scale:</strong> {{ demandsegment.scale }}
+				</li>
+			</ul>
+
+			<center>
+				<h4 class="mt-5">Modal choice</h4>
+			</center>
+
+			{% if usertype.modeChoice == 'true' %}
+			<ul class="list-group">
+				<li class="list-group-item">
+					{% if usertype.modeShortRun == 'true' %}
+					The generalized cost associated to the car depends on the departure time <strong>(short term choice)</strong>
+					{% else %}
+					The generalized cost associated to the car is independent of time <strong>(long term choice)</strong>
+					{% endif %}
+				</li>
+				<li class="list-group-item">
+					The value of <strong>mu</strong> for the modal choice {{ usertype.modeMu|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					{{ usertype.typeOfModeMu|type_mu_to_text|safe }}
+				</li>
+				<li class="list-group-item">
+					The <strong>value of time in public transportation</strong> {{ usertype.alphaTP|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					The <strong>penalty associated to public transportation</strong> {{ usertype.penaltyTP|distribution_to_text }}
+				</li>
+			</ul>
+			{% else %}
+			Modal choice is disabled for this traveler type.
+			{% endif %}
+
+			<center>
+				<h4 class="mt-5">Departure time choice</h4>
+			</center>
+
+			<ul class="list-group">
+				<li class="list-group-item">
+					{% if usertype.commuteType == 'MORNING' %}
+					The travelers are targeting their desired time of arrival (<strong>morning commute</strong>)
+					{% elif usertype.commuteType == 'EVENING' %}
+					The travelers are targeting their desired time of departure (<strong>evening commute</strong>)
+					{% endif %}
+				</li>
+				<li class="list-group-item">
+					The value of <strong>mu</strong> for the departure time choice {{ usertype.departureMu|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					{{ usertype.typeOfDepartureMu|type_mu_to_text|safe }}
+				</li>
+				<li class="list-group-item">
+					{% if usertype.commuteType == 'MORNING' %}
+					The <strong>desired arrival time</strong>, t*, {{ usertype.tstar|distribution_to_text:True }}
+					{% elif usertype.commuteType == 'EVENING' %}
+					The <strong>desired departure time</strong>, t*, {{ usertype.tstar|distribution_to_text:True }}
+					{% endif %}
+				</li>
+				<li class="list-group-item">
+					The length of the <strong>on-time window</strong>, δ, {{ usertype.delta|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					The <strong>value of time while driving</strong>, α, {{ usertype.alphaTI|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					The <strong>early-arrival penalty</strong>, β, {{usertype.beta|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					The <strong>late-arrival penalty</strong>, γ, {{usertype.gamma|distribution_to_text }}
+				</li>
+			</ul>
+
+			<center>
+				<h4 class="mt-5">Route choice</h4>
+			</center>
+
+			<ul class="list-group">
+				<li class="list-group-item">
+					Route choice is {% if usertype.typeOfRouteChoice == 'DETERMINISTIC' %}<strong>deterministic</strong>{% else %}<strong>stochastic</strong>{% endif %}
+				</li>
+				<li class="list-group-item">
+					{% if usertype.localATIS == 'true' %}
+					At an intersection, drivers observe congestion on the downstream links
+					{% else %}
+					At an intersection, drivers do not observe congestion on the downstream links
+					{% endif %}
+				</li>
+				<li class="list-group-item">
+					The value of <strong>mu</strong> for the route choice {{ usertype.routeMu|distribution_to_text }}
+				</li>
+				<li class="list-group-item">
+					{{ usertype.typeOfRouteMu|type_mu_to_text|safe }}
+				</li>
+			</ul>
+
+	<br>
+	<center>
+		<a role="button" class="btn btn-secondary mt-5" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the demand page">
+			<span class="far fa-caret-square-left"></span> Back
+		</a>
+	</center>
+
+</div>
+
+{% endblock %}

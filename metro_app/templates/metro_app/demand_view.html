@@ -1,0 +1,216 @@
+{% extends 'metro_app/base.html' %}
+{% load humanize %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<center>
+
+{% if demandsegments %}
+<table class="table table-hover table-bordered">
+	<thead class="thead-light">
+		<tr>
+			<th scope="col">Name</th>
+			<th scope="col">Comment</th>
+			<th scope="col">Population</th>
+			<th scope="col">Actions</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for demandsegment in demandsegments %}
+		<tr>
+			<td>{{ demandsegment.usertype }}</td>
+			<td>{{ demandsegment.usertype.comment }}</td>
+			<td>{{ demandsegment.matrix.total|intcomma }}</td>
+			<td>
+				<center>
+				<div class="btn-group my-1" role="group">
+					<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:usertype_view' simulation.id demandsegment.id %}">
+						View parameters
+					</a>
+					{% if owner %}
+					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:usertype_edit' simulation.id demandsegment.id %}">
+						Edit parameters
+					</a>
+					{% endif %}
+				</div>
+				<br>
+				<div class="btn-group my-1" role="group">
+					{% if has_centroid and demandsegment.matrix.total %}
+					<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_view' simulation.id demandsegment.id %}">
+						View O-D matrix
+					</a>
+					{% else %}
+					<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no zone" disabled>
+						View O-D matrix
+					</button>
+					{% endif %}
+					{% if owner %}
+					{% if large_matrix %}
+					<button type="button" class="btn btn-outline-primary w-50" title="The O-D matrix is too large to be edited, use the import button" disabled>
+						Edit O-D matrix
+					</button>
+					{% elif has_centroid %}
+					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:matrix_edit' simulation.id demandsegment.id %}">
+						Edit O-D matrix
+					</a>
+					{% else %}
+					<button type="button" class="btn btn-outline-primary w-50" title="The network has no zone" disabled>
+						Edit O-D matrix
+					</button>
+					{% endif %}
+					{% endif %}
+				</div>
+				<br>
+				<div class="btn-group my-1" role="group">
+					{% if has_centroid and demandsegment.matrix.total %}
+					<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_export' simulation.id demandsegment.id %}">
+						Export O-D matrix
+					</a>
+					{% else %}
+					<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no zone" disabled>
+						Export O-D matrix
+					</button>
+					{% endif %}
+					{% if owner %}
+					{% if has_centroid %}
+					<button type="button" class="btn btn-outline-primary w-50" data-toggle="modal" data-target="#importModal_{{ demandsegment.id }}">
+						Import O-D matrix
+					</button>
+					{% else %}
+					<button type="button" class="btn btn-outline-primary w-50" title="The network has no zone" disabled>
+						Import O-D matrix
+					</button>
+					{% endif %}
+					{% endif %}
+				</div>
+				{% if owner %}
+				<br>
+				<div class="btn-group my-1" role="group">
+					<button type="button" class="btn btn-outline-danger" data-toggle="modal" data-target="#deleteModal_{{ demandsegment.id }}">
+						Delete
+					</button>
+				</div>
+				{% endif %}
+				</center>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% else %}
+The simulation has no traveler type.
+{% endif %}
+
+{% if owner %}
+<br>
+<a role="button" class="btn btn-primary my-3" href="{% url 'metro:usertype_add' simulation.id %}" title="Create a new traveler type and start editing the parameters">
+	<i class="fas fa-plus-circle"></i> Add a traveler type
+</a>
+{% endif %}
+
+<br>
+<a role="button" class="btn btn-secondary mt-5" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+	<span class="far fa-caret-square-left"></span> Back
+</a>
+
+</center>
+
+{% if owner %}
+{% for demandsegment in demandsegments %}
+<div class="modal fade" id="deleteModal_{{ demandsegment.id }}" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Delete a traveler type</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to delete '{{ demandsegment.usertype }}'?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:usertype_delete' simulation.id demandsegment.id %}">Delete</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endfor %}
+{% for demandsegment in demandsegments %}
+<div class="modal fade" id="importModal_{{ demandsegment.id }}" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Import O-D Matrix</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:matrix_import' simulation.id demandsegment.id %}" method="post" enctype="multipart/form-data">
+				{% csrf_token %}
+				<div class="modal-body form-group">
+					{% render_field import_form.import_file class="form-control-file my-3" %}
+					<div id="importDiv" style="display:none;">
+						<div class="progress">
+							<div class="progress-bar progress-bar-striped" role="progressbar" style="width: 50%; margin-right: 100%;"></div>
+						</div>
+						<div class="text-warning">
+							Please be patient, this operation can take up to one hour if the file imported has a large number of rows.
+							<br>
+							The import process does not stop if you close this pop-up.
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto" onclick="runProgressBar()">Import</a>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+function runProgressBar() {
+	var progressBar = $('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Show the progress bar
+	$('#importDiv').css("display", "block")
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+{% endblock %}

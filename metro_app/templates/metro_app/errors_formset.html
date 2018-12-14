@@ -1,0 +1,52 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+The request could not be executed because of the following error(s).
+Use the back button of your web browser to edit the form again.
+
+{% if formset.errors %}
+{% for form in formset %}
+{% if form.errors %}
+{% for field in form %}
+{% if field.errors %}
+<div class="alert alert-danger">
+	<strong>{{ form.instance }}</strong>
+	<br>
+	<strong>{{ field.label }}:</strong>
+	{% for error in field.errors %}
+	{{ error|escape }}
+	{% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+{% for error in form.non_field_error %}
+<div class="alert alert-danger">
+	<strong>{{ form.name }}</strong>
+	<br>
+	<strong>{{ error|escape }}</strong>
+</div>
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if formset.non_form_errors %}
+{% for error in formset.non_form_errors %}
+<div class="alert alert-danger">
+	<strong>{{ error|escape }}</strong>
+</div>
+{% endfor %}
+{% endif %}
+
+<cr>
+
+<a role="button" class="btn btn-primary" href="{% url 'metro:simulation_view' simulation.id %}">
+	Back
+</a>
+
+{% endblock %}

@@ -1,0 +1,16 @@
+metropolis_web_interface/*
+**/migrations/**
+**/__pycache__/**
+/static/
+/metrosim_files/
+/website_files/script_logs/
+/website_files/network_output/
+/website_files/exports/
+*.log
+*.png
+*.pyc
+*.sql
+*.out
+*.csv
+*.tsv
+manage.py

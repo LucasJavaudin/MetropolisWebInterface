@@ -1,0 +1,26 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Create an account - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	<form action="{% url 'metro:register_action' %}" method="post">
+		{% csrf_token %}
+		{% bootstrap_form form show_label=False %}
+		<center>
+			<button type="submit" class="btn btn-primary btn-lg">Register</button>
+		</center>
+	</form>
+
+	<center>
+		<div>Already have an account? <a href="{% url 'metro:login' %}">Login</a>.</div>
+	</center>
+
+</div>
+
+{% endblock %}
