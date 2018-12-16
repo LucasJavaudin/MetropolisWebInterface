@@ -2078,9 +2078,12 @@ def simulation_run_link_output(request, simulation, run):
             '{0}/website_files/network_output/link_results_{1}_{2}.txt'
             .format(settings.BASE_DIR, simulation.id, run.id)
         )
-        return FileResponse(open(file_path, 'rb'),
-                            filename='link_results.tsv',
-                            content_type='application/octet-stream')
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read())
+            response['content_type'] = 'text/tab-separated-values'
+            response['Content-Disposition'] = \
+                'attachement; filename=link_results.tsv'
+            return response
     except FileNotFoundError:
         # Should notify an admin that the file is missing.
         raise Http404()
@@ -2095,9 +2098,12 @@ def simulation_run_user_output(request, simulation, run):
             '{0}/website_files/network_output/user_results_{1}_{2}.txt'
             .format(settings.BASE_DIR, simulation.id, run.id)
         )
-        return FileResponse(open(file_path, 'rb'),
-                            filename='traveler_results.tsv',
-                            content_type='application/octet-stream')
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read())
+            response['content_type'] = 'text/tab-separated-values'
+            response['Content-Disposition'] = \
+                'attachement; filename=user_results.tsv'
+            return response
     except FileNotFoundError:
         # Should notify an admin that the file is missing.
         raise Http404()
