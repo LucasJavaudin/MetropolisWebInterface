@@ -246,8 +246,12 @@ def how_to(request):
     try:
         file_path = (settings.BASE_DIR
                      + '/website_files/metropolis_tutorial.pdf')
-        return FileResponse(open(file_path, 'rb'),
-                            content_type='application/pdf')
+        with open(file_path, 'r') as f:
+            response = HttpResponse(f.read())
+            response['content_type'] = 'application/pdf'
+            response['Content-Disposition'] = \
+                'attachement; filename=how_to.pdf'
+            return response
     except FileNotFoundError:
         # Should notify an admin that the file is missing.
         raise Http404()
