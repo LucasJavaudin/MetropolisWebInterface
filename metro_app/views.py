@@ -246,7 +246,7 @@ def how_to(request):
     try:
         file_path = (settings.BASE_DIR
                      + '/website_files/metropolis_tutorial.pdf')
-        with codecs.open(filename, 'r', encoding='utf8') as f:
+        with open(file_path, 'rb') as f:
             response = HttpResponse(f, content_type='application/pdf')
             response['Content-Disposition'] = \
                 'attachment; filename="how_to.pdf"'
