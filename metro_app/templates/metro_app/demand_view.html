@@ -40,53 +40,12 @@
 				</div>
 				<br>
 				<div class="btn-group my-1" role="group">
-					{% if has_centroid and demandsegment.matrix.total %}
-					<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_view' simulation.id demandsegment.id %}">
-						View O-D matrix
+					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:matrix_main' simulation.id demandsegment.id %}">
+						 O-D matrix 
 					</a>
-					{% else %}
-					<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no zone" disabled>
-						View O-D matrix
-					</button>
-					{% endif %}
-					{% if owner %}
-					{% if large_matrix %}
-					<button type="button" class="btn btn-outline-primary w-50" title="The O-D matrix is too large to be edited, use the import button" disabled>
-						Edit O-D matrix
-					</button>
-					{% elif has_centroid %}
-					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:matrix_edit' simulation.id demandsegment.id %}">
-						Edit O-D matrix
+					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:pricing_main' simulation.id demandsegment.id %}">
+						Road pricing
 					</a>
-					{% else %}
-					<button type="button" class="btn btn-outline-primary w-50" title="The network has no zone" disabled>
-						Edit O-D matrix
-					</button>
-					{% endif %}
-					{% endif %}
-				</div>
-				<br>
-				<div class="btn-group my-1" role="group">
-					{% if has_centroid and demandsegment.matrix.total %}
-					<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_export' simulation.id demandsegment.id %}">
-						Export O-D matrix
-					</a>
-					{% else %}
-					<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no zone" disabled>
-						Export O-D matrix
-					</button>
-					{% endif %}
-					{% if owner %}
-					{% if has_centroid %}
-					<button type="button" class="btn btn-outline-primary w-50" data-toggle="modal" data-target="#importModal_{{ demandsegment.id }}">
-						Import O-D matrix
-					</button>
-					{% else %}
-					<button type="button" class="btn btn-outline-primary w-50" title="The network has no zone" disabled>
-						Import O-D matrix
-					</button>
-					{% endif %}
-					{% endif %}
 				</div>
 				{% if owner %}
 				<br>
@@ -142,75 +101,6 @@ The simulation has no traveler type.
 	</div>
 </div>
 {% endfor %}
-{% for demandsegment in demandsegments %}
-<div class="modal fade" id="importModal_{{ demandsegment.id }}" tabindex="-1" role="dialog">
-	<div class="modal-dialog modal-dialog-centered" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title">Import O-D Matrix</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-					<span aria-hidden="true">&times;</span>
-				</button>
-			</div>
-			<form action="{% url 'metro:matrix_import' simulation.id demandsegment.id %}" method="post" enctype="multipart/form-data">
-				{% csrf_token %}
-				<div class="modal-body form-group">
-					{% render_field import_form.import_file class="form-control-file my-3" %}
-					<div id="importDiv" style="display:none;">
-						<div class="progress">
-							<div class="progress-bar progress-bar-striped" role="progressbar" style="width: 50%; margin-right: 100%;"></div>
-						</div>
-						<div class="text-warning">
-							Please be patient, this operation can take up to one hour if the file imported has a large number of rows.
-							<br>
-							The import process does not stop if you close this pop-up.
-						</div>
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
-					<button type="submit" class="btn btn-primary mx-auto" onclick="runProgressBar()">Import</a>
-				</div>
-			</form>
-		</div>
-	</div>
-</div>
-{% endfor %}
 {% endif %}
 
-{% endblock %}
-
-{% block scripts %}
-function runProgressBar() {
-	var progressBar = $('.progress-bar');
-	var percentVal = 0;
-	var right = true;
-
-	// Show the progress bar
-	$('#importDiv').css("display", "block")
-	// Run the progress bar
-	window.setInterval(function(){
-	    percentVal += 5;
-	    if (right == true) {
-		    progressBar.css("margin-right", 100-percentVal+ '%');
-	    } else {
-		    progressBar.css("margin-left", percentVal+ '%');
-	    }
-
-
-	    if (percentVal == 100 || percentVal == 50 && right)
-	    {
-		percentVal = 0;
-		if (right == true) {
-			progressBar.css("margin-left", percentVal+ '%');
-			progressBar.css("margin-right", 0+ '%');
-		} else {
-			progressBar.css("margin-left", 0+ '%');
-			progressBar.css("margin-right", 100+ '%');
-		}
-		right = !right;
-	    }
-
-	}, 100);
-}
 {% endblock %}

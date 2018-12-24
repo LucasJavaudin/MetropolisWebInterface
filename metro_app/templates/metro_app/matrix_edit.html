@@ -13,7 +13,7 @@
 		<span class="far fa-caret-square-left"></span> Back
 	</a>
 	{% else %}
-	<a role="button" class="btn btn-secondary" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the demand page">
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:matrix_main' simulation.id demandsegment.id %}" title="Go back to the O-D matrix page">
 		<span class="far fa-caret-square-left"></span> Back
 	</a>
 	{% endif %}

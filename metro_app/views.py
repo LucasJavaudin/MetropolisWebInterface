@@ -1075,6 +1075,33 @@ def usertype_view(request, simulation, demandsegment):
 
 @public_required
 @check_demand_relation
+def matrix_main(request, simulation, demandsegment):
+    """View to display the OD Matrix main page of an user type."""
+    # Get matrix.
+    matrix = demandsegment.matrix
+    # Get total population.
+    total = matrix.total
+    # Get centroids.
+    centroids = get_query('centroid', simulation)
+    has_centroid = centroids.count() >= 2
+    large_matrix = centroids.count() > MATRIX_THRESHOLD
+    # Get an import form.
+    import_form = ImportForm()
+    # Check ownership.
+    owner = can_edit(request.user, simulation)
+    context = {
+        'simulation': simulation,
+        'demandsegment': demandsegment,
+        'total': total,
+        'has_centroid': has_centroid,
+        'large_matrix': large_matrix,
+        'import_form': import_form,
+        'owner': owner,
+    }
+    return render(request, 'metro_app/matrix_main.html', context)
+
+@public_required
+@check_demand_relation
 def matrix_view(request, simulation, demandsegment):
     """View to display the OD Matrix of an user type."""
     centroids = get_query('centroid', simulation)
@@ -1333,6 +1360,99 @@ def matrix_import(request, simulation, demandsegment):
             'simulation': simulation,
         }
         return render(request, 'metro_app/import_error.html', context)
+
+@owner_required
+@check_demand_relation
+def matrix_reset(request, simulation, demandsegment):
+    """View to reset all OD pairs of an O-D matrix."""
+    # Get matrix.
+    matrix = demandsegment.matrix
+    # Delete matrix points.
+    matrix_points = Matrix.objects.filter(matrices=matrix)
+    matrix_points.delete()
+    # Update total.
+    matrix.total = 0
+    matrix.save()
+    return HttpResponseRedirect(reverse(
+        'metro:matrix_main', args=(simulation.id, demandsegment.id,)
+    ))
+
+@public_required
+@check_demand_relation
+def pricing_main(request, simulation, demandsegment):
+    """View to display the road pricing main page of an user type."""
+    # Get number of tolls.
+    count = 0
+    # Get links.
+    links = get_query('link', simulation)
+    has_link = links.count() >= 1
+    # Get an import form.
+    import_form = ImportForm()
+    # Check ownership.
+    owner = can_edit(request.user, simulation)
+    context = {
+        'simulation': simulation,
+        'demandsegment': demandsegment,
+        'count': count,
+        'has_link': has_link,
+        'import_form': import_form,
+        'owner': owner,
+    }
+    return render(request, 'metro_app/pricing_main.html', context)
+
+@public_required
+@check_demand_relation
+def pricing_view(request, simulation, demandsegment):
+    """View to display the tolls of an user type."""
+    context = {
+        'simulation': simulation,
+        'demandsegment': demandsegment,
+    }
+    return render(request, 'metro_app/pricing_view.html', context)
+
+@owner_required
+@check_demand_relation
+def pricing_edit(request, simulation, demandsegment):
+    """View to edit the tolls of an user type."""
+    context = {
+        'simulation': simulation,
+        'demandsegment': demandsegment,
+    }
+    return render(request, 'metro_app/pricing_edit.html', context)
+
+@require_POST
+@owner_required
+@check_demand_relation
+def pricing_save(request, simulation, demandsegment):
+    """View to save the tolls of an user type."""
+    return HttpResponseRedirect(reverse(
+        'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
+    ))
+
+@public_required
+@check_demand_relation
+def pricing_export(request, simulation, demandsegment):
+    """View to send a file with the tolls of an user type."""
+    return HttpResponseRedirect(reverse(
+        'metro:pricing_main', args=(simulation.id, demandsegment.id,)
+    ))
+
+@require_POST
+@owner_required
+@check_demand_relation
+def pricing_import(request, simulation, demandsegment):
+    """View to convert the imported file to tolls in the database."""
+    return HttpResponseRedirect(reverse(
+        'metro:pricing_view', args=(simulation.id, demandsegment.id,)
+    ))
+
+@owner_required
+@check_demand_relation
+def pricing_reset(request, simulation, demandsegment):
+    """View to reset the tolls of an user type."""
+    return HttpResponseRedirect(reverse(
+        'metro:pricing_main', args=(simulation.id, demandsegment.id,)
+    ))
 
 @public_required
 def public_transit_view(request, simulation):
