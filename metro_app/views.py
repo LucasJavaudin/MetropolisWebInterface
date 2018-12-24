@@ -57,7 +57,7 @@ MATRIX_THRESHOLD = 10
 NETWORK_THRESHOLD = 1000
 # Maximum number of instances that can be edited at the same time in the
 # object_edit view.
-OBJECT_THRESHOLD = 100
+OBJECT_THRESHOLD = 80
 
 
 #====================
