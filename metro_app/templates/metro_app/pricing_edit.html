@@ -1,0 +1,28 @@
+{% extends 'metro_app/base.html' %}
+{% load custom_template %}
+{% load humanize %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	<h1 class="text-danger">Coming soon</h1>
+
+	<br>
+
+	<center>
+
+		<a role="button" class="btn btn-secondary mt-3" href="{% url 'metro:pricing_main' simulation.id demandsegment.id %}" title="Go back to the road pricing page">
+			<span class="far fa-caret-square-left"></span> Back
+		</a>
+		
+	</center>
+
+</div>
+
+{% endblock %}

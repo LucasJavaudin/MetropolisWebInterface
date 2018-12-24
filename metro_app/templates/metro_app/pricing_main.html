@@ -1,0 +1,209 @@
+{% extends 'metro_app/base.html' %}
+{% load custom_template %}
+{% load humanize %}
+{% load widget_tweaks %}
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+
+	<h1 class="text-danger">Work in Progress</h1>
+
+	<h3>Road Pricing</h3>
+	This page allows to define tolls on specific links.
+	The tolls are only paid by the travelers of the current traveler type.
+
+	<br>
+
+	{% if count > 1 %}
+	This traveler type is subject to {{ count|intcomma }} tolls.
+	{% else %}
+	This traveler type is subject to {{ count }} toll.
+	{% endif %}
+
+	<br>
+
+	<div class="row">
+
+		<div class="col text-center">
+
+			<div class="btn-group my-1" role="group">
+				{% if has_link and count %}
+				<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:pricing_view' simulation.id demandsegment.id %}">
+					View tolls
+				</a>
+				{% elif has_link %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="There is no toll" disabled>
+					View tolls
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no link" disabled>
+					View tolls
+				</button>
+				{% endif %}
+				{% if owner %}
+				{% if has_link %}
+				<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:pricing_edit' simulation.id demandsegment.id %}">
+					Edit tolls
+				</a>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary w-50" title="The network has no link" disabled>
+					Edit tolls
+				</button>
+				{% endif %}
+				{% endif %}
+			</div>
+			<br>
+			<div class="btn-group my-1" role="group">
+				{% if has_link and count %}
+				<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:pricing_export' simulation.id demandsegment.id %}">
+					Export tolls
+				</a>
+				{% elif has_link %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="There is no toll" disabled>
+					Export tolls
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no link" disabled>
+					Export tolls
+				</button>
+				{% endif %}
+				{% if owner %}
+				{% if has_link %}
+				<button type="button" class="btn btn-outline-primary w-50" data-toggle="modal" data-target="#importModal">
+					Import tolls
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary w-50" title="The network has no link" disabled>
+					Import tolls
+				</button>
+				{% endif %}
+				{% endif %}
+			</div>
+
+			<br>
+
+			{% if owner %}
+			{% if count %}
+			<button type="button" class="btn btn-outline-danger my-3" data-toggle="modal" data-target="#deleteModal">
+				Reset tolls
+			</button>
+			{% else %}
+			<button type="button" class="btn btn-outline-danger my-3" title="There is no toll" disabled>
+				Reset tolls
+			</button>
+			{% endif %}
+			{% endif %}
+
+		</div>
+
+	</div>
+
+	<br>
+
+	<center>
+
+		<a role="button" class="btn btn-secondary mt-3" href="{% url 'metro:demand_view' simulation.id %}" title="Go back to the traveler type page">
+			<span class="far fa-caret-square-left"></span> Back
+		</a>
+		
+	</center>
+
+</div>
+
+{% if owner %}
+{% if total %}
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Reset tolls</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to reset the tolls?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:pricing_reset' simulation.id demandsegment.id %}">Reset</a>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
+<div class="modal fade" id="importModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Import tolls</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:pricing_import' simulation.id demandsegment.id %}" method="post" enctype="multipart/form-data">
+				{% csrf_token %}
+				<div class="modal-body form-group">
+					{% render_field import_form.import_file class="form-control-file my-3" %}
+					<div id="importDiv" style="display:none;">
+						<div class="progress">
+							<div class="progress-bar progress-bar-striped" role="progressbar" style="width: 50%; margin-right: 100%;"></div>
+						</div>
+						<div class="text-warning">
+							Please be patient, this operation can take up to one hour if the file imported has a large number of rows.
+							<br>
+							The import process does not stop if you close this pop-up.
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto" onclick="runProgressBar()">Import</a>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+function runProgressBar() {
+	var progressBar = $('.progress-bar');
+	var percentVal = 0;
+	var right = true;
+
+	// Show the progress bar
+	$('#importDiv').css("display", "block")
+	// Run the progress bar
+	window.setInterval(function(){
+	    percentVal += 5;
+	    if (right == true) {
+		    progressBar.css("margin-right", 100-percentVal+ '%');
+	    } else {
+		    progressBar.css("margin-left", percentVal+ '%');
+	    }
+
+
+	    if (percentVal == 100 || percentVal == 50 && right)
+	    {
+		percentVal = 0;
+		if (right == true) {
+			progressBar.css("margin-left", percentVal+ '%');
+			progressBar.css("margin-right", 0+ '%');
+		} else {
+			progressBar.css("margin-left", 0+ '%');
+			progressBar.css("margin-right", 100+ '%');
+		}
+		right = !right;
+	    }
+
+	}, 100);
+}
+{% endblock %}
