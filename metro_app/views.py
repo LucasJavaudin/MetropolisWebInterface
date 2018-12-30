@@ -1407,11 +1407,8 @@ def pricing_main(request, simulation, demandsegment):
 @check_demand_relation
 def pricing_view(request, simulation, demandsegment):
     """View to display the tolls of an user type."""
-    context = {
-        'simulation': simulation,
-        'demandsegment': demandsegment,
-    }
-    return render(request, 'metro_app/pricing_view.html', context)
+    return TollListView.as_view()(request, simulation=simulation,
+                                  demandsegment=demandsegment)
 
 @owner_required
 @check_demand_relation
@@ -1490,7 +1487,9 @@ def pricing_import(request, simulation, demandsegment):
                 location = locations.filter(link=link)[0]
             else:
                 location = LinkSelection(
-                    network=simulation.scenario.supply.network
+                    network=simulation.scenario.supply.network,
+                    name=link.name,
+                    user_id=link.user_id,
                 )
                 location.save()
                 location.link.add(link)
@@ -2519,21 +2518,25 @@ class FunctionListView(SingleTableMixin, FilterView):
 
 class TollListView(SingleTableMixin, FilterView):
     table_class = TollTable
-    model = Link
-    template_name = 'metro_app/object_list.html'
-    filterset_class = LinkFilter
+    model = Policy
+    template_name = 'metro_app/pricing_list.html'
+    filterset_class = TollFilter
     paginate_by = 25
     strict = False
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('link', self.simulation).order_by('user_id')
+        self.demandsegment = self.kwargs['demandsegment']
+        queryset = get_query('policy', self.simulation)
+        queryset = queryset.filter(usertype=self.demandsegment.usertype)
+        queryset = queryset.filter(type='PRICING')
+        queryset = queryset.order_by('location__link__user_id')
         return queryset
 
     def get_context_data(self, **kwargs):
-        context = super(LinkListView, self).get_context_data(**kwargs)
+        context = super(TollListView, self).get_context_data(**kwargs)
         context['simulation'] = self.simulation
-        context['object'] = 'link'
+        context['demandsegment'] = self.demandsegment
         return context
 
 

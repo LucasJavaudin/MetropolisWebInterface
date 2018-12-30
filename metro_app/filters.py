@@ -82,3 +82,19 @@ class PTMatrixFilter(MatrixFilter):
                                        label='Travel time is greater than')
     r_lt = django_filters.NumberFilter(field_name='r', lookup_expr='lt',
                                        label='Travel time is less than')
+
+class TollFilter(django_filters.FilterSet):
+    location__user_id = django_filters.NumberFilter(lookup_expr='exact',
+                                          label='Link id')
+    location__name = django_filters.CharFilter(lookup_expr='icontains',
+                                               label='Link Name contains')
+    baseValue = django_filters.NumberFilter(field_name='baseValue',
+                                            lookup_expr='exact')
+    baseValue_gt = django_filters.NumberFilter(field_name='baseValue',
+                                               lookup_expr='gt')
+    baseValue_lt = django_filters.NumberFilter(field_name='baseValue',
+                                               lookup_expr='lt')
+
+    class Meta:
+        model = Policy
+        fields = ['location__user_id', 'location__name', 'baseValue']

@@ -10,7 +10,7 @@
 {% block main %}
 
 <center>
-	<a role="button" class="btn btn-secondary" href="{% url 'metro:object_view' simulation.id object %}" title="Go back to the {{ object|metro_to_user }} page">
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:pricing_main' simulation.id demandsegment.id %}" title="Go back to the road pricing page">
 		<span class="far fa-caret-square-left"></span> Back
 	</a>
 </center>
@@ -22,7 +22,7 @@
 <form action="" method="get" class="form form-inline">
 	{% bootstrap_form filter.form layout='inline' %}
 	{% bootstrap_button 'filter' %}
-	<a role="button" class="btn btn-info ml-1" href="{% url 'metro:object_list' simulation.id object %}">
+	<a role="button" class="btn btn-info ml-1" href="{% url 'metro:pricing_view' simulation.id demandsegment.id %}">
 		reset
 	</a>
 </form>

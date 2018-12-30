@@ -473,7 +473,8 @@ class Link(models.Model):
         db_table = 'Link'
 
 class LinkSelection(models.Model):
-    name = models.CharField(max_length=50, blank=True, null=True)
+    name = models.CharField(max_length=50, blank=True, null=True,
+                            verbose_name='Link name')
     network = models.ForeignKey(
         Network, 
         on_delete=models.CASCADE,
@@ -482,6 +483,7 @@ class LinkSelection(models.Model):
     storetype = models.IntegerField(default=1)
     definition = models.TextField(blank=True, null=True)
     link = models.ManyToManyField(Link, db_table='LinkSelection_Link')
+    user_id = models.IntegerField(default=0, verbose_name='Link id')
     def __str__(self):
         if self.name:
             return self.name
@@ -751,7 +753,7 @@ class Policy(models.Model):
         db_column='location',
         help_text='Area where the policy applies'
     )
-    baseValue = models.FloatField(default=0)
+    baseValue = models.FloatField(default=0, verbose_name='Value')
     timeVector = models.IntegerField(default=0, blank=True, null=True)
     valueVector = models.IntegerField(default=0, blank=True, null=True)
     typeChoices = (

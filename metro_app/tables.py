@@ -45,6 +45,9 @@ class PTMatrixTable(MatrixTable):
     r = tables.Column(verbose_name='Travel time')
 
 class TollTable(tables.Table):
+    link_id = tables.Column(accessor='location.user_id')
+    link_name = tables.Column(accessor='location.name')
     class Meta:
         model = Policy
-        fields = ['location__link__user_id', 'baseValue']
+        fields = ['baseValue']
+        sequence = ['link_id', 'link_name', 'baseValue']
