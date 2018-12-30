@@ -1358,6 +1358,7 @@ def matrix_import(request, simulation, demandsegment):
         print(e)
         context = {
             'simulation': simulation,
+            'object': 'matrix',
         }
         return render(request, 'metro_app/import_error.html', context)
 
@@ -1511,6 +1512,7 @@ def pricing_import(request, simulation, demandsegment):
         print(e)
         context = {
             'simulation': simulation,
+            'object': 'pricing',
         }
         return render(request, 'metro_app/import_error.html', context)
 
@@ -1770,6 +1772,7 @@ def public_transit_import(request, simulation):
         print(e)
         context = {
             'simulation': simulation,
+            'object': 'public_transit',
         }
         return render(request, 'metro_app/import_error.html', context)
 
@@ -2123,6 +2126,7 @@ def object_import(request, simulation, object):
         print(e)
         context = {
             'simulation': simulation,
+            'object': object,
         }
         return render(request, 'metro_app/import_error.html', context)
 

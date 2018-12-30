@@ -12,6 +12,23 @@
 		The import file could not be processed.
 		<br>
 		Please, make sure that the headers are correctly specified and that all rows are filled.
+		<br>
+		{% if object %}
+		The import file must have the following headers: 
+		{% if object == 'pricing' %}
+		link, toll.
+		{% elif object == 'matrix' %}
+		origin, destination, population.
+		{% elif object == 'public_transit' %}
+		origin, destination, travel time.
+		{% elif object == 'centroid' or object == 'crossing' %}
+		id, name, x, y.
+		{% elif object == 'function' %}
+		id, name, expression.
+		{% elif object == 'link' %}
+		id, name, origin, destination, function, lanes, length, speed, capacity.
+		{% endif %}
+		{% endif %}
 	</div>
 
 	<br>
