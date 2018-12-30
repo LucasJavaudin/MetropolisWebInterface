@@ -479,11 +479,14 @@ class LinkSelection(models.Model):
         on_delete=models.CASCADE,
         db_column='network'
     )
-    storetype = models.IntegerField()
-    definition = models.TextField()
+    storetype = models.IntegerField(default=1)
+    definition = models.TextField(blank=True, null=True)
     link = models.ManyToManyField(Link, db_table='LinkSelection_Link')
     def __str__(self):
-        return self.name
+        if self.name:
+            return self.name
+        else:
+            return 'LinkSelection ' + str(self.id)
     class Meta:
         db_table = 'LinkSelection'
 
@@ -737,13 +740,20 @@ class Policy(models.Model):
     usertype = models.ForeignKey(
         UserType,
         on_delete=models.CASCADE,
-        default=1,
-        db_column='usertype'
+        db_column='usertype',
+        blank=True,
+        null=True,
+        help_text='Traveler-type impacted by the policy'
     )
-    location = models.IntegerField(default=0)
+    location = models.ForeignKey(
+        'LinkSelection',
+        on_delete=models.CASCADE,
+        db_column='location',
+        help_text='Area where the policy applies'
+    )
     baseValue = models.FloatField(default=0)
-    timeVector = models.IntegerField(default=0)
-    valueVector = models.IntegerField(default=0)
+    timeVector = models.IntegerField(default=0, blank=True, null=True)
+    valueVector = models.IntegerField(default=0, blank=True, null=True)
     typeChoices = (
         ('BAN', 'Ban'),
         ('PRICING', 'Pricing'),
@@ -769,11 +779,11 @@ class Policy(models.Model):
         choices=parameterChoices,
         default='none'
     )
-    dayStart = models.IntegerField(default=0)
-    dayEnd = models.IntegerField(default=0)
+    dayStart = models.IntegerField(default=0, blank=True, null=True)
+    dayEnd = models.IntegerField(default=0, blank=True, null=True)
     scenario = models.ManyToManyField(Scenario, db_table='Scenario_Policy')
     def __str__(self):
-        return str(self.id)
+        return 'Policy ' + str(self.id)
     class Meta:
         db_table = 'Policy'
 

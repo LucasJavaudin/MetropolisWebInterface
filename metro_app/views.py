@@ -1382,7 +1382,10 @@ def matrix_reset(request, simulation, demandsegment):
 def pricing_main(request, simulation, demandsegment):
     """View to display the road pricing main page of an user type."""
     # Get number of tolls.
-    count = 0
+    policies = get_query('policy', simulation)
+    policies = policies.filter(usertype=demandsegment.usertype)
+    tolls = policies.filter(type='PRICING')
+    count = tolls.count()
     # Get links.
     links = get_query('link', simulation)
     has_link = links.count() >= 1
@@ -1433,23 +1436,95 @@ def pricing_save(request, simulation, demandsegment):
 @check_demand_relation
 def pricing_export(request, simulation, demandsegment):
     """View to send a file with the tolls of an user type."""
-    return HttpResponseRedirect(reverse(
-        'metro:pricing_main', args=(simulation.id, demandsegment.id,)
-    ))
+    # Get all tolls.
+    policies = get_query('policy', simulation)
+    policies = policies.filter(usertype=demandsegment.usertype)
+    tolls = policies.filter(type='PRICING')
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    seed = np.random.randint(10000)
+    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
+                                                          seed)
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = tolls.values_list('location__link__user_id', 'baseValue')
+        # Write a custom header.
+        writer.writerow(['link', 'toll'])
+        writer.writerows(values)
+    with codecs.open(filename, 'r', encoding='utf8') as f:
+        # Build a response to send a file.
+        response = HttpResponse(f.read())
+        response['content_type'] = 'text/tab-separated-values'
+        response['Content-Disposition'] = 'attachement; filename=tolls.tsv'
+    # We delete the export file to save disk space.
+    os.remove(filename)
+    return response
 
 @require_POST
 @owner_required
 @check_demand_relation
 def pricing_import(request, simulation, demandsegment):
     """View to convert the imported file to tolls in the database."""
-    return HttpResponseRedirect(reverse(
-        'metro:pricing_view', args=(simulation.id, demandsegment.id,)
-    ))
+    try:
+        # Get all tolls.
+        policies = get_query('policy', simulation)
+        policies = policies.filter(usertype=demandsegment.usertype)
+        tolls = policies.filter(type='PRICING')
+        # Get all links.
+        links = get_query('link', simulation)
+        # Get all LinkSelection.
+        locations = LinkSelection.objects.filter(
+            network=simulation.scenario.supply.network
+        )
+        # Convert the imported file to a csv DictReader.
+        encoded_file = request.FILES['import_file']
+        tsv_file = StringIO(encoded_file.read().decode())
+        reader = csv.DictReader(tsv_file, delimiter='\t')
+        # For each imported link, if a toll exists with the link, the toll
+        # value is updated, else a new toll is created.
+        for row in reader:
+            link = links.get(user_id=row['link'])
+            # Get or create a LinkSelection associated with the link.
+            if locations.filter(link=link).exists():
+                location = locations.filter(link=link)[0]
+            else:
+                location = LinkSelection(
+                    network=simulation.scenario.supply.network
+                )
+                location.save()
+                location.link.add(link)
+            # Get or create a pricing Policy associated with the link
+            toll, created = tolls.get_or_create(location=location)
+            print('a')
+            if created:
+                # Updated the newly created Policy object.
+                toll.usertype = demandsegment.usertype
+                toll.type = 'PRICING'
+                toll.scenario.add(simulation.scenario)
+            # Update the value of the toll.
+            toll.baseValue = row['toll']
+            toll.save()
+        return HttpResponseRedirect(reverse(
+            'metro:pricing_main', args=(simulation.id, demandsegment.id,)
+        ))
+    except Exception as e:
+        print(e)
+        context = {
+            'simulation': simulation,
+        }
+        return render(request, 'metro_app/import_error.html', context)
 
 @owner_required
 @check_demand_relation
 def pricing_reset(request, simulation, demandsegment):
     """View to reset the tolls of an user type."""
+    # Get all tolls.
+    policies = get_query('policy', simulation)
+    policies = policies.filter(usertype=demandsegment.usertype)
+    tolls = policies.filter(type='PRICING')
+    # Delete the Policy objects (the LinkSelection objects are not deleted).
+    tolls.delete()
     return HttpResponseRedirect(reverse(
         'metro:pricing_main', args=(simulation.id, demandsegment.id,)
     ))
@@ -2440,6 +2515,25 @@ class FunctionListView(SingleTableMixin, FilterView):
         context = super(FunctionListView, self).get_context_data(**kwargs)
         context['simulation'] = self.simulation
         context['object'] = 'function'
+        return context
+
+class TollListView(SingleTableMixin, FilterView):
+    table_class = TollTable
+    model = Link
+    template_name = 'metro_app/object_list.html'
+    filterset_class = LinkFilter
+    paginate_by = 25
+    strict = False
+
+    def get_queryset(self):
+        self.simulation = self.kwargs['simulation']
+        queryset = get_query('link', self.simulation).order_by('user_id')
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super(LinkListView, self).get_context_data(**kwargs)
+        context['simulation'] = self.simulation
+        context['object'] = 'link'
         return context
 
 

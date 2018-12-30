@@ -43,3 +43,8 @@ class PTMatrixTable(MatrixTable):
     The r variable needs to be renamed from Population to Travel time.
     """
     r = tables.Column(verbose_name='Travel time')
+
+class TollTable(tables.Table):
+    class Meta:
+        model = Policy
+        fields = ['location__link__user_id', 'baseValue']

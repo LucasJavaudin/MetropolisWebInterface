@@ -49,6 +49,8 @@ def get_query(object_name, simulation):
             query = Matrix.objects.filter(
                 matrices=simulation.scenario.supply.pttimes
             )
+    elif object_name == 'policy':
+        query = Policy.objects.filter(scenario=simulation.scenario)
     return query
 
 def can_view(user, simulation):
