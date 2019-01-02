@@ -181,6 +181,17 @@
 			<form action="{% url 'metro:object_import' simulation.id object %}" method="post" enctype="multipart/form-data">
 				{% csrf_token %}
 				<div class="modal-body form-group">
+					{% if object == 'centroid' %}
+					The import file must be a tsv file with four columns: <i>id</i>, <i>name</i>, <i>x</i> and <i>y</i>.
+					{% elif object == 'crossing' %}
+					The import file must be a tsv file with four columns: <i>id</i>, <i>name</i>, <i>x</i> and <i>y</i>.
+					{% elif object == 'function' %}
+					The import file must be a tsv file with three columns: <i>id</i>, <i>name</i> and <i>expression</i>.
+					{% elif object == 'link' %}
+					The import file must be a tsv file with nine columns: <i>id</i>, <i>name</i>, <i>origin</i>, <i>destination</i>, <i>function</i>, <i>lanes</i>, <i>length</i>, <i>speed</i> and <i>capacity</i>.
+					<br>
+					Origin and destination must be ids of a zone or a crossing. Function must be an id of a congestion function.
+					{% endif %}
 					{% render_field import_form.import_file class="form-control-file my-3" %}
 					<div id="importDiv" style="display:none;">
 						<div class="progress">

@@ -151,6 +151,7 @@
 			<form action="{% url 'metro:matrix_import' simulation.id demandsegment.id %}" method="post" enctype="multipart/form-data">
 				{% csrf_token %}
 				<div class="modal-body form-group">
+					The import file must be a tsv file with three columns: <i>origin</i>, <i>destination</i>  and <i>population</i>.
 					{% render_field import_form.import_file class="form-control-file my-3" %}
 					<div id="importDiv" style="display:none;">
 						<div class="progress">

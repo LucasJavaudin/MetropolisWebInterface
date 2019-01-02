@@ -146,6 +146,7 @@ This network has an incomplete public transit system.
 			<form action="{% url 'metro:public_transit_import' simulation.id %}" method="post" enctype="multipart/form-data">
 				{% csrf_token %}
 				<div class="modal-body form-group">
+					The import file must be a tsv file with three columns: <i>origin</i>, <i>destination</i>  and <i>travel time</i>.
 					{% render_field import_form.import_file class="form-control-file my-3" %}
 					<div id="importDiv" style="display:none;">
 						<div class="progress">
