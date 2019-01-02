@@ -1475,6 +1475,12 @@ def pricing_import(request, simulation, demandsegment):
         locations = LinkSelection.objects.filter(
             network=simulation.scenario.supply.network
         )
+        # Get empty Vector.
+        if Vector.objects.filter(data='').exists():
+            empty_vector = Vector.objects.filter(data='')[0]
+        else:
+            empty_vector = Vector(data='')
+            empty_vector.save()
         # Convert the imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
@@ -1495,8 +1501,9 @@ def pricing_import(request, simulation, demandsegment):
                 location.save()
                 location.link.add(link)
             # Get or create a pricing Policy associated with the link
-            toll, created = tolls.get_or_create(location=location)
-            print('a')
+            toll, created = tolls.get_or_create(location=location,
+                                                timeVector=empty_vector,
+                                                valueVector=empty_vector)
             if created:
                 # Updated the newly created Policy object.
                 toll.usertype = demandsegment.usertype

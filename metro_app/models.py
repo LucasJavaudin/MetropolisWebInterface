@@ -3,6 +3,15 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.urls import reverse
 
+### New fields ###
+
+class BlobField(models.Field):
+    description = "Blob"
+    def db_type(self, connection):
+        return 'blob'
+
+### Standard tables ###
+
 class Matrices(models.Model):
     name = models.CharField(max_length=50, default='', blank=True, null=True)
     comment = models.CharField(max_length=100, default='', blank=True,
@@ -754,8 +763,13 @@ class Policy(models.Model):
         help_text='Area where the policy applies'
     )
     baseValue = models.FloatField(default=0, verbose_name='Value')
-    timeVector = models.IntegerField(default=0, blank=True, null=True)
-    valueVector = models.IntegerField(default=0, blank=True, null=True)
+    timeVector = models.ForeignKey('Vector', on_delete=models.CASCADE,
+                                   db_column='timeVector',
+                                   related_name='timeVector')
+    valueVector = models.ForeignKey('Vector', on_delete=models.CASCADE,
+                                    db_column='valueVector',
+                                    related_name='valueVector', blank=True,
+                                    null=True)
     typeChoices = (
         ('BAN', 'Ban'),
         ('PRICING', 'Pricing'),
@@ -833,6 +847,13 @@ class Matrix(models.Model):
         return str(self.id)
     class Meta:
         db_table = 'Matrix'
+
+class Vector(models.Model):
+    data = BlobField(db_column='data', default=0)
+    def __str__(self):
+        return str(self.id)
+    class Meta:
+        db_table = 'Vector'
 
 ### Results tables ###
 
