@@ -1465,17 +1465,17 @@ def pricing_export(request, simulation, demandsegment):
 def pricing_import(request, simulation, demandsegment):
     """View to convert the imported file to tolls in the database."""
     try:
-        # Get all tolls.
+        # Get all pricing policies for this usertype.
         policies = get_query('policy', simulation)
         policies = policies.filter(usertype=demandsegment.usertype)
         tolls = policies.filter(type='PRICING')
-        # Get all links.
+        # Get all links of the network.
         links = get_query('link', simulation)
-        # Get all LinkSelection.
+        # Get all LinkSelection of the network.
         locations = LinkSelection.objects.filter(
             network=simulation.scenario.supply.network
         )
-        # Get empty Vector.
+        # Get an empty Vector or create one if there is none.
         if Vector.objects.filter(data='').exists():
             empty_vector = Vector.objects.filter(data='')[0]
         else:
@@ -1485,14 +1485,19 @@ def pricing_import(request, simulation, demandsegment):
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
         reader = csv.DictReader(tsv_file, delimiter='\t')
-        # For each imported link, if a toll exists with the link, the toll
-        # value is updated, else a new toll is created.
+        # For each imported link, if a Policy exists for the link, baseValue is
+        # updated, else a new Policy is created.
         for row in reader:
+            # Get link of current row.
             link = links.get(user_id=row['link'])
             # Get or create a LinkSelection associated with the link.
             if locations.filter(link=link).exists():
+                # Take first matching LinkSelection.
                 location = locations.filter(link=link)[0]
             else:
+                # Create a LinkSelection for the current link.
+                # Name and user_id of the Link Selection are set to the name
+                # and user_id of the link.
                 location = LinkSelection(
                     network=simulation.scenario.supply.network,
                     name=link.name,
@@ -1500,22 +1505,25 @@ def pricing_import(request, simulation, demandsegment):
                 )
                 location.save()
                 location.link.add(link)
-            # Get or create a pricing Policy associated with the link
+            # Get or create a pricing Policy with the corret LinkSelection
+            # object.
             toll, created = tolls.get_or_create(location=location,
                                                 timeVector=empty_vector,
                                                 valueVector=empty_vector)
             if created:
-                # Updated the newly created Policy object.
+                # The Policy object was just created, update its values.
                 toll.usertype = demandsegment.usertype
                 toll.type = 'PRICING'
                 toll.scenario.add(simulation.scenario)
-            # Update the value of the toll.
+            # Update baseValue of the toll with the value in the file.
             toll.baseValue = row['toll']
             toll.save()
         return HttpResponseRedirect(reverse(
             'metro:pricing_main', args=(simulation.id, demandsegment.id,)
         ))
     except Exception as e:
+        # Catch any exception while importing the file and return an error page
+        # if there is any.
         print(e)
         context = {
             'simulation': simulation,
@@ -1852,6 +1860,8 @@ def object_list(request, simulation, object):
 @owner_required
 def object_edit(request, simulation, object):
     """View to edit all instances of a network object."""
+    # Object is either 'centroid', 'crossing', 'link' or 'function'.
+    # Create a formset to edit the objects.
     formset = gen_formset(object, simulation)
     context = {
         'simulation': simulation,
@@ -1867,6 +1877,7 @@ def object_edit_save(request, simulation, object):
     # Retrieve the formset from the POST data.
     formset = gen_formset(object, simulation, request=request)
     if formset.is_valid():
+        # Save the formset (updated values and newly created objects).
         formset.save()
         # Update the foreign keys (we cannot select the newly added forms so we
         # do it for all forms not deleted).
@@ -1875,11 +1886,13 @@ def object_edit_save(request, simulation, object):
         )
         if object in ['centroid', 'crossing', 'link']:
             for form in changed_forms:
+                # Link the object to the correct network.
                 form.instance.network.add(
                     simulation.scenario.supply.network
                 )
         elif object == 'function':
             for form in changed_forms:
+                # Link the function to the correct functionset.
                 form.vdf_id = form.instance.id
                 form.save()
                 form.instance.functionset.add(
