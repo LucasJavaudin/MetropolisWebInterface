@@ -1414,10 +1414,26 @@ def pricing_view(request, simulation, demandsegment):
 @owner_required
 @check_demand_relation
 def pricing_edit(request, simulation, demandsegment):
-    """View to edit the tolls of an user type."""
+    # Get all pricing policies for this usertype.
+    policies = get_query('policy', simulation)
+    policies = policies.filter(usertype=demandsegment.usertype)
+    tolls = policies.filter(type='PRICING')
+    # Get all links of the network.
+    links = get_query('link', simulation)
+    # Get all LinkSelection of the network.
+    locations = LinkSelection.objects.filter(
+        network=simulation.scenario.supply.network
+        )
+    """View to edit the tolls."""
+    # Create a formset to edit the objects.
+    formset = PolicyFormSet
     context = {
         'simulation': simulation,
         'demandsegment': demandsegment,
+        'tolls': tolls,
+        'links': links,
+        'locations': locations,
+        'formset': formset,
     }
     return render(request, 'metro_app/pricing_edit.html', context)
 
@@ -1426,9 +1442,26 @@ def pricing_edit(request, simulation, demandsegment):
 @check_demand_relation
 def pricing_save(request, simulation, demandsegment):
     """View to save the tolls of an user type."""
+    # Retrieve the formset from the POST data.
+    formset = PolicyFormSet(request.POST)
+    if formset.is_valid():
+        # Save the formset (updated values and newly created objects).
+        formset.save()
+        simulation.has_changed = True
+        simulation.save()
+    else:
+        # Redirect to a page with the errors.
+        context = {
+            'simulation': simulation,
+            'demandsegment': demandsegment,
+            'form': formset,
+        }
+        return render(request, 'metro_app/errors.html', context)
+
     return HttpResponseRedirect(reverse(
-        'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
+            'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
     ))
+
 
 @public_required
 @check_demand_relation

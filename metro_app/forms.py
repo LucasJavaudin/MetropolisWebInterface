@@ -317,6 +317,12 @@ class MatrixForm(forms.ModelForm):
         model = Matrix
         fields = ['r']
 
+class PolicyForm(forms.ModelForm):
+    """Form to edit pricing policy."""
+    class Meta:
+        model = Policy
+        fields = ['usertype','location', 'baseValue','timeVector','valueVector']
+
 class CentroidForm(forms.ModelForm):
     """Form the edit the centroids."""
     def __init__(self, *args, **kwargs):
@@ -557,6 +563,12 @@ MatrixFormSet = modelformset_factory(
     Matrix,
     form=MatrixForm,
     extra=0
+)
+
+PolicyFormSet = modelformset_factory(
+    Policy,
+    form=PolicyForm,
+    extra=0,
 )
 
 CentroidFormSet = modelformset_factory(
