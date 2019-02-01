@@ -23,11 +23,11 @@
 				<button type="button" class="btn btn-outline-primary mx-3" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});">
 					<i class="far fa-clone"></i> Copy
 				</button>
+				{% endif %}
+				{% if owner %}
 				<button type="button" class="btn btn-outline-primary mx-3" data-toggle="modal" data-target="#editModal">
 					<i class="fas fa-pencil-alt"></i> Modify
 				</button>
-				{% endif %}
-				{% if owner %}
 				<button type="button" class="btn btn-outline-primary mx-3" data-toggle="modal" data-target="#deleteModal">
 					<i class="far fa-trash-alt"></i> Delete
 				</button>
