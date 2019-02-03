@@ -1423,17 +1423,62 @@ def pricing_edit(request, simulation, demandsegment):
     # Get all LinkSelection of the network.
     locations = LinkSelection.objects.filter(
         network=simulation.scenario.supply.network
+    )
+    policy_obj=[]
+    # Get an empty Vector or create one if there is none.
+    if Vector.objects.filter(data='').exists():
+        empty_vector = Vector.objects.filter(data='')[0]
+    else:
+        empty_vector = Vector(data='')
+        empty_vector.save()
+
+    i=0
+    for link in links:
+        row=[link]
+        if locations.filter(link=link).exists():
+            # Take first matching LinkSelection.
+            location = locations.filter(link=link)[0]
+        else:
+            location = LinkSelection(
+                network=simulation.scenario.supply.network,
+                name=link.name,
+                user_id=link.user_id,
+            )
+            location.save()
+            location.link.add(link)
+
+        toll, created =tolls.get_or_create(
+            location=location,
+            timeVector=empty_vector,
+            valueVector=empty_vector,
+
         )
+
+        if created:
+            toll.usertype = demandsegment.usertype
+            toll.type = 'PRICING'
+            toll.scenario.add(simulation.scenario)
+        toll.baseValue=toll.baseValue
+        toll.save()
+        row.append((toll.id, toll.baseValue,i))
+        i += 1
+        policy_obj.append(row)
+
+
     """View to edit the tolls."""
     # Create a formset to edit the objects.
-    formset = PolicyFormSet
+    formset = PolicyFormSet(
+        queryset=policies.filter(usertype=demandsegment.usertype),
+    )
     context = {
         'simulation': simulation,
         'demandsegment': demandsegment,
-        'tolls': tolls,
-        'links': links,
-        'locations': locations,
         'formset': formset,
+        'policy_obj': policy_obj,
+        'toll': toll,
+        'toll.id': toll.id,
+        'toll.baseValue': toll.baseValue,
+
     }
     return render(request, 'metro_app/pricing_edit.html', context)
 
@@ -1455,6 +1500,7 @@ def pricing_save(request, simulation, demandsegment):
             'simulation': simulation,
             'demandsegment': demandsegment,
             'form': formset,
+
         }
         return render(request, 'metro_app/errors.html', context)
 

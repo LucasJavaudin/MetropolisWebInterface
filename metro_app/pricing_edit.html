@@ -1,0 +1,65 @@
+{% extends 'metro_app/base.html' %}
+{% load render_table from django_tables2 %}
+{% load custom_template %}
+{% load humanize %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+
+
+{% block main %}
+
+<center>
+	<a role="button" class="btn btn-secondary" href="{% url 'metro:pricing_main' simulation.id demandsegment.id %}" title="Go back to the pricing page">
+		<span class="far fa-caret-square-left"></span> Back
+	</a>
+</center>
+
+<form id="PolicyForm" action="{% url 'metro:pricing_save' simulation.id demandsegment.id %}" method="post">
+{% csrf_token %}
+{{ formset.management_form }}
+
+	<center>
+		<button type="submit" class="btn btn-primary btn-lg my-3" title="Save tolls">
+		Save
+		</button>
+	</center>
+
+	<table class="table table-bordered table-responsive">
+		<thead>
+			<tr>
+				<th scope="col">Link name</th><th scope="col">Level of toll
+				
+			</tr>
+		</thead>
+<tbody>
+			{% for row in policy_obj %}
+			<tr>
+		
+				{% for cell in row %}
+				{% if forloop.counter == 1 %}
+				<th scope="row">{{ cell }}</th>
+				{% elif cell %}
+				<td class="p-1">
+
+					<input type="number" step="any" class="form-control" min="0" value="{{ cell.1 }}" id="id_form-{{ cell.2 }}-baseValue" name="form-{{ cell.2 }}-baseValue">
+					<input type="hidden" value="{{ cell.0 }}" id="id_form-{{ cell.2 }}-id" name="form-{{ cell.2 }}-id">
+				</td>
+				{% endif %}
+				{% endfor %}
+			</tr>
+{% endfor %}
+			</tbody>
+	</table>
+
+	<center>
+		<button type="submit" class="btn btn-primary btn-lg my-3" title="Save tolls">
+		Save
+		</button>
+	</center>
+
+</form>
+
+{% endblock %}
+
+
