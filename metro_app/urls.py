@@ -14,6 +14,8 @@ urlpatterns = [
         views.simulation_view_edit, name='simulation_view_edit'),
     url(r'^howto$', 
         views.how_to, name='how_to'),
+    url(r'^tutorial$', 
+        views.tutorial, name='tutorial'),
     url(r'^contributors$', 
         views.contributors, name='contributors'),
     url(r'^disqus$', 

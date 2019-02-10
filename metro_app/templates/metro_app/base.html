@@ -30,13 +30,13 @@
 					<a class="nav-link" href="{% url 'metro:simulation_manager' %}"><i class="fas fa-home"></i> Home</a>
 				</li>
 				<li class="nav-item">
-					<a class="nav-link" href="{% url 'metro:how_to' %}"><i class="fas fa-question-circle"></i> How-To</a>
+					<a class="nav-link" href="{% url 'metro:how_to' %}"><i class="fas fa-question-circle"></i> Help</a>
+				</li>
+				<li class="nav-item">
+					<a class="nav-link" href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues"><i class="fas fa-briefcase-medical"></i> Report an Issue</a>
 				</li>
 				<li class="nav-item">
 					<a class="nav-link" href="{% url 'metro:contributors' %}"><i class="fas fa-users"></i> Contributors</a>
-				</li>
-				<li class="nav-item">
-					<a class="nav-link" href="{% url 'metro:disqus' %}"><i class="fas fa-briefcase-medical"></i> Contacts</a>
 				</li>
 				{% if user.is_authenticated %}
 				<li class="nav-item">

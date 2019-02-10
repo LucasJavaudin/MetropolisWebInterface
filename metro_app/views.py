@@ -242,6 +242,10 @@ def logout_action(request):
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 def how_to(request):
+    """View with the tutorial and FAQ of Metropolis."""
+    return render(request, 'metro_app/how_to.html')
+
+def tutorial(request):
     """Simple view to send the tutorial pdf to the user."""
     try:
         file_path = (settings.BASE_DIR

@@ -1,0 +1,50 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Metropolis
+{% endblock %}
+
+{% block main %}
+
+<div class="container">
+	<div class="alert alert-primary">
+		<h1>Metropolis Tutorial</h1>
+
+		The tutorial of the Metropolis web interface can be downloaded <a href="{% url 'metro:tutorial' %}">here</a>.
+
+		<h1 class="mt-5">Frequently Asked Questions</h1>
+		<br>
+
+		<p>
+		<p class="font-weight-bold">My file was not imported correctly. What is wrong?</p>
+		Check that your file is a well-formatted tsv file (tab-separated-values file). The first line of the file must be a header containing the name of the columns. You can check the required column names when you click on the import button. If you still get an error, <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">open a new issue</a> with a description of your problem (attach the tsv file to the issue).
+		</p>
+		<br>
+
+		<p>
+		<p class="font-weight-bold">When will you add time-varying tolls?</p>
+		This feature is due to be released late February / early March.
+		</p>
+		<br>
+
+		<p>
+		<p class="font-weight-bold">Will you add feature X?</p>
+		Except for time-varying tolls, we are not planning to add any new feature but you can send your suggestions <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">here</a>.
+		</p>
+		<br>
+
+		<p>
+		<p class="font-weight-bold">I found a bug / a typo.</p>
+		Go to <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">this page</a>. If the bug / typo has not been reported yet, open a new issue.
+		</p>
+		<br>
+
+		<p>
+		<p class="font-weight-bold">I read the FAQ but I did not find an answer to my question / problem.</p>
+		Go to <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">this page</a>. If the question / problem has not been posted yet, open a new issue (provide as much detail as you can).
+		</p>
+	</div>
+</div>
+
+{% endblock %}
