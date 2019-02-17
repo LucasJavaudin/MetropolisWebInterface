@@ -20,11 +20,12 @@ import pandas as pd
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect, FileResponse
 from django.http import Http404
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.views.generic import TemplateView
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.contrib.auth import authenticate, logout, login
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.dispatch import receiver
@@ -240,6 +241,19 @@ def logout_action(request):
     if request.user.is_authenticated:
         logout(request)
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
+class PasswordResetView(auth_views.PasswordResetView):
+    template_name='metro_app/password_reset.html'
+    email_template_name='metro_app/password_reset_email.html'
+    success_url=reverse_lazy('metro:password_reset_done')
+
+class PasswordResetDoneView(auth_views.PasswordResetDoneView):
+    template_name='metro_app/password_reset_done.html'
+
+class PasswordResetConfirmView(auth_views.PasswordResetConfirmView):
+    template_name='metro_app/password_reset_confirm.html'
+    success_url=reverse_lazy('metro:simulation_manager')
+    post_reset_login=True
 
 def how_to(request):
     """View with the tutorial and FAQ of Metropolis."""
