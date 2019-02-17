@@ -1,0 +1,42 @@
+{% load static %}
+{% load bootstrap4 %}
+
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+
+<head>
+	<link rel="shortcut icon" type="image/png" href="{% static 'metro_app/favicon.ico' %}"/>
+	<title>Metropolis</title>
+</head>
+
+<body>
+
+	<div class="container">
+
+		<div class="alert alert-primary my-5">
+
+			<center>
+				<h1 class=mt-5">Metropolis</h1>
+			</center>
+
+			<div class="my-3">
+				Welcome to the website of Metropolis, a dynamic traffic simulator.
+
+				<br>
+
+				This website is protected by a password. If you want to be given access, send an e-mail at <a href="mailto:lucas.javaudin@ens-paris-saclay.fr">lucas.javaudin@ens-paris-saclay.fr</a>.
+			</div>
+
+			<form method="post">
+				{% csrf_token %}
+				{% bootstrap_form form show_label=False %}
+				<center>
+					<button type="submit" class="btn btn-primary btn-lg">Enter Metropolis</button>
+				</center>
+			</form>
+
+		</div>
+
+	</div>
+
+</body>
