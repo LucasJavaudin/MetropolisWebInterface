@@ -70,6 +70,36 @@ Metropolis
 </table>
 {% endif %}
 
+{% if simulation_pinned_list %}
+<h3>Pinned Simulations:</h3>
+
+<table class="table table-hover table-bordered">
+	<thead class="thead-light">
+		<tr>
+			<th scope="col">Name</th>
+			<th scope="col">Comment</th>
+			<th scope="col">Author</th>
+			<th scope="col">Actions</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for simulation in simulation_pinned_list %}
+		<tr>
+			<td class="align-middle">{{ simulation.name }}</td>
+			<td class="align-middle">{{ simulation.comment }}</td>
+			<td class="align-middle">{{ simulation.user }}</td>
+			<td>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-eye"></i> View</a>
+				{% if user.is_authenticated %}
+				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				{% endif %}
+			</td>
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+{% endif %}
+
 {% if simulation_public_list %}
 <h3>Public Simulations:</h3>
 

@@ -742,6 +742,7 @@ class Simulation(models.Model):
     )
     has_changed = models.BooleanField(default=True)
     locked = models.BooleanField(default=False)
+    pinned = models.BooleanField(default=False)
     def __str__(self):
         return self.name
     class Meta:
