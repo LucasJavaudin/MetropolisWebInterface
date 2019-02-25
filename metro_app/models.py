@@ -121,7 +121,8 @@ class UserType(models.Model):
     name = models.CharField(
         max_length=50, 
         default='',
-        help_text='Name of the traveler type'
+        help_text='Name of the traveler type',
+        verbose_name='Traveler type',
     )
     comment = models.CharField(
         max_length=100, 
@@ -297,11 +298,12 @@ class UserType(models.Model):
             + 'departure time'
         )
     )
+    user_id = models.IntegerField(default=-1, verbose_name='Id')
     def __str__(self):
         if self.name:
             string = self.name
         else:
-            string = 'User Type ' + str(self.id)
+            string = 'Traveler Type ' + str(self.user_id)
         return string
     class Meta:
         db_table = 'UserType'
@@ -766,7 +768,8 @@ class Policy(models.Model):
     baseValue = models.FloatField(default=0, verbose_name='Value')
     timeVector = models.ForeignKey('Vector', on_delete=models.CASCADE,
                                    db_column='timeVector',
-                                   related_name='timeVector')
+                                   related_name='timeVector',
+                                   verbose_name='Time',)
     valueVector = models.ForeignKey('Vector', on_delete=models.CASCADE,
                                     db_column='valueVector',
                                     related_name='valueVector', blank=True,
@@ -799,6 +802,17 @@ class Policy(models.Model):
     dayStart = models.IntegerField(default=0, blank=True, null=True)
     dayEnd = models.IntegerField(default=0, blank=True, null=True)
     scenario = models.ManyToManyField(Scenario, db_table='Scenario_Policy')
+    def get_value_vector(self):
+        values = self.valueVector.data
+        if not values:
+            # Empty valueVector, return baseValue.
+            return self.baseValue
+        else:
+            # Append baseValue at beginning of valueVector.
+            return str(self.baseValue) + ',' + self.valueVector.data
+    def get_time_vector(self):
+        # Append value 0 at beginning of timeVector.
+        return self.timeVector.data
     def __str__(self):
         return 'Policy ' + str(self.id)
     class Meta:
@@ -850,7 +864,8 @@ class Matrix(models.Model):
         db_table = 'Matrix'
 
 class Vector(models.Model):
-    data = BlobField(db_column='data', default=0)
+    data = models.TextField(blank=True, null=True, db_column='data',
+                            default='')
     def __str__(self):
         return str(self.id)
     class Meta:

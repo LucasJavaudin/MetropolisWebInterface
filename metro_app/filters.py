@@ -13,6 +13,17 @@ def get_functions(request):
     )
     return functions
 
+def get_usertypes(request):
+    # Retrieve the simulation from the request infos.
+    simulation = Simulation.objects.get(
+            pk=request.resolver_match.kwargs['simulation_id']
+    )
+    # Get the usertypes.
+    usertypes = UserType.objects.filter(
+        demandsegment__demand__scenario__simulation=simulation
+    )
+    return usertypes
+
 class CentroidFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     x_gt = django_filters.NumberFilter(field_name='x', lookup_expr='gt')
@@ -85,16 +96,11 @@ class PTMatrixFilter(MatrixFilter):
 
 class TollFilter(django_filters.FilterSet):
     location__user_id = django_filters.NumberFilter(lookup_expr='exact',
-                                          label='Link id')
+                                                    label='Link id')
     location__name = django_filters.CharFilter(lookup_expr='icontains',
-                                               label='Link Name contains')
-    baseValue = django_filters.NumberFilter(field_name='baseValue',
-                                            lookup_expr='exact')
-    baseValue_gt = django_filters.NumberFilter(field_name='baseValue',
-                                               lookup_expr='gt')
-    baseValue_lt = django_filters.NumberFilter(field_name='baseValue',
-                                               lookup_expr='lt')
+                                               label='Link name contains')
+    usertype = django_filters.ModelChoiceFilter(queryset=get_usertypes)
 
     class Meta:
         model = Policy
-        fields = ['location__user_id', 'location__name', 'baseValue']
+        fields = []

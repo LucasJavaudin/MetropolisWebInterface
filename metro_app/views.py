@@ -847,6 +847,9 @@ def simulation_view(request, simulation):
     else:
         nb_travelers = int(nb_travelers)
     travelers['nb_travelers'] = nb_travelers
+    # Count the number of policies.
+    policy = dict()
+    policy['count'] = get_query('policy', simulation).count()
     # Count the number of runs.
     simulation_runs = get_query('run', simulation)
     runs = dict()
@@ -887,6 +890,7 @@ def simulation_view(request, simulation):
         'simulation_form': simulation_form,
         'network': network,
         'travelers': travelers,
+        'policy': policy,
         'runs': runs,
         'complete_simulation': complete_simulation,
         'good_pt': good_pt,
@@ -1008,6 +1012,12 @@ def usertype_add(request, simulation):
     usertype.penaltyTP = penaltyTP
     usertype.routeMu = routeMu
     usertype.tstar = tstar
+    # Set user_id to user_id of previous usertype + 1.
+    usertypes = get_query('usertype', simulation)
+    if usertypes.exists():
+        usertype.user_id = usertypes.last().user_id + 1
+    else:
+        usertype.user_id = 1
     usertype.save()
     # Create a demand segment and a matrix for the user type.
     matrix = Matrices()
@@ -1043,8 +1053,17 @@ def usertype_edit_save(request, simulation, demandsegment):
     form = UserTypeForm(data=request.POST, instance=demandsegment.usertype)
     if form.is_valid():
         form.save()
-        # Check if value of scale has changed.
         demandsegment.refresh_from_db()
+        # Add default name if needed.
+        usertype = demandsegment.usertype
+        if usertype.name == '':
+            usertypes = get_query('usertype', simulation)
+            usertype_index = list(
+                usertypes.values_list('id', flat=True)
+            ).index(usertype.id)
+            usertype.name = 'Traveler Type {}'.format(usertype_index+1)
+            usertype.save()
+        # Check if value of scale has changed.
         if demandsegment.scale != scale:
             # Update total population.
             matrix = demandsegment.matrix
@@ -1399,12 +1418,10 @@ def matrix_reset(request, simulation, demandsegment):
     ))
 
 @public_required
-@check_demand_relation
-def pricing_main(request, simulation, demandsegment):
+def pricing_main(request, simulation):
     """View to display the road pricing main page of an user type."""
     # Get number of tolls.
     policies = get_query('policy', simulation)
-    policies = policies.filter(usertype=demandsegment.usertype)
     tolls = policies.filter(type='PRICING')
     count = tolls.count()
     # Get links.
@@ -1416,7 +1433,6 @@ def pricing_main(request, simulation, demandsegment):
     owner = can_edit(request.user, simulation)
     context = {
         'simulation': simulation,
-        'demandsegment': demandsegment,
         'count': count,
         'has_link': has_link,
         'import_form': import_form,
@@ -1425,15 +1441,12 @@ def pricing_main(request, simulation, demandsegment):
     return render(request, 'metro_app/pricing_main.html', context)
 
 @public_required
-@check_demand_relation
-def pricing_view(request, simulation, demandsegment):
+def pricing_view(request, simulation):
     """View to display the tolls of an user type."""
-    return TollListView.as_view()(request, simulation=simulation,
-                                  demandsegment=demandsegment)
+    return TollListView.as_view()(request, simulation=simulation,)
 
 @owner_required
-@check_demand_relation
-def pricing_edit(request, simulation, demandsegment):
+def pricing_edit(request, simulation):
     # Get all pricing policies for this usertype.
     policies = get_query('policy', simulation)
     policies = policies.filter(usertype=demandsegment.usertype)
@@ -1459,8 +1472,7 @@ def pricing_edit(request, simulation, demandsegment):
 
 @require_POST
 @owner_required
-@check_demand_relation
-def pricing_save(request, simulation, demandsegment):
+def pricing_save(request, simulation):
     """View to save the tolls of an user type."""
     # Retrieve the formset from the POST data.
     formset = PolicyFormSet(request.POST)
@@ -1484,12 +1496,10 @@ def pricing_save(request, simulation, demandsegment):
 
 
 @public_required
-@check_demand_relation
-def pricing_export(request, simulation, demandsegment):
+def pricing_export(request, simulation):
     """View to send a file with the tolls of an user type."""
     # Get all tolls.
     policies = get_query('policy', simulation)
-    policies = policies.filter(usertype=demandsegment.usertype)
     tolls = policies.filter(type='PRICING')
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
@@ -1499,9 +1509,16 @@ def pricing_export(request, simulation, demandsegment):
     with codecs.open(filename, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
         # Get a dictionary with all the values to export.
-        values = tolls.values_list('location__link__user_id', 'baseValue')
+        values = list()
+        for toll in tolls:
+            if toll.usertype:
+                usertype_id = toll.usertype.user_id
+            else:
+                usertype_id = ''
+            values.append([toll.location.user_id, toll.get_value_vector(),
+                           toll.get_time_vector(), usertype_id])
         # Write a custom header.
-        writer.writerow(['link', 'toll'])
+        writer.writerow(['link', 'values', 'times', 'traveler_type'])
         writer.writerows(values)
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
@@ -1514,13 +1531,11 @@ def pricing_export(request, simulation, demandsegment):
 
 @require_POST
 @owner_required
-@check_demand_relation
-def pricing_import(request, simulation, demandsegment):
+def pricing_import(request, simulation):
     """View to convert the imported file to tolls in the database."""
     try:
         # Get all pricing policies for this usertype.
         policies = get_query('policy', simulation)
-        policies = policies.filter(usertype=demandsegment.usertype)
         tolls = policies.filter(type='PRICING')
         # Get all links of the network.
         links = get_query('link', simulation)
@@ -1528,6 +1543,8 @@ def pricing_import(request, simulation, demandsegment):
         locations = LinkSelection.objects.filter(
             network=simulation.scenario.supply.network
         )
+        # Get all usertypes.
+        usertypes = get_query('usertype', simulation)
         # Get an empty Vector or create one if there is none.
         if Vector.objects.filter(data='').exists():
             empty_vector = Vector.objects.filter(data='')[0]
@@ -1538,6 +1555,14 @@ def pricing_import(request, simulation, demandsegment):
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
         reader = csv.DictReader(tsv_file, delimiter='\t')
+        if 'traveler_type' in reader.fieldnames:
+            has_type = True
+        else:
+            has_type = False
+        if 'times' in reader.fieldnames:
+            has_times = True
+        else:
+            has_times = False
         # For each imported link, if a Policy exists for the link, baseValue is
         # updated, else a new Policy is created.
         for row in reader:
@@ -1560,19 +1585,48 @@ def pricing_import(request, simulation, demandsegment):
                 location.link.add(link)
             # Get or create a pricing Policy with the corret LinkSelection
             # object.
-            toll, created = tolls.get_or_create(location=location,
-                                                timeVector=empty_vector,
-                                                valueVector=empty_vector)
-            if created:
-                # The Policy object was just created, update its values.
-                toll.usertype = demandsegment.usertype
-                toll.type = 'PRICING'
+            try:
+                toll = tolls.get(location=location)
+            except Policy.DoesNotExist:
+                # Create a new toll with default values.
+                toll = Policy(location=location, type='PRICING', usertype=None,
+                              valueVector=empty_vector,
+                              timeVector=empty_vector)
+                toll.save()
                 toll.scenario.add(simulation.scenario)
-            # Update baseValue of the toll with the value in the file.
-            toll.baseValue = row['toll']
+            # Update affected traveler type.
+            toll.usertype = None
+            if has_type:
+                try:
+                    toll.usertype = usertypes.get(user_id=row['traveler_type'])
+                except (UserType.DoesNotExist, ValueError):
+                    pass
+            # Update values.
+            values = row['values'].split(',')
+            # First value is baseValue.
+            toll.baseValue = float(values[0])
+            if len(values) > 1:
+                # Remaining values are stored in valueVector (as a string of
+                # comma separated values).
+                values = [str(float(x)) for x in values]
+                v = Vector(data=','.join(values[1:]))
+                v.save()
+                toll.valueVector = v
+            else:
+                toll.valueVector = empty_vector
+            # Update times.
+            toll.timeVector = empty_vector
+            if has_times:
+                times = row['times'].split(',')
+                if times[0] != ' ' and times[0]:
+                    # There is at least one value, store it in timeVector.
+                    times = [str(int(x)) for x in times]
+                    v = Vector(data=','.join(times))
+                    v.save()
+                    toll.timeVector = v
             toll.save()
         return HttpResponseRedirect(reverse(
-            'metro:pricing_main', args=(simulation.id, demandsegment.id,)
+            'metro:pricing_main', args=(simulation.id,)
         ))
     except Exception as e:
         # Catch any exception while importing the file and return an error page
@@ -1585,17 +1639,15 @@ def pricing_import(request, simulation, demandsegment):
         return render(request, 'metro_app/import_error.html', context)
 
 @owner_required
-@check_demand_relation
-def pricing_reset(request, simulation, demandsegment):
+def pricing_reset(request, simulation):
     """View to reset the tolls of an user type."""
     # Get all tolls.
     policies = get_query('policy', simulation)
-    policies = policies.filter(usertype=demandsegment.usertype)
     tolls = policies.filter(type='PRICING')
     # Delete the Policy objects (the LinkSelection objects are not deleted).
     tolls.delete()
     return HttpResponseRedirect(reverse(
-        'metro:pricing_main', args=(simulation.id, demandsegment.id,)
+        'metro:pricing_main', args=(simulation.id,)
     ))
 
 @public_required
@@ -2603,9 +2655,7 @@ class TollListView(SingleTableMixin, FilterView):
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        self.demandsegment = self.kwargs['demandsegment']
         queryset = get_query('policy', self.simulation)
-        queryset = queryset.filter(usertype=self.demandsegment.usertype)
         queryset = queryset.filter(type='PRICING')
         queryset = queryset.order_by('location__link__user_id')
         return queryset
@@ -2613,7 +2663,6 @@ class TollListView(SingleTableMixin, FilterView):
     def get_context_data(self, **kwargs):
         context = super(TollListView, self).get_context_data(**kwargs)
         context['simulation'] = self.simulation
-        context['demandsegment'] = self.demandsegment
         return context
 
 

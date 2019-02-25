@@ -14,6 +14,7 @@
 <table class="table table-hover table-bordered">
 	<thead class="thead-light">
 		<tr>
+			<th scope="col">Id</th>
 			<th scope="col">Name</th>
 			<th scope="col">Comment</th>
 			<th scope="col">Population</th>
@@ -23,28 +24,29 @@
 	<tbody>
 		{% for demandsegment in demandsegments %}
 		<tr>
+			<td>{{ demandsegment.usertype.user_id }}</td>
 			<td>{{ demandsegment.usertype }}</td>
 			<td>{{ demandsegment.usertype.comment }}</td>
 			<td>{{ demandsegment.matrix.total|intcomma }}</td>
 			<td>
 				<center>
 				<div class="btn-group my-1" role="group">
-					<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:usertype_view' simulation.id demandsegment.id %}">
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:usertype_view' simulation.id demandsegment.id %}">
 						View parameters
 					</a>
-					{% if owner %}
-					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:usertype_edit' simulation.id demandsegment.id %}">
-						Edit parameters
-					</a>
-					{% endif %}
 				</div>
 				<br>
+				{% if owner %}
 				<div class="btn-group my-1" role="group">
-					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:matrix_main' simulation.id demandsegment.id %}">
-						 O-D matrix 
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:usertype_edit' simulation.id demandsegment.id %}">
+						Edit parameters
 					</a>
-					<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:pricing_main' simulation.id demandsegment.id %}">
-						Road pricing
+				</div>
+				<br>
+				{% endif %}
+				<div class="btn-group my-1" role="group">
+					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:matrix_main' simulation.id demandsegment.id %}">
+						 O-D matrix 
 					</a>
 				</div>
 				{% if owner %}
