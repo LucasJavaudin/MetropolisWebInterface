@@ -157,7 +157,8 @@ def simulation_manager(request):
     simulation_user_list = Simulation.objects.filter(user_id=request.user.id)
     simulation_public_list = \
         Simulation.objects.filter(public=True).exclude(user_id=request.user.id)
-    simulation_pinned_list = Simulation.objects.filter(pinned=True)
+    simulation_pinned_list = \
+        Simulation.objects.filter(public=True).filter(pinned=True)
     simulation_private_list = None
     if request.user.is_superuser:
         # Superuser can see private simulations.
