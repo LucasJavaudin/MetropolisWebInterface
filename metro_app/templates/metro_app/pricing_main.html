@@ -22,14 +22,14 @@
 	<ul>
 		<li><i>link</i>: id of the link affected</li>
 		<li><i>values</i>: if toll is constant, value of the toll; else, values at each time interval separated by a comma</li>
-		<li><i>times</i> (optional): if toll is constant, leave empty; else time intervals for the tolls (in number of minutes after the start of the recording period)</li>
+		<li><i>times</i> (optional): if toll is constant, leave empty; else time intervals for the tolls (in minutes, 0 is midnight)</li>
 		<li><i>traveler_type</i> (optional): id of the traveler type affected; set to 0 or nothing if the toll applies to everyone</li>
 	</ul>
 	<!--For time-varying tolls, the first value in <i>values</i> is the amount paid between the start of the recording period and the first value in <i>times</i>, the second value is the amound paid between the first value and the second value in <i>times</i>, etc.-->
 	<!--The last value in <i>values</i> is the amount paid between the last value in <i>times</i> and the end of the recording period.-->
 	There must be one more value in the <i>values</i> vector than in the <i>times</i> vector.
-	For example, if <i>link</i> is 2, <i>values</i> is <i>1,2,1</i>, <i>times</i> is <i>120,240</i> and <i>traveler_type</i> is 1, then the travelers of type 1 pay a toll when going through link 2.
-	The amount paid is 1 from the start of the recording period until the 120 minute, 2 between the 120th minute and the 240th minute and 1 from the 240th minutes until the end.
+	For example, if <i>link</i> is 2, <i>values</i> is <i>1,2,1</i>, <i>times</i> is <i>420,540</i> and <i>traveler_type</i> is 1, then the travelers of type 1 pay a toll when going through link 2.
+	The amount paid is 1 from 0:00 until 7:00 (420 minutes), 2 between 7:00 and 9:00 (540 minutes) and 1 from 9:00 until 23:59.
 
 	<br>
 
