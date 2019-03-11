@@ -6,8 +6,10 @@ app_name = 'metro'
 urlpatterns = [
     path(r'', 
         views.simulation_manager, name='simulation_manager'),
-    path(r'<simulation_id>/', 
+    path(r'<simulation_id>/view', 
         views.simulation_view, name='simulation_view'),
+    # path(r'<simulation_id>/export', 
+        # views.simulation_export, name='simulation_export'),
     path(r'<simulation_id>/save', 
         views.simulation_view_save, name='simulation_view_save'),
     path(r'<simulation_id>/edit', 
