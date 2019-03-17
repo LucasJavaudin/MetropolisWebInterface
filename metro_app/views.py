@@ -786,6 +786,7 @@ def copy_simulation(request):
             simulation.name = copy_form.cleaned_data['name']
             simulation.comment = copy_form.cleaned_data['comment']
             simulation.public = copy_form.cleaned_data['public']
+            simulation.pinned = False
             # Here, we could copy the json file of the copied simulation if the
             # copied simulation has not changed. For now, I only put has_changed
             # to True for the new simulation so that a new json file will be
