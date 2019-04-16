@@ -30,8 +30,20 @@ Metropolis
 		<br>
 
 		<p>
+		<p class="font-weight-bold">An error occurs when the simulation is running.</p>
+		Here are the errors which occur the more frequently:
+		<dl>
+			<dt>MetroError:Cannot disaggregate demand. Check inequalities</dt>
+			<dd>This error occurs when some travelers have invalid parameters (negative value for beta, for delta, for alpha or for the mus; desired arrival time lower than the start of the recording period).</dd>
+			<dt>MetroError:Flow record exceeding maximum value</dt>
+			<dd>The number of travelers on a link, at a given point in time, is too large. You might have to reduce the total number of travelers of the simulation.</dd>
+		</dl>
+		</p>
+		<br>
+
+		<p>
 		<p class="font-weight-bold">Will you add feature X?</p>
-		Except for time-varying tolls, we are not planning to add any new feature but you can send your suggestions <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">here</a>.
+		We are not planning to add any new feature but you can send your suggestions <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">here</a>.
 		</p>
 		<br>
 
