@@ -76,7 +76,7 @@ urlpatterns = [
         views.simulation_run_action, name='simulation_run_action'),
     path(r'<simulation_id>/run/<run_id>/stop',
         views.simulation_run_stop, name='simulation_run_stop'),
-    path(r'<simulation_id>/run/<run_id>)',
+    path(r'<simulation_id>/run/<run_id>',
         views.simulation_run_view, name='simulation_run_view'),
     path(r'<simulation_id>/run_list',
         views.simulation_run_list, name='simulation_run_list'),
