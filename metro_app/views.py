@@ -1667,10 +1667,9 @@ def public_transit_view(request, simulation):
     if not is_empty:
         # Public transit system is complete if there is the travel time for all
         # O-D pairs.
-        is_complete = (
-            public_transit_pairs.count() == (centroids.count() ** 2) 
-            - centroids.count()
-        )
+        nb_centroids = centroids.count()
+        nb_pairs = public_transit_pairs.count()
+        is_complete = nb_pairs >= nb_centroids * (nb_centroids-1)
     import_form = ImportForm()
     context = {
         'simulation': simulation,
