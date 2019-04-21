@@ -19,11 +19,11 @@ def get_arrivals_departures(simulation):
     for centroid in centroids:
         departures = Matrix.objects.filter(p=centroid, matrices__in=matrices)
         arrivals = Matrix.objects.filter(q=centroid, matrices__in=matrices)
-        if departures.count():
+        if departures.exists():
             departures_values.append(departures.aggregate(Sum('r'))['r__sum'])
         else:
             departures_values.append(0)
-        if arrivals.count():
+        if arrivals.exists():
             arrivals_values.append(arrivals.aggregate(Sum('r'))['r__sum'])
         else:
             arrivals_values.append(0)
