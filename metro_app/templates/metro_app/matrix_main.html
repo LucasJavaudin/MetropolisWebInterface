@@ -20,7 +20,7 @@
 	{% if total > 1 %}
 	This traveler type has {{ total|intcomma }} travelers.
 	{% else %}
-	This traveler type has {{ total }} traveler.
+	This traveler type has {{ total|intcomma }} traveler.
 	{% endif %}
 
 	<br>
@@ -30,10 +30,13 @@
 		<div class="col text-center">
 
 			<div class="btn-group my-1" role="group">
-				{% if has_centroid and total %}
-				<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_view' simulation.id demandsegment.id %}">
+				{% if has_centroid and has_file %}
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="This feature is temporarily disabled" disabled>
 					View O-D matrix
-				</a>
+				</button>
+				<!--<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_view' simulation.id demandsegment.id %}">-->
+					<!--View O-D matrix-->
+				<!--</a>-->
 				{% elif has_centroid %}
 				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The O-D matrix is empty" disabled>
 					View O-D matrix
@@ -49,9 +52,12 @@
 					Edit O-D matrix
 				</button>
 				{% elif has_centroid %}
-				<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:matrix_edit' simulation.id demandsegment.id %}">
+				<button type="button" class="btn btn-outline-primary w-50" title="This feature is temporarily disabled" disabled>
 					Edit O-D matrix
-				</a>
+				</button>
+				<!--<a role="button" class="btn btn-outline-primary w-50" href="{% url 'metro:matrix_edit' simulation.id demandsegment.id %}">-->
+					<!--Edit O-D matrix-->
+				<!--</a>-->
 				{% else %}
 				<button type="button" class="btn btn-outline-primary w-50" title="The network has no zone" disabled>
 					Edit O-D matrix
@@ -61,16 +67,12 @@
 			</div>
 			<br>
 			<div class="btn-group my-1" role="group">
-				{% if has_centroid and demandsegment.matrix.total %}
+				{% if has_file %}
 				<a role="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" href="{% url 'metro:matrix_export' simulation.id demandsegment.id %}">
 					Export O-D matrix
 				</a>
-				{% elif has_centroid %}
-				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The O-D matrix is empty" disabled>
-					Export O-D matrix
-				</button>
 				{% else %}
-				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The network has no zone" disabled>
+				<button type="button" class="btn btn-outline-primary{% if owner %} w-50{% endif %}" title="The O-D matrix is empty" disabled>
 					Export O-D matrix
 				</button>
 				{% endif %}
@@ -90,7 +92,7 @@
 			<br>
 
 			{% if owner %}
-			{% if total %}
+			{% if has_file %}
 			<button type="button" class="btn btn-outline-danger my-3" data-toggle="modal" data-target="#deleteModal">
 				Reset O-D matrix
 			</button>
@@ -118,7 +120,7 @@
 </div>
 
 {% if owner %}
-{% if total %}
+{% if has_file %}
 <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
 	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">

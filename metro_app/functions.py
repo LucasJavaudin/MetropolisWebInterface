@@ -5,6 +5,12 @@ Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 
+import os
+import csv
+from io import StringIO
+
+from django.conf import settings
+
 from .models import *
 
 def get_query(object_name, simulation):
@@ -113,3 +119,43 @@ def get_node_choices(simulation):
     crossing_choices = [(crossing.id, str(crossing)) for crossing in crossings]
     node_choices = centroid_choices + crossing_choices
     return node_choices
+
+def convert_to_metro_matrix(matrice_id, centroid_id_map):
+    """Convert an od matrix file using user_id to an od matrix file using
+    database id.
+    """
+    path = (
+        '{0}/website_files/network_output/od_matrix_{1}.tsv'
+        .format(settings.BASE_DIR, matrice_id)
+    )
+    new_path = (
+        '{0}/website_files/network_output/od_matrix_clean_{1}.tsv'
+        .format(settings.BASE_DIR, matrice_id)
+    )
+    if os.path.isfile(path):
+        with open(path, 'r') as f:
+            reader = csv.DictReader(StringIO(f.read()), delimiter='\t')
+            values = list()
+            for row in reader:
+                try:
+                    print(row)
+                    values.append([
+                        centroid_id_map[int(row['origin'])],
+                        centroid_id_map[int(row['destination'])],
+                        float(row['population']),
+                    ])
+                except Exception as e:
+                    # There was probably an invalid id in the file.
+                    print(
+                        'Invalid id in file: {0}, {1}'
+                        .format(row['origin'], row['destination'])
+                    )
+        with open(new_path, 'w', encoding='utf8') as g:
+            writer = csv.writer(g, delimiter='\t')
+            writer.writerow(['p', 'q', 'r'])
+            writer.writerows(values)
+        print('Converted matrice {} succesfuly'.format(matrice_id))
+        return True
+    else:
+        print('Could not find file "{}"'.format(path))
+        return False

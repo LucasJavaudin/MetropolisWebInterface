@@ -23,6 +23,7 @@ from shutil import copyfile
 
 import django
 from django.conf import settings
+from django.db import connection
 from django.db.models import Sum
 
 # Load the django website.
@@ -34,6 +35,7 @@ django.setup()
 
 from metro_app.models import Simulation, SimulationRun, Link
 from metro_app.functions import get_query
+from metro_app.functions import convert_to_metro_matrix
 from metro_app.plots import network_output
 from metro_app.views import NETWORK_THRESHOLD
 TRAVELERS_THRESHOLD = 10000000 # 10 millions
@@ -66,6 +68,41 @@ if nb_travelers > TRAVELERS_THRESHOLD:
 else:
     simulation.outputUsersTimes = 'true'
 simulation.save()
+
+# Create the Matrix tables necessary for the run.
+print('Creating the Matrix tables...')
+matrices = list(get_query('matrices', simulation))
+matrices.append(simulation.scenario.supply.pttimes)
+# Creating a mapping of a centroid user_id to its id.
+centroids = get_query('centroid', simulation)
+centroid_id_map = dict(centroids.values_list('user_id', 'id'))
+for matrice in matrices:
+    # Convert the user imported tsv file of the matrix to a tsv file readable
+    # by the database.
+    r = convert_to_metro_matrix(matrice.id, centroid_id_map)
+with connection.cursor() as cursor:
+    for matrice in matrices:
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS Matrix_{id} ("
+            "p BIGINT NOT NULL, "
+            "q BIGINT NOT NULL, "
+            "r DOUBLE DEFAULT 0);"
+            .format(id=matrice.id)
+        )
+        cursor.execute("TRUNCATE TABLE Matrix_{id};".format(id=matrice.id))
+        path = (
+            '{0}/website_files/network_output/od_matrix_clean_{1}.tsv'
+            .format(settings.BASE_DIR, matrice.id)
+        )
+        if os.path.isfile(path):
+            cursor.execute(
+                "LOAD DATA LOCAL INFILE '{path}' "
+                "INTO TABLE Matrix_{id} "
+                "FIELDS TERMINATED BY '\t' "
+                "LINES TERMINATED BY '\n' "
+                "IGNORE 1 ROWS;"
+                .format(path=path, id=matrice.id)
+            )
 
 # Use the existing network output file if it exists.
 simulation_network = (

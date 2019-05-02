@@ -1128,6 +1128,12 @@ def matrix_main(request, simulation, demandsegment):
     large_matrix = centroids.count() > MATRIX_THRESHOLD
     # Get an import form.
     import_form = ImportForm()
+    # Check if od_matrix file exists.
+    filename = (
+        '{0}/website_files/network_output/od_matrix_{1!s}.tsv'
+        .format(settings.BASE_DIR, demandsegment.matrix.id)
+    )
+    has_file = os.path.isfile(filename)
     # Check ownership.
     owner = can_edit(request.user, simulation)
     context = {
@@ -1138,6 +1144,7 @@ def matrix_main(request, simulation, demandsegment):
         'large_matrix': large_matrix,
         'import_form': import_form,
         'owner': owner,
+        'has_file': has_file,
     }
     return render(request, 'metro_app/matrix_main.html', context)
 
@@ -1192,6 +1199,10 @@ def matrix_view(request, simulation, demandsegment):
 @check_demand_relation
 def matrix_edit(request, simulation, demandsegment):
     """View to edit the OD Matrix of an user type."""
+    # This view needs to be rewritten with the new Matrix system.
+    return HttpResponseRedirect(reverse(
+        'metro:matrix_main', args=(simulation.id, demandsegment.id,)
+    ))
     # Get some objects.
     matrix = demandsegment.matrix
     matrix_points = Matrix.objects.filter(matrices=matrix)
@@ -1268,132 +1279,66 @@ def matrix_save(request, simulation, demandsegment):
 @check_demand_relation
 def matrix_export(request, simulation, demandsegment):
     """View to send a file with the OD Matrix to the user."""
-    matrix = demandsegment.matrix
-    matrix_couples = Matrix.objects.filter(matrices=matrix)
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
-        # Write a custom header.
-        writer.writerow(['origin', 'destination', 'population'])
-        writer.writerows(values)
-    with codecs.open(filename, 'r', encoding='utf8') as f:
-        # Build a response to send a file.
-        response = HttpResponse(f.read())
-        response['content_type'] = 'text/tab-separated-values'
-        response['Content-Disposition'] = 'attachement; filename=od_matrix.tsv'
-    # We delete the export file to save disk space.
-    os.remove(filename)
-    return response
+    filename = (
+        '{0}/website_files/network_output/od_matrix_{1!s}.tsv'
+        .format(settings.BASE_DIR, demandsegment.matrix.id)
+    )
+    if os.path.isfile(filename):
+        with codecs.open(filename, 'r', encoding='utf8') as f:
+            # Build a response to send a file.
+            response = HttpResponse(f.read())
+            response['content_type'] = 'text/tab-separated-values'
+            response['Content-Disposition'] = \
+                'attachement; filename=od_matrix.tsv'
+        return response
+    else:
+        return HttpResponseRedirect(reverse(
+            'metro:matrix_main', args=(simulation.id, demandsegment.id,)
+        ))
 
 @require_POST
 @owner_required
 @check_demand_relation
 def matrix_import(request, simulation, demandsegment):
-    """View to convert the imported file to an O-D matrix in the database.
+    """View to import a tsv file representing the od_matrix of the simulation.
     
-    This view could be much more simple but I tried to use as little as
-    possible Django ORM (the querysets). When written with standard Django
-    querysets and save methods, it took hours to import a large OD matrix.
-    Basicaly, this view looks at each row in the imported file to know if the
-    OD pair of the row already exists or needs to be created. If it already
-    exists, the view looks at the population value to know if the value needs
-    to be updated. To update values, we simply delete the previous entries in
-    the database and insert the new ones.
+    The view checks that the file is correct and store it in the directory
+    website_files/network_output/.
     """
     try:
-        # Create a set with all existing OD pairs in the OD matrix.
         matrix = demandsegment.matrix
-        pairs = Matrix.objects.filter(matrices=matrix)
-        existing_pairs = set(pairs.values_list('p_id', 'q_id'))
-        # Create a dictionary to map the centroid user ids with the centroid
-        # objects.
-        centroids = get_query('centroid', simulation)
-        centroid_mapping = dict()
-        centroid_id_mapping = dict()
-        for centroid in centroids:
-            centroid_mapping[centroid.user_id] = centroid
-            centroid_id_mapping[centroid.user_id] = centroid.id
         # Convert the imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
-        tsv_file = StringIO(encoded_file.read().decode())
-        reader = csv.DictReader(tsv_file, delimiter='\t')
-        # For each imported OD pair, if the pair already exists in the OD Matrix,
-        # it is stored to be updated, else it is stored to be created.
-        to_be_updated = set()
-        to_be_created = list()
+        tsv_file = encoded_file.read().decode()
+        reader = csv.DictReader(StringIO(tsv_file), delimiter='\t')
+        # Check that the file has a correct format (i.e. three columns: origin,
+        # destination and population).
+        assert 'origin' in reader.fieldnames, \
+            "Column 'origin' not found"
+        assert 'destination' in reader.fieldnames, \
+            "Column 'destination' not found"
+        assert 'population' in reader.fieldnames, \
+            "Column 'population' not found"
+        # Compute total population.
+        # TODO: Check that OD pairs are valid (i.e. they correspond to an
+        # existing centroid or crossing).
+        total = 0
         for row in reader:
-            pair = (
-                centroid_id_mapping[int(row['origin'])],
-                centroid_id_mapping[int(row['destination'])]
-            )
-            if pair in existing_pairs:
-                to_be_updated.add((*pair, float(row['population'])))
-            else:
-                to_be_created.append(
-                    Matrix(p=centroid_mapping[int(row['origin'])],
-                           q=centroid_mapping[int(row['destination'])],
-                           r=float(row['population']),
-                           matrices=matrix)
-                )
-        if to_be_updated:
-            # Create a mapping between the values (p, q, r) and the ids.
-            pair_values = set(pairs.values_list('id', 'p_id', 'q_id'))
-            pair_mapping = dict()
-            for pair in pair_values:
-                pair_mapping[pair[1:]] = pair[0]
-            pair_values = set(pairs.values_list('id', 'p_id', 'q_id', 'r'))
-            # Find the pairs that really need to be updated (i.e. r is also
-            # different).
-            pair_values = set(pairs.values_list('p_id', 'q_id', 'r'))
-            to_be_updated = to_be_updated.difference(pair_values)
-            # Retrieve the ids of the pairs to be updated with the mapping and
-            # delete them.
-            to_be_updated_ids = [pair_mapping[pair[:2]] for pair in to_be_updated]
-            with connection.cursor() as cursor:
-                chunk_size = 20000
-                chunks = [to_be_updated_ids[x:x+chunk_size]
-                          for x in range(0, len(to_be_updated_ids), chunk_size)]
-                for chunk in chunks:
-                    cursor.execute(
-                        "DELETE FROM Matrix "
-                        "WHERE id IN %s;",
-                        [chunk]
-                    )
-            # Create a mapping between the centroids ids and the centroid objects.
-            centroid_id_mapping = dict()
-            for centroid in centroids:
-                centroid_id_mapping[centroid.id] = centroid
-            # Now, create the updated pairs with the new values.
-            to_be_created += [
-                Matrix(p=centroid_id_mapping[pair[0]],
-                       q=centroid_id_mapping[pair[1]],
-                       r=pair[2],
-                       matrices=matrix)
-                for pair in to_be_updated
-            ]
-        # Create the new OD pairs in bulk.
-        # The chunk size is limited by the MySQL engine (timeout if it is too big).
-        chunk_size = 20000
-        chunks = [to_be_created[x:x+chunk_size] 
-                  for x in range(0, len(to_be_created), chunk_size)]
-        for chunk in chunks:
-            Matrix.objects.bulk_create(chunk, chunk_size)
-        # Update total.
-        pairs = pairs.all() # Update queryset from database.
-        matrix.total = int(
-            demandsegment.scale * pairs.aggregate(Sum('r'))['r__sum']
-        )
+            total += float(row['population'])
+        matrix.total = total
         matrix.save()
+        # Store the file.
+        output_file = (
+            '{0}/website_files/network_output/od_matrix_{1!s}.tsv'
+            .format(settings.BASE_DIR, matrix.id)
+        )
+        with open(output_file, 'w') as f:
+            f.write(tsv_file)
+        # Network file needs to be recomputed.
         simulation.has_changed = True
         simulation.save()
         return HttpResponseRedirect(reverse(
-            'metro:matrix_view', args=(simulation.id, demandsegment.id,)
+            'metro:matrix_main', args=(simulation.id, demandsegment.id,)
         ))
     except Exception as e:
         print(e)
@@ -1407,11 +1352,14 @@ def matrix_import(request, simulation, demandsegment):
 @check_demand_relation
 def matrix_reset(request, simulation, demandsegment):
     """View to reset all OD pairs of an O-D matrix."""
-    # Get matrix.
     matrix = demandsegment.matrix
-    # Delete matrix points.
-    matrix_points = Matrix.objects.filter(matrices=matrix)
-    matrix_points.delete()
+    # Delete od_matrix file.
+    filename = (
+        '{0}/website_files/network_output/od_matrix_{1!s}.tsv'
+        .format(settings.BASE_DIR, matrix.id)
+    )
+    if os.path.isfile(filename):
+        os.remove(filename)
     # Update total.
     matrix.total = 0
     matrix.save()

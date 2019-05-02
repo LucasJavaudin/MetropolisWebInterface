@@ -30,6 +30,7 @@ import django
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import connection
 
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
@@ -273,6 +274,18 @@ def value_to_color(val, cmap, min_val, max_val):
                                         int(color[2]*255))
     return color
 
+def clean_database(simulation):
+    """Drop from the database the tables created for the run."""
+    matrices = get_query('matrices', simulation)
+    matrices_id = list(matrices.values_list('id', flat=True))
+    matrices_id.append(simulation.scenario.supply.pttimes.id)
+    with connection.cursor() as cursor:
+        for matrice_id in matrices_id:
+            cursor.execute(
+                "DROP TABLE IF EXISTS Matrix_{id};"
+                .format(id=matrice_id)
+            )
+
 print('Starting script...')
 
 # Read argument of the script call.
@@ -309,6 +322,8 @@ try:
     export_network_results(RUN, RESULTS)
     print('Cleaning files...')
     clean_files(RUN)
+    print('Cleaning database...')
+    clean_database(SIMULATION)
 except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
     # Catch any error (I explicitely write the two most common errors).
     print('Ending run with error(s)...')
