@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 MATRIX_THRESHOLD = 10
 # Thresholds for the number of links required for a simulation to be
 # considered as having a large network.
-NETWORK_THRESHOLD = 1000
+NETWORK_THRESHOLD = 50000
 # Maximum number of instances that can be edited at the same time in the
 # object_edit view.
 OBJECT_THRESHOLD = 80
