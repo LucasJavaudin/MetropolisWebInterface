@@ -56,7 +56,7 @@ django.setup()
 print('Metropolis imports')
 
 from metro_app.models import *
-from metro_app.views import NETWORK_THRESHOLD
+from metro_app.views import LINK_THRESHOLD
 from metro_app.functions import *
 
 def import_output(run):
@@ -80,7 +80,7 @@ def import_output(run):
         for row in reader:
             output['link_ids'].append(row[0])
 
-    if len(output['link_ids']) >= NETWORK_THRESHOLD:
+    if len(output['link_ids']) >= LINK_THRESHOLD:
         # Large network, only store one type of results (phi_in_H).
         output_types = ['phi_in_H']
     else:
@@ -116,7 +116,7 @@ def export_link_results(output, export_file):
     for link in links:
         link_mapping[link.id] = link.user_id
     # Check size of network.
-    large_network = len(output['link_ids']) >= NETWORK_THRESHOLD
+    large_network = len(output['link_ids']) >= LINK_THRESHOLD
     # Write a csv.
     with codecs.open(export_file, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
@@ -170,7 +170,7 @@ def build_results(output):
                   for color in colorscale]
     results['colorscale'] = colorscale
 
-    if len(link_ids) > NETWORK_THRESHOLD:
+    if len(link_ids) > LINK_THRESHOLD:
         # Large network.
         output_types = ['phi_in_H']
     else:

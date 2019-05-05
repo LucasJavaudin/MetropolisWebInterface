@@ -54,8 +54,11 @@ logger = logging.getLogger(__name__)
 # considered as having a large OD Matrix.
 MATRIX_THRESHOLD = 10
 # Thresholds for the number of links required for a simulation to be
-# considered as having a large network.
+# considered as having a large network (for network view).
 NETWORK_THRESHOLD = 50000
+# Thresholds for the number of links required for a simulation to be
+# considered as having a large network (for disaggregated results).
+LINK_THRESHOLD = 50000
 # Maximum number of instances that can be edited at the same time in the
 # object_edit view.
 OBJECT_THRESHOLD = 80
