@@ -10,6 +10,9 @@ This file must be in the directory metro_app.
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
+
+print('Starting script...')
+
 # Execute the script with the virtualenv.
 try:
     activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
@@ -19,6 +22,8 @@ except FileNotFoundError:
     print('Running script without a virtualenv.')
     pass
 
+print('System imports')
+
 import os
 import os.path
 import sys
@@ -26,14 +31,20 @@ import csv
 import json
 import codecs
 
+print('Django imports')
+
 import django
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 from django.db import connection
 
+print('Other imports')
+
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
+
+print('Loading the django website...')
 
 # Load the django website.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -41,6 +52,8 @@ sys.path.append(PROJECT_ROOT)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE",
                       "metropolis_web_interface.settings")
 django.setup()
+
+print('Metropolis imports')
 
 from metro_app.models import *
 from metro_app.views import NETWORK_THRESHOLD
@@ -286,7 +299,7 @@ def clean_database(simulation):
                 .format(id=matrice_id)
             )
 
-print('Starting script...')
+print('Reading the script argument')
 
 # Read argument of the script call.
 try:
@@ -294,6 +307,8 @@ try:
 except IndexError:
     raise SystemExit('MetroArgError: This script must be executed with the id '
                      + 'of the SimulationRun has an argument.')
+
+print('Finding SimulationRun')
 
 # Get the SimulationRun object of the argument.
 try:
