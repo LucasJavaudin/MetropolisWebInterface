@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 MATRIX_THRESHOLD = 10
 # Thresholds for the number of links required for a simulation to be
 # considered as having a large network (for network view).
-NETWORK_THRESHOLD = 50000
+NETWORK_THRESHOLD = 1000
 # Thresholds for the number of links required for a simulation to be
 # considered as having a large network (for disaggregated results).
 LINK_THRESHOLD = 50000
