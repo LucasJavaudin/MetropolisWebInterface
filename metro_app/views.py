@@ -2795,14 +2795,16 @@ def run_simulation(run):
     # Command looks like: 
     #
     # python3 ./metro_app/prepare_results.py y
-    # > ./website_files/script_logs/run_y.txt
+    # 2>&1 | tee ./website_files/script_logs/run_y.txt
     # && ./metrosim_files/execs/metrosim
     # ./metrosim_files/arg_files/simulation_x_run_y.txt 
     # && python3 ./metro_app/build_results.py y 
-    # > ./website_files/script_logs/run_y.txt
+    # 2>&1 | tee ./website_files/script_logs/run_y.txt
     #
-    command = ('python3 {first_script} {run_id} > {log} && {metrosim} '
-               + '{argfile} && python3 {second_script} {run_id} > {log}')
+    # 2>&1 | tee is used to redirect output and errors to file.
+    command = ('python3 {first_script} {run_id} 2>&1 | tee {log} && '
+               + '{metrosim} {argfile} && '
+               + 'python3 {second_script} {run_id} 2>&1 | tee {log}')
     command = command.format(first_script=prepare_run_file, run_id=run.id,
                              log=log_file, metrosim=metrosim_file,
                              argfile=arg_file,
