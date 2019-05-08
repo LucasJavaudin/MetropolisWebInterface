@@ -1,3 +1,8 @@
+# Set matplotlib config directory.
+mplconfigdir = '/home/metropolis/matplotlib'
+if os.path.isfile(mplconigdir):
+    os.environ['MPLCONFIGDIR'] = mplconfigdir
+
 import numpy as np
 import matplotlib.pyplot as plt
 

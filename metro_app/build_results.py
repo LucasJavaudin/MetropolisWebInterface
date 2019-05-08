@@ -22,8 +22,6 @@ except FileNotFoundError:
     print('Running script without a virtualenv.')
     pass
 
-print('System imports')
-
 import os
 import os.path
 import sys
@@ -31,7 +29,10 @@ import csv
 import json
 import codecs
 
-print('Django imports')
+# Set matplotlib config directory.
+mplconfigdir = '/home/metropolis/matplotlib'
+if os.path.isfile(mplconigdir):
+    os.environ['MPLCONFIGDIR'] = mplconfigdir
 
 import django
 from django.utils import timezone
@@ -39,12 +40,8 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db import connection
 
-print('Other imports')
-
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
-
-print('Loading the django website...')
 
 # Load the django website.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -52,8 +49,6 @@ sys.path.append(PROJECT_ROOT)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE",
                       "metropolis_web_interface.settings")
 django.setup()
-
-print('Metropolis imports')
 
 from metro_app.models import *
 from metro_app.views import LINK_THRESHOLD
