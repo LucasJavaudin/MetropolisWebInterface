@@ -10,9 +10,6 @@ This file must be in the directory metro_app.
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
-
-print('Starting script...')
-
 # Execute the script with the virtualenv.
 try:
     activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
@@ -29,16 +26,10 @@ import csv
 import json
 import codecs
 
-# Set matplotlib config directory.
-mplconfigdir = '/home/metropolis/matplotlib'
-if os.path.isdir(mplconfigdir):
-    os.environ['MPLCONFIGDIR'] = mplconfigdir
-
 import django
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
-from django.db import connection
 
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
@@ -51,7 +42,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE",
 django.setup()
 
 from metro_app.models import *
-from metro_app.views import LINK_THRESHOLD
+from metro_app.views import NETWORK_THRESHOLD
 from metro_app.functions import *
 
 def import_output(run):
@@ -75,7 +66,7 @@ def import_output(run):
         for row in reader:
             output['link_ids'].append(row[0])
 
-    if len(output['link_ids']) >= LINK_THRESHOLD:
+    if len(output['link_ids']) >= NETWORK_THRESHOLD:
         # Large network, only store one type of results (phi_in_H).
         output_types = ['phi_in_H']
     else:
@@ -111,7 +102,7 @@ def export_link_results(output, export_file):
     for link in links:
         link_mapping[link.id] = link.user_id
     # Check size of network.
-    large_network = len(output['link_ids']) >= LINK_THRESHOLD
+    large_network = len(output['link_ids']) >= NETWORK_THRESHOLD
     # Write a csv.
     with codecs.open(export_file, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
@@ -165,7 +156,7 @@ def build_results(output):
                   for color in colorscale]
     results['colorscale'] = colorscale
 
-    if len(link_ids) > LINK_THRESHOLD:
+    if len(link_ids) > NETWORK_THRESHOLD:
         # Large network.
         output_types = ['phi_in_H']
     else:
@@ -282,19 +273,7 @@ def value_to_color(val, cmap, min_val, max_val):
                                         int(color[2]*255))
     return color
 
-def clean_database(simulation):
-    """Drop from the database the tables created for the run."""
-    matrices = get_query('matrices', simulation)
-    matrices_id = list(matrices.values_list('id', flat=True))
-    matrices_id.append(simulation.scenario.supply.pttimes.id)
-    with connection.cursor() as cursor:
-        for matrice_id in matrices_id:
-            cursor.execute(
-                "DROP TABLE IF EXISTS Matrix_{id};"
-                .format(id=matrice_id)
-            )
-
-print('Reading the script argument')
+print('Starting script...')
 
 # Read argument of the script call.
 try:
@@ -302,8 +281,6 @@ try:
 except IndexError:
     raise SystemExit('MetroArgError: This script must be executed with the id '
                      + 'of the SimulationRun has an argument.')
-
-print('Finding SimulationRun')
 
 # Get the SimulationRun object of the argument.
 try:
@@ -332,8 +309,6 @@ try:
     export_network_results(RUN, RESULTS)
     print('Cleaning files...')
     clean_files(RUN)
-    print('Cleaning database...')
-    clean_database(SIMULATION)
 except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
     # Catch any error (I explicitely write the two most common errors).
     print('Ending run with error(s)...')

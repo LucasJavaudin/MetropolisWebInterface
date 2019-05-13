@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.urls import reverse
+from django.utils import timezone
 
 ### New fields ###
 
@@ -870,6 +871,24 @@ class Vector(models.Model):
         return str(self.id)
     class Meta:
         db_table = 'Vector'
+
+
+
+### Added by Lucas Hornung ###
+
+class Event(models.Model):
+    title = models.CharField(max_length=300, blank=False, null=False, default='', db_column='name')
+    author = models.CharField(max_length=100, blank=False, null=False, default='', db_column='author')
+    date = models.DateTimeField(auto_now_add=True, blank=False, db_column='creation_date')
+    description = models.TextField(blank=True, null=True, db_column='description')
+
+    def __str__(self):
+        return str(self.id)
+
+    class Meta:
+        db_table = 'Events'
+
+
 
 ### Results tables ###
 

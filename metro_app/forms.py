@@ -554,6 +554,13 @@ class FunctionModelFormSet(BaseModelFormSet):
                     )
                 user_ids.append(user_id)
 
+class EventForm(forms.Form):
+    title = forms.CharField()
+    description = forms.CharField(required=False,
+                                  widget=forms.Textarea(
+                                      attrs={
+                                      "cols":20}))
+
 
 #====================
 # FormSets

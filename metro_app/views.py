@@ -47,6 +47,8 @@ from metro_app.functions import *
 
 import logging
 
+import datetime
+
 # Get an instance of a logger.
 logger = logging.getLogger(__name__)
 
@@ -54,11 +56,8 @@ logger = logging.getLogger(__name__)
 # considered as having a large OD Matrix.
 MATRIX_THRESHOLD = 10
 # Thresholds for the number of links required for a simulation to be
-# considered as having a large network (for network view).
+# considered as having a large network.
 NETWORK_THRESHOLD = 1000
-# Thresholds for the number of links required for a simulation to be
-# considered as having a large network (for disaggregated results).
-LINK_THRESHOLD = 50000
 # Maximum number of instances that can be edited at the same time in the
 # object_edit view.
 OBJECT_THRESHOLD = 80
@@ -2283,8 +2282,8 @@ def object_export(request, simulation, object):
             writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
             values = query.values_list('user_id', 'name', 'x', 'y', 'id')
         elif object == 'function':
-            writer.writerow(['id', 'expression'])
-            values = query.values_list('user_id', 'expression')
+            writer.writerow(['id', 'name', 'expression'])
+            values = query.values_list('user_id', 'name', 'expression')
         elif object == 'link':
             writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
                              'capacity', 'function', 'origin', 'destination'])
@@ -2669,7 +2668,6 @@ class TollListView(SingleTableMixin, FilterView):
         context['simulation'] = self.simulation
         return context
 
-
 #====================
 # Receivers
 #====================
@@ -2747,6 +2745,57 @@ def pre_delete_demand(sender, instance, **kwargs):
         matrix.delete()
 
 
+#Shows all events
+def showEvents(request):
+    """Sorts events by date"""
+    event_list = Event.objects.order_by('-date')
+
+    event_form = EventForm()
+
+    context = {'events': event_list, 'form': event_form}
+    return render(request, 'metro_app/events_view.html', context)
+
+def create_Event(request):
+    my_form = EventForm(request.POST or None)
+    if my_form.is_valid():
+        event_title = my_form.cleaned_data['title']
+        event_description = my_form.cleaned_data['description']
+        event_author = request.user
+        event = Event.objects.create(title=event_title, author=event_author, description=event_description)
+
+        my_form = EventForm()
+
+
+    return showEvents(request)
+
+def delete_Event(request, pk):
+    event = get_object_or_404(Event, id=pk)
+
+    if request.method == 'POST':
+        event.delete()
+
+    return showEvents(request)
+
+#Loads the edit Event page
+def edit_Event_Show(request, pk):
+    event = get_object_or_404(Event, id=pk)
+    my_form = EventForm(initial={'title': event.title, 'description': event.description})
+
+    context = {'event': event, 'form': my_form}
+    return render(request, 'metro_app/events_edit.html', context)
+
+def edit_Event(request, pk):
+    event = get_object_or_404(Event, id=pk)
+    my_form = EventForm(request.POST)
+
+    if request.POST and my_form.is_valid():
+        event_title = my_form.cleaned_data['title']
+        event_description = my_form.cleaned_data['description']
+        event_author = event.author
+        event = Event.objects.filter(id=pk).update(title=event_title, author=event_author, description=event_description, date=datetime.datetime.now())
+
+    return showEvents(request)
+
 #====================
 # Functions
 #====================
@@ -2795,16 +2844,14 @@ def run_simulation(run):
     # Command looks like: 
     #
     # python3 ./metro_app/prepare_results.py y
-    # 2>&1 | tee ./website_files/script_logs/run_y.txt
+    # > ./website_files/script_logs/run_y.txt
     # && ./metrosim_files/execs/metrosim
     # ./metrosim_files/arg_files/simulation_x_run_y.txt 
     # && python3 ./metro_app/build_results.py y 
-    # 2>&1 | tee ./website_files/script_logs/run_y.txt
+    # > ./website_files/script_logs/run_y.txt
     #
-    # 2>&1 | tee is used to redirect output and errors to file.
-    command = ('python3 {first_script} {run_id} 2>&1 | tee {log} && '
-               + '{metrosim} {argfile} && '
-               + 'python3 {second_script} {run_id} 2>&1 | tee {log}')
+    command = ('python3 {first_script} {run_id} > {log} && {metrosim} '
+               + '{argfile} && python3 {second_script} {run_id} > {log}')
     command = command.format(first_script=prepare_run_file, run_id=run.id,
                              log=log_file, metrosim=metrosim_file,
                              argfile=arg_file,

@@ -21,3 +21,5 @@ admin.site.register(Policy)
 admin.site.register(Simulation)
 admin.site.register(SimulationRun)
 admin.site.register(Vector)
+
+admin.site.register(Event)
