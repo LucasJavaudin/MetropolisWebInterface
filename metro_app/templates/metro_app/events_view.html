@@ -1,0 +1,71 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Metropolis
+{% endblock %}
+
+{% block main %}
+
+{% if user.is_authenticated %}
+<center>
+	<button type="button" class="btn btn-primary btn-lg" title="Create a new event" data-toggle="modal" data-target="#newEventForm">
+		<i class="fas fa-calendar-plus"></i> New Event
+	</button>
+</center>
+
+<div class="modal fade" id="newEventForm" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="modalTitle">Create a new event</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:events_add' %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					{% bootstrap_form form show_label=True %}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Create</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<br>
+{% endif%}
+
+{% if events %}
+	<div class="container">
+		{% for event in events %}
+		<div class="jumbotron">
+			<h3 class="display-5">{{ event.title }}
+				{% if user.username == event.author or user.is_superuser%}
+				<span class="btn-group">
+                    <form action="{% url 'metro:events_edit_show' event.id%}" method="post">
+						{% csrf_token %}
+						<button class="btn btn-outline-secondary" type="submit">Edit</button>
+					</form>
+					<form action="{% url 'metro:events_delete' event.id%}" method="post">
+						{% csrf_token %}
+						<button class="btn btn-outline-danger" type="submit">Delete</button>
+					</form>
+				</span>
+
+
+				{% endif %}
+			</h3>
+
+			<h5 class="lead">{{ event.author }} on {{event.date}}</h5>
+			<hr class="my-4">
+			<p>{{ event.description|linebreaks}}</p>
+		</div>
+		{% endfor %}
+	</div>
+{% endif %}
+{% endblock %}

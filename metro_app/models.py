@@ -888,7 +888,18 @@ class Event(models.Model):
     class Meta:
         db_table = 'Events'
 
+class Article(models.Model):
+    title = models.CharField(max_length=300, blank=False, null=False, default='', db_column='title')
 
+    def __str__(self):
+        return str(self.id)
+
+    class Meta:
+        db_table = 'Articles'
+
+class Author(models.Model):
+    name = models.CharField(max_length=100, unique=True, primary_key=True)
+    university = models.CharField(max_length=100)
 
 ### Results tables ###
 

@@ -1,0 +1,29 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Metropolis
+{% endblock %}
+
+{% block main %}
+
+
+{% if event %}
+<div class="container">
+	<div style="background:transparent !important" class="jumbotron">
+		<div class="modal-header">
+			<h5 class="modal-title" id="modalEditTitle">Edit an event</h5>
+		</div>
+		<form action="{% url 'metro:events_edit' event.id %}" method="post">
+			<div class="modal-body">
+				{% csrf_token %}
+				{% bootstrap_form form show_label=True %}
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-primary mx-auto">Done</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endif %}
+{% endblock %}
