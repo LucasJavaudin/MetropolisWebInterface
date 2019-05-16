@@ -1,15 +1,19 @@
-from django.urls import path
+from django.urls import path, re_path
 
 from . import views
 
 app_name = 'metro'
 urlpatterns = [
 
-    path(r'events_view', views.showEvents, name='events_view'),
-    path(r'events_view/add_event', views.create_Event, name='events_add'),
-    path(r'delete_event/(?P<pk>[0-9]+)/', views.delete_Event, name='events_delete'),
-    path(r'events_view/edit_event/show/(?P<pk>[0-9]+)', views.edit_Event_Show, name='events_edit_show'),
-    path(r'events_view/edit_event/edit/(?P<pk>[0-9]+)', views.edit_Event, name='events_edit'),
+    path(r'events_view', views.show_events, name='events_view'),
+    path(r'events_view/add_event', views.create_event, name='events_add'),
+    re_path(r'delete_event/(?P<pk>[0-9]+)/', views.delete_event, name='events_delete'),
+    re_path(r'events_view/edit_event/show/(?P<pk>[0-9]+)', views.edit_event_show, name='events_edit_show'),
+    re_path(r'events_view/edit_event/edit/(?P<pk>[0-9]+)', views.edit_event, name='events_edit'),
+    path(r'articles_view', views.show_articles, name='articles_view'),
+    re_path(r'^articles/(?P<path>.*)$', views.download_article_file, name='article_file_download'),
+    path(r'articles_view/add_article', views.create_article, name='articles_add'),
+    re_path(r'delete_article/(?P<pk>[0-9]+)/', views.delete_article, name='articles_delete'),
 
 
     path(r'',

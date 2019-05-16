@@ -9,21 +9,21 @@ Metropolis
 
 {% if user.is_superuser %}
 <center>
-	<button type="button" class="btn btn-primary btn-lg" title="Create a new event" data-toggle="modal" data-target="#newEventForm">
-		<i class="fas fa-calendar-plus"></i> New Event
+	<button type="button" class="btn btn-primary btn-lg" title="Create a new event" data-toggle="modal" data-target="#newArticleForm">
+		<i class="fas fa-newspaper"></i> New Article
 	</button>
 </center>
 
-<div class="modal fade" id="newEventForm" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
+<div class="modal fade" id="newArticleForm" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
 	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title" id="modalTitle">Create a new event</h5>
+				<h5 class="modal-title" id="modalTitle">Create a new article</h5>
 				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 					<span aria-hidden="true">&times;</span>
 				</button>
 			</div>
-			<form action="{% url 'metro:events_add' %}" method="post">
+			<form action="{% url 'metro:articles_add' %}" method="post" enctype="multipart/form-data">
 				<div class="modal-body">
 					{% csrf_token %}
 					{% bootstrap_form form show_label=True %}
@@ -40,30 +40,31 @@ Metropolis
 <br>
 {% endif%}
 
-{% if events %}
+{% if articles %}
 	<div class="container">
-		{% for event in events %}
+		{% for article in articles %}
 		<div class="jumbotron">
-			<h3 class="display-5">{{ event.title }}
-				{% if user.username == event.author or user.is_superuser%}
+			<h3 class="display-5">{{ article.0.title }}
+				{% if user.username == article.0.creator or user.is_superuser%}
 				<span class="btn-group">
-                    <form action="{% url 'metro:events_edit_show' event.id%}" method="post">
-						{% csrf_token %}
-						<button class="btn btn-outline-secondary" type="submit">Edit</button>
-					</form>
-					<form action="{% url 'metro:events_delete' event.id%}" method="post">
+					<form action="{% url 'metro:articles_delete' article.0.id%}" method="post">
 						{% csrf_token %}
 						<button class="btn btn-outline-danger" type="submit">Delete</button>
 					</form>
 				</span>
-
-
 				{% endif %}
 			</h3>
 
-			<h5 class="lead">{{ event.author }} on {{event.date}}</h5>
+			<h5 class="lead">{{ article.0.creator }}</h5>
 			<hr class="my-4">
-			<p>{{ event.description|linebreaks}}</p>
+
+			{% for file in article.1%}
+			{{ file.get_download|safe }}
+			<br>
+			{% endfor %}
+
+
+
 		</div>
 		{% endfor %}
 	</div>

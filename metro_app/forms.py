@@ -561,6 +561,11 @@ class EventForm(forms.Form):
                                       attrs={
                                       "cols":20}))
 
+class ArticleForm(forms.Form):
+    title = forms.CharField()
+    files = forms.FileField(widget=forms.ClearableFileInput(attrs={'multiple': True}), required=False)
+
+
 
 #====================
 # FormSets

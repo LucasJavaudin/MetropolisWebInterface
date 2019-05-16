@@ -4,6 +4,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.urls import reverse
 from django.utils import timezone
 
+
 ### New fields ###
 
 class BlobField(models.Field):
@@ -878,7 +879,7 @@ class Vector(models.Model):
 
 class Event(models.Model):
     title = models.CharField(max_length=300, blank=False, null=False, default='', db_column='name')
-    author = models.CharField(max_length=100, blank=False, null=False, default='', db_column='author')
+    author = models.CharField(max_length=150, blank=False, null=False, default='', db_column='author')
     date = models.DateTimeField(auto_now_add=True, blank=False, db_column='creation_date')
     description = models.TextField(blank=True, null=True, db_column='description')
 
@@ -888,8 +889,10 @@ class Event(models.Model):
     class Meta:
         db_table = 'Events'
 
+
 class Article(models.Model):
     title = models.CharField(max_length=300, blank=False, null=False, default='', db_column='title')
+    creator = models.CharField(max_length=150, blank=False, null=False, default='', db_column='author')
 
     def __str__(self):
         return str(self.id)
@@ -897,9 +900,18 @@ class Article(models.Model):
     class Meta:
         db_table = 'Articles'
 
-class Author(models.Model):
-    name = models.CharField(max_length=100, unique=True, primary_key=True)
-    university = models.CharField(max_length=100)
+class ArticleFile(models.Model):
+    file = models.FileField(upload_to='articles/', max_length=500, blank=False, null=False, default='')
+    file_name = models.CharField(max_length=500)
+    file_article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True)
+
+    def __str__(self):
+        return str(self.id)
+
+    def get_download(self):
+        return "<a href='" + self.file.name + "'>" + self.file_name + "</a>"
+
+
 
 ### Results tables ###
 

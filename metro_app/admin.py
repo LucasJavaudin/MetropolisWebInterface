@@ -23,3 +23,5 @@ admin.site.register(SimulationRun)
 admin.site.register(Vector)
 
 admin.site.register(Event)
+admin.site.register(Article)
+admin.site.register(ArticleFile)

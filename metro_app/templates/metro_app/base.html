@@ -41,6 +41,9 @@
 				<li class="nav-item">
 					<a class="nav-link" href="{% url 'metro:events_view' %}"><i class="fas fa-calendar-alt"></i> Events</a>
 				</li>
+				<li class="nav-item">
+					<a class="nav-link" href="{% url 'metro:articles_view' %}"><i class="fas fa-newspaper"></i> Articles</a>
+				</li>
 				{% if user.is_authenticated %}
 				<li class="nav-item">
 					<a class="nav-link" href="{% url 'metro:logout' %}"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -54,6 +57,8 @@
 			<span class="navbar-text">
 				{% if user.is_authenticated %}
 				Welcome {{ request.user }}
+				{% elif user.is_superuser %}
+				<a href="">Welcome {{ request.user }}</a>
 				{% else %}
 				Please, <a href="{% url 'metro:login' %}">login</a> or <a href="{% url 'metro:register' %}">create an account</a>
 				{% endif %}

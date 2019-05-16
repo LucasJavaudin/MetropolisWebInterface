@@ -63,9 +63,9 @@ NETWORK_THRESHOLD = 1000
 OBJECT_THRESHOLD = 80
 
 
-#====================
+# ====================
 # Decorators
-#====================
+# ====================
 
 def public_required(view):
     """Decorator to execute a function only if the requesting user has view
@@ -74,15 +74,18 @@ def public_required(view):
     The decorator also converts the simulation id parameter to a Simulation
     object.
     """
+
     def wrap(*args, **kwargs):
-        user = args[0].user # The first arg is the request object.
+        user = args[0].user  # The first arg is the request object.
         simulation_id = kwargs.pop('simulation_id')
         simulation = get_object_or_404(Simulation, pk=simulation_id)
         if can_view(user, simulation):
             return view(*args, simulation=simulation, **kwargs)
         else:
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     return wrap
+
 
 def owner_required(view):
     """Decorator to execute a function only if the requesting user has edit
@@ -91,15 +94,18 @@ def owner_required(view):
     The decorator also converts the simulation id parameter to a Simulation
     object.
     """
+
     def wrap(*args, **kwargs):
-        user = args[0].user # The first arg is the request object.
+        user = args[0].user  # The first arg is the request object.
         simulation_id = kwargs.pop('simulation_id')
         simulation = get_object_or_404(Simulation, pk=simulation_id)
         if can_edit(user, simulation):
             return view(*args, simulation=simulation, **kwargs)
         else:
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     return wrap
+
 
 def check_demand_relation(view):
     """Decorator used in the demand views to ensure that the demand segment and
@@ -110,6 +116,7 @@ def check_demand_relation(view):
     The decorator also converts the demand segment id to a DemandSegment
     object.
     """
+
     def wrap(*args, **kwargs):
         # The decorator is run after public_required or owner_required so
         # simulation_id has already been converted to a Simulation object.
@@ -122,7 +129,9 @@ def check_demand_relation(view):
         else:
             # The demand segment id not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     return wrap
+
 
 def check_run_relation(view):
     """Decorator used in the run views to ensure that the run and the
@@ -130,6 +139,7 @@ def check_run_relation(view):
 
     The decorator also converts the run id to a SimulationRun object.
     """
+
     def wrap(*args, **kwargs):
         # The decorator is run after public_required or owner_required so
         # simulation_id has already been converted to a Simulation object.
@@ -142,12 +152,13 @@ def check_run_relation(view):
         else:
             # The run id not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     return wrap
 
 
-#====================
+# ====================
 # Views
-#====================
+# ====================
 
 def simulation_manager(request):
     """Home page of Metropolis.
@@ -182,10 +193,12 @@ def simulation_manager(request):
     }
     return render(request, 'metro_app/simulation_manager.html', context)
 
+
 def register(request):
     """View to show the register form."""
     register_form = UserCreationForm()
     return render(request, 'metro_app/register.html', {'form': register_form})
+
 
 def login_view(request, login_error=False):
     """View to show the login form."""
@@ -195,6 +208,7 @@ def login_view(request, login_error=False):
         'login_error': login_error,
     }
     return render(request, 'metro_app/login.html', context)
+
 
 def register_action(request):
     """View triggered when an user submit a register form."""
@@ -213,6 +227,7 @@ def register_action(request):
             }
             return render(request, 'metro_app/register.html', context)
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
 
 def login_action(request):
     """View triggered when an user login."""
@@ -240,6 +255,7 @@ def login_action(request):
             return render(request, 'metro_app/login.html', context)
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
+
 @login_required
 def logout_action(request):
     """View triggered when an user logout."""
@@ -247,22 +263,27 @@ def logout_action(request):
         logout(request)
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
+
 class PasswordResetView(auth_views.PasswordResetView):
-    template_name='metro_app/password_reset.html'
-    email_template_name='metro_app/password_reset_email.html'
-    success_url=reverse_lazy('metro:password_reset_done')
+    template_name = 'metro_app/password_reset.html'
+    email_template_name = 'metro_app/password_reset_email.html'
+    success_url = reverse_lazy('metro:password_reset_done')
+
 
 class PasswordResetDoneView(auth_views.PasswordResetDoneView):
-    template_name='metro_app/password_reset_done.html'
+    template_name = 'metro_app/password_reset_done.html'
+
 
 class PasswordResetConfirmView(auth_views.PasswordResetConfirmView):
-    template_name='metro_app/password_reset_confirm.html'
-    success_url=reverse_lazy('metro:simulation_manager')
-    post_reset_login=True
+    template_name = 'metro_app/password_reset_confirm.html'
+    success_url = reverse_lazy('metro:simulation_manager')
+    post_reset_login = True
+
 
 def how_to(request):
     """View with the tutorial and FAQ of Metropolis."""
     return render(request, 'metro_app/how_to.html')
+
 
 def tutorial(request):
     """Simple view to send the tutorial pdf to the user."""
@@ -278,13 +299,16 @@ def tutorial(request):
         # Should notify an admin that the file is missing.
         raise Http404()
 
+
 def contributors(request):
     """Simple view to show the people who contributed to the project."""
     return render(request, 'metro_app/contributors.html')
 
+
 def disqus(request):
     """Simple view to show the disqus page."""
     return render(request, 'metro_app/disqus.html')
+
 
 @require_POST
 @login_required
@@ -328,14 +352,14 @@ def simulation_add_action(request):
         function.functionset.add(function_set)
         # Log density is not working somehow.
         # function = Function(name='Log density', user_id=3,
-                            # expression=('3600*(length/speed)'
-                                        # '*((dynVol<=8.0*lanes*length)'
-                                        # '+(dynVol>8.0*lanes*length)'
-                                        # '*((dynVol<0.9*130.0*lanes*length)'
-                                        # '*ln(130.0/8.0)'
-                                        # '/ln(130.0*lanes*length/(dynVol+0.01))'
-                                        # '+(dynVol>=0.9*130.0*lanes*length)'
-                                        # '*ln(130.0/8.0)/ln(1/0.9)))'))
+        # expression=('3600*(length/speed)'
+        # '*((dynVol<=8.0*lanes*length)'
+        # '+(dynVol>8.0*lanes*length)'
+        # '*((dynVol<0.9*130.0*lanes*length)'
+        # '*ln(130.0/8.0)'
+        # '/ln(130.0*lanes*length/(dynVol+0.01))'
+        # '+(dynVol>=0.9*130.0*lanes*length)'
+        # '*ln(130.0/8.0)/ln(1/0.9)))'))
         # function.save()
         # function.vdf_id = function.id
         # function.save()
@@ -365,6 +389,7 @@ def simulation_add_action(request):
     else:
         # I do not see how errors could happen.
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
 
 @require_POST
 @login_required
@@ -800,6 +825,7 @@ def copy_simulation(request):
         )
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
+
 @owner_required
 def simulation_delete(request, simulation):
     """View used to delete a simulation.
@@ -814,6 +840,7 @@ def simulation_delete(request, simulation):
     functionset.delete()
     demand.delete()
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
 
 @public_required
 def simulation_view(request, simulation):
@@ -836,7 +863,7 @@ def simulation_view(request, simulation):
     # File where the data for the network are stored.
     output_file = (
         '{0}/website_files/network_output/network_{1!s}.json'
-        .format(settings.BASE_DIR, simulation.id)
+            .format(settings.BASE_DIR, simulation.id)
     )
     network['generated'] = (os.path.isfile(output_file)
                             and not simulation.has_changed)
@@ -866,7 +893,7 @@ def simulation_view(request, simulation):
     if runs['in_progress']:
         runs['last'] = run_in_progress.last()
     # Check if the simulation can be run (there are a network and travelers).
-    complete_simulation = (network['centroids'] > 1 
+    complete_simulation = (network['centroids'] > 1
                            and network['crossings'] > 0
                            and network['links'] > 0
                            and network['functions'] > 0
@@ -885,7 +912,7 @@ def simulation_view(request, simulation):
     # Create a form to run the simulation.
     run_form = None
     if owner and complete_simulation:
-        run_form = RunForm(initial={'name': 'Run {}'.format(runs['nb_run']+1)})
+        run_form = RunForm(initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -901,6 +928,7 @@ def simulation_view(request, simulation):
         'run_form': run_form,
     }
     return render(request, 'metro_app/simulation_view.html', context)
+
 
 @require_POST
 @owner_required
@@ -931,6 +959,7 @@ def simulation_view_save(request, simulation):
         }
         return render(request, 'metro_app/errors.html', context)
 
+
 @require_POST
 @owner_required
 def simulation_view_edit(request, simulation):
@@ -951,6 +980,7 @@ def simulation_view_edit(request, simulation):
             'form': simulation_form,
         }
         return render(request, 'metro_app/errors.html', context)
+
 
 @public_required
 def demand_view(request, simulation):
@@ -974,6 +1004,7 @@ def demand_view(request, simulation):
     }
     return render(request, 'metro_app/demand_view.html', context)
 
+
 @owner_required
 def usertype_add(request, simulation):
     """Add a new user type and initiate its distributions with default values.
@@ -992,7 +1023,7 @@ def usertype_add(request, simulation):
     # uniform distribution over half of the period.
     mid_time = (simulation.startTime + simulation.lastRecord) / 2
     length = simulation.lastRecord - simulation.startTime
-    tstar = Distribution(type='UNIFORM', mean=mid_time, std=length/(4*sqrt(3)))
+    tstar = Distribution(type='UNIFORM', mean=mid_time, std=length / (4 * sqrt(3)))
     # Save the distributions to generate ids.
     alphaTI.save()
     alphaTP.save()
@@ -1036,6 +1067,7 @@ def usertype_add(request, simulation):
         reverse('metro:usertype_edit', args=(simulation.id, demandsegment.id,))
     )
 
+
 @owner_required
 @check_demand_relation
 def usertype_edit(request, simulation, demandsegment):
@@ -1047,6 +1079,7 @@ def usertype_edit(request, simulation, demandsegment):
         'form': form,
     }
     return render(request, 'metro_app/usertype_edit.html', context)
+
 
 @require_POST
 @owner_required
@@ -1065,7 +1098,7 @@ def usertype_edit_save(request, simulation, demandsegment):
             usertype_index = list(
                 usertypes.values_list('id', flat=True)
             ).index(usertype.id)
-            usertype.name = 'Traveler Type {}'.format(usertype_index+1)
+            usertype.name = 'Traveler Type {}'.format(usertype_index + 1)
             usertype.save()
         # Check if value of scale has changed.
         if demandsegment.scale != scale:
@@ -1075,13 +1108,13 @@ def usertype_edit_save(request, simulation, demandsegment):
             if matrix_points.exists():
                 # It is not necessary to compute total population if the O-D
                 # matrix is empty.
-                matrix.total = (demandsegment.scale 
+                matrix.total = (demandsegment.scale
                                 * matrix_points.aggregate(Sum('r'))['r__sum'])
                 matrix.save()
                 simulation.has_changed = True
                 simulation.save()
         return HttpResponseRedirect(
-            reverse('metro:demand_view', 
+            reverse('metro:demand_view',
                     args=(simulation.id,))
         )
     else:
@@ -1091,6 +1124,7 @@ def usertype_edit_save(request, simulation, demandsegment):
             'form': form,
         }
         return render(request, 'metro_app/errors.html', context)
+
 
 @owner_required
 @check_demand_relation
@@ -1105,6 +1139,7 @@ def usertype_delete(request, simulation, demandsegment):
         reverse('metro:demand_view', args=(simulation.id,))
     )
 
+
 @public_required
 @check_demand_relation
 def usertype_view(request, simulation, demandsegment):
@@ -1115,6 +1150,7 @@ def usertype_view(request, simulation, demandsegment):
         'demandsegment': demandsegment,
     }
     return render(request, 'metro_app/usertype_view.html', context)
+
 
 @public_required
 @check_demand_relation
@@ -1142,6 +1178,7 @@ def matrix_main(request, simulation, demandsegment):
         'owner': owner,
     }
     return render(request, 'metro_app/matrix_main.html', context)
+
 
 @public_required
 @check_demand_relation
@@ -1189,6 +1226,7 @@ def matrix_view(request, simulation, demandsegment):
             'total': total,
         }
         return render(request, 'metro_app/matrix_view.html', context)
+
 
 @owner_required
 @check_demand_relation
@@ -1238,6 +1276,7 @@ def matrix_edit(request, simulation, demandsegment):
     }
     return render(request, 'metro_app/matrix_edit.html', context)
 
+
 @require_POST
 @owner_required
 @check_demand_relation
@@ -1266,6 +1305,7 @@ def matrix_save(request, simulation, demandsegment):
         'metro:matrix_edit', args=(simulation.id, demandsegment.id,)
     ))
 
+
 @public_required
 @check_demand_relation
 def matrix_export(request, simulation, demandsegment):
@@ -1292,6 +1332,7 @@ def matrix_export(request, simulation, demandsegment):
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
+
 
 @require_POST
 @owner_required
@@ -1359,7 +1400,7 @@ def matrix_import(request, simulation, demandsegment):
             to_be_updated_ids = [pair_mapping[pair[:2]] for pair in to_be_updated]
             with connection.cursor() as cursor:
                 chunk_size = 20000
-                chunks = [to_be_updated_ids[x:x+chunk_size]
+                chunks = [to_be_updated_ids[x:x + chunk_size]
                           for x in range(0, len(to_be_updated_ids), chunk_size)]
                 for chunk in chunks:
                     cursor.execute(
@@ -1382,12 +1423,12 @@ def matrix_import(request, simulation, demandsegment):
         # Create the new OD pairs in bulk.
         # The chunk size is limited by the MySQL engine (timeout if it is too big).
         chunk_size = 20000
-        chunks = [to_be_created[x:x+chunk_size] 
+        chunks = [to_be_created[x:x + chunk_size]
                   for x in range(0, len(to_be_created), chunk_size)]
         for chunk in chunks:
             Matrix.objects.bulk_create(chunk, chunk_size)
         # Update total.
-        pairs = pairs.all() # Update queryset from database.
+        pairs = pairs.all()  # Update queryset from database.
         matrix.total = int(
             demandsegment.scale * pairs.aggregate(Sum('r'))['r__sum']
         )
@@ -1405,6 +1446,7 @@ def matrix_import(request, simulation, demandsegment):
         }
         return render(request, 'metro_app/import_error.html', context)
 
+
 @owner_required
 @check_demand_relation
 def matrix_reset(request, simulation, demandsegment):
@@ -1420,6 +1462,7 @@ def matrix_reset(request, simulation, demandsegment):
     return HttpResponseRedirect(reverse(
         'metro:matrix_main', args=(simulation.id, demandsegment.id,)
     ))
+
 
 @public_required
 def pricing_main(request, simulation):
@@ -1444,10 +1487,12 @@ def pricing_main(request, simulation):
     }
     return render(request, 'metro_app/pricing_main.html', context)
 
+
 @public_required
 def pricing_view(request, simulation):
     """View to display the tolls of an user type."""
-    return TollListView.as_view()(request, simulation=simulation,)
+    return TollListView.as_view()(request, simulation=simulation, )
+
 
 @owner_required
 def pricing_edit(request, simulation):
@@ -1460,7 +1505,7 @@ def pricing_edit(request, simulation):
     # Get all LinkSelection of the network.
     locations = LinkSelection.objects.filter(
         network=simulation.scenario.supply.network
-        )
+    )
     """View to edit the tolls."""
     # Create a formset to edit the objects.
     formset = PolicyFormSet
@@ -1473,6 +1518,7 @@ def pricing_edit(request, simulation):
         'formset': formset,
     }
     return render(request, 'metro_app/pricing_edit.html', context)
+
 
 @require_POST
 @owner_required
@@ -1495,7 +1541,7 @@ def pricing_save(request, simulation):
         return render(request, 'metro_app/errors.html', context)
 
     return HttpResponseRedirect(reverse(
-            'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
+        'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
     ))
 
 
@@ -1532,6 +1578,7 @@ def pricing_export(request, simulation):
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
+
 
 @require_POST
 @owner_required
@@ -1642,6 +1689,7 @@ def pricing_import(request, simulation):
         }
         return render(request, 'metro_app/import_error.html', context)
 
+
 @owner_required
 def pricing_reset(request, simulation):
     """View to reset the tolls of an user type."""
@@ -1653,6 +1701,7 @@ def pricing_reset(request, simulation):
     return HttpResponseRedirect(reverse(
         'metro:pricing_main', args=(simulation.id,)
     ))
+
 
 @public_required
 def public_transit_view(request, simulation):
@@ -1671,7 +1720,7 @@ def public_transit_view(request, simulation):
         # O-D pairs.
         nb_centroids = centroids.count()
         nb_pairs = public_transit_pairs.count()
-        is_complete = nb_pairs >= nb_centroids * (nb_centroids-1)
+        is_complete = nb_pairs >= nb_centroids * (nb_centroids - 1)
     import_form = ImportForm()
     context = {
         'simulation': simulation,
@@ -1682,7 +1731,8 @@ def public_transit_view(request, simulation):
         'has_centroid': has_centroid,
         'large_matrix': large_matrix,
     }
-    return render (request, 'metro_app/public_transit_view.html', context)
+    return render(request, 'metro_app/public_transit_view.html', context)
+
 
 @public_required
 def public_transit_list(request, simulation):
@@ -1725,6 +1775,7 @@ def public_transit_list(request, simulation):
             'public_transit': True,
         }
         return render(request, 'metro_app/matrix_view.html', context)
+
 
 @owner_required
 def public_transit_edit(request, simulation):
@@ -1775,6 +1826,7 @@ def public_transit_edit(request, simulation):
     }
     return render(request, 'metro_app/matrix_edit.html', context)
 
+
 @require_POST
 @owner_required
 def public_transit_edit_save(request, simulation):
@@ -1795,6 +1847,7 @@ def public_transit_edit_save(request, simulation):
         'metro:public_transit_edit', args=(simulation.id,)
     ))
 
+
 @owner_required
 def public_transit_delete(request, simulation):
     """Delete all OD pairs of the public transit OD matrix.
@@ -1806,6 +1859,7 @@ def public_transit_delete(request, simulation):
     return HttpResponseRedirect(reverse(
         'metro:public_transit_view', args=(simulation.id,)
     ))
+
 
 @require_POST
 @owner_required
@@ -1861,7 +1915,7 @@ def public_transit_import(request, simulation):
             to_be_updated_ids = [pair_mapping[pair[:2]] for pair in to_be_updated]
             with connection.cursor() as cursor:
                 chunk_size = 20000
-                chunks = [to_be_updated_ids[x:x+chunk_size]
+                chunks = [to_be_updated_ids[x:x + chunk_size]
                           for x in range(0, len(to_be_updated_ids), chunk_size)]
                 for chunk in chunks:
                     cursor.execute(
@@ -1884,7 +1938,7 @@ def public_transit_import(request, simulation):
         # Create the new OD pairs in bulk.
         # The chunk size is limited by the MySQL engine (timeout if it is too big).
         chunk_size = 20000
-        chunks = [to_be_created[x:x+chunk_size] 
+        chunks = [to_be_created[x:x + chunk_size]
                   for x in range(0, len(to_be_created), chunk_size)]
         for chunk in chunks:
             Matrix.objects.bulk_create(chunk, chunk_size)
@@ -1898,6 +1952,7 @@ def public_transit_import(request, simulation):
             'object': 'public_transit',
         }
         return render(request, 'metro_app/import_error.html', context)
+
 
 @public_required
 def public_transit_export(request, simulation):
@@ -1924,6 +1979,7 @@ def public_transit_export(request, simulation):
     os.remove(filename)
     return response
 
+
 @public_required
 def object_view(request, simulation, object):
     """Main view of a network object."""
@@ -1932,7 +1988,7 @@ def object_view(request, simulation, object):
     large_count = query.count() > OBJECT_THRESHOLD
     network_empty = False
     if object == 'link':
-        #Allow the user to edit links only if there are at least two centroids,
+        # Allow the user to edit links only if there are at least two centroids,
         # one crossing and one congestion function.
         nb_centroids = get_query('centroid', simulation).count()
         nb_crossings = get_query('crossing', simulation).count()
@@ -1951,6 +2007,7 @@ def object_view(request, simulation, object):
     }
     return render(request, 'metro_app/object_view.html', context)
 
+
 @public_required
 def object_list(request, simulation, object):
     """View to list all instances of a network object."""
@@ -1965,6 +2022,7 @@ def object_list(request, simulation, object):
     else:
         return Http404()
 
+
 @owner_required
 def object_edit(request, simulation, object):
     """View to edit all instances of a network object."""
@@ -1977,6 +2035,7 @@ def object_edit(request, simulation, object):
         'formset': formset,
     }
     return render(request, 'metro_app/object_edit.html', context)
+
 
 @require_POST
 @owner_required
@@ -2018,6 +2077,7 @@ def object_edit_save(request, simulation, object):
             'formset': formset,
         }
         return render(request, 'metro_app/errors_formset.html', context)
+
 
 @require_POST
 @owner_required
@@ -2131,7 +2191,7 @@ def object_import(request, simulation, object):
                         to_be_updated.add(
                             (id, row['name'],
                              node_mapping[int(row['origin'])],
-                             node_mapping[int(row['destination'])], 
+                             node_mapping[int(row['destination'])],
                              function_id_mapping[int(row['function'])],
                              float(row['lanes']), float(row['length']),
                              float(row['speed']), float(row['capacity']))
@@ -2159,8 +2219,8 @@ def object_import(request, simulation, object):
                 values = set(query.values_list('user_id', 'name', 'expression'))
             elif object == 'link':
                 values = set(query.values_list('user_id', 'name', 'origin',
-                                                'destination', 'vdf_id', 'lanes',
-                                                'length', 'speed', 'capacity'))
+                                               'destination', 'vdf_id', 'lanes',
+                                               'length', 'speed', 'capacity'))
             # Find the instances that really need to be updated (the values have
             # changed).
             to_be_updated = to_be_updated.difference(values)
@@ -2173,7 +2233,7 @@ def object_import(request, simulation, object):
                     instance = query.filter(user_id=values[0])
                     if object in ('centroid', 'crossing'):
                         instance.update(name=values[1], x=values[2], y=values[3])
-                    else: # Function
+                    else:  # Function
                         instance.update(name=values[1], expression=values[2])
             elif object == 'link':
                 # Delete the links and re-create them.
@@ -2189,7 +2249,7 @@ def object_import(request, simulation, object):
                 with connection.cursor() as cursor:
                     chunk_size = 20000
                     chunks = [
-                        to_be_updated_ids[x:x+chunk_size]
+                        to_be_updated_ids[x:x + chunk_size]
                         for x in range(0, len(to_be_updated_ids), chunk_size)
                     ]
                     for chunk in chunks:
@@ -2220,7 +2280,7 @@ def object_import(request, simulation, object):
         # Create the new objects in bulk.
         # The chunk size is limited by the MySQL engine (timeout if it is too big).
         chunk_size = 10000
-        chunks = [to_be_created[x:x+chunk_size] 
+        chunks = [to_be_created[x:x + chunk_size]
                   for x in range(0, len(to_be_created), chunk_size)]
         # Remove the orphan instances.
         if object == 'function':
@@ -2257,6 +2317,7 @@ def object_import(request, simulation, object):
             'object': object,
         }
         return render(request, 'metro_app/import_error.html', context)
+
 
 @public_required
 def object_export(request, simulation, object):
@@ -2315,6 +2376,7 @@ def object_export(request, simulation, object):
     os.remove(filename)
     return response
 
+
 @owner_required
 def object_delete(request, simulation, object):
     """View to delete all instances of a network objects."""
@@ -2325,6 +2387,7 @@ def object_delete(request, simulation, object):
     return HttpResponseRedirect(reverse(
         'metro:object_view', args=(simulation.id, object,)
     ))
+
 
 @require_POST
 @owner_required
@@ -2347,6 +2410,7 @@ def simulation_run_action(request, simulation):
         'metro:simulation_run_list', args=(simulation.id,)
     ))
 
+
 @owner_required
 @check_run_relation
 def simulation_run_stop(request, simulation, run):
@@ -2363,6 +2427,7 @@ def simulation_run_stop(request, simulation, run):
     return HttpResponseRedirect(reverse(
         'metro:simulation_run_view', args=(simulation.id, run.id,)
     ))
+
 
 @public_required
 @check_run_relation
@@ -2387,6 +2452,7 @@ def simulation_run_view(request, simulation, run):
     }
     return render(request, 'metro_app/simulation_run.html', context)
 
+
 @public_required
 def simulation_run_list(request, simulation):
     """View with a list of the runs of the simulation."""
@@ -2397,6 +2463,7 @@ def simulation_run_list(request, simulation):
     }
     return render(request, 'metro_app/simulation_run_list.html', context)
 
+
 @public_required
 @check_run_relation
 def simulation_run_link_output(request, simulation, run):
@@ -2405,7 +2472,7 @@ def simulation_run_link_output(request, simulation, run):
         db_name = settings.DATABASES['default']['NAME']
         file_path = (
             '{0}/website_files/network_output/link_results_{1}_{2}.txt'
-            .format(settings.BASE_DIR, simulation.id, run.id)
+                .format(settings.BASE_DIR, simulation.id, run.id)
         )
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read())
@@ -2417,6 +2484,7 @@ def simulation_run_link_output(request, simulation, run):
         # Should notify an admin that the file is missing.
         raise Http404()
 
+
 @public_required
 @check_run_relation
 def simulation_run_user_output(request, simulation, run):
@@ -2425,7 +2493,7 @@ def simulation_run_user_output(request, simulation, run):
         db_name = settings.DATABASES['default']['NAME']
         file_path = (
             '{0}/website_files/network_output/user_results_{1}_{2}.txt'
-            .format(settings.BASE_DIR, simulation.id, run.id)
+                .format(settings.BASE_DIR, simulation.id, run.id)
         )
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read())
@@ -2437,6 +2505,7 @@ def simulation_run_user_output(request, simulation, run):
         # Should notify an admin that the file is missing.
         raise Http404()
 
+
 @public_required
 def network_view(request, simulation):
     """View of the network of a simulation."""
@@ -2446,7 +2515,7 @@ def network_view(request, simulation):
     # File where the data for the network are stored.
     output_file = (
         '{0}/website_files/network_output/network_{1!s}.json'
-        .format(settings.BASE_DIR, simulation.id)
+            .format(settings.BASE_DIR, simulation.id)
     )
     if simulation.has_changed or not os.path.isfile(output_file):
         # Generate a new output file.
@@ -2468,6 +2537,7 @@ def network_view(request, simulation):
     }
     return render(request, 'metro_app/network.html', context)
 
+
 @public_required
 @check_run_relation
 def network_view_run(request, simulation, run):
@@ -2480,18 +2550,18 @@ def network_view_run(request, simulation, run):
     # Files where the data for the network are stored.
     network_file = (
         '{0}/website_files/network_output/network_{1}_{2}.json'
-        .format(settings.BASE_DIR, simulation.id, run.id)
+            .format(settings.BASE_DIR, simulation.id, run.id)
     )
     parameters_file = (
         '{0}/website_files/network_output/parameters_{1}_{2}.json'
-        .format(settings.BASE_DIR, simulation.id, run.id)
+            .format(settings.BASE_DIR, simulation.id, run.id)
     )
     results_file = (
         '{0}/website_files/network_output/results_{1}_{2}.json'
-        .format(settings.BASE_DIR, simulation.id, run.id)
+            .format(settings.BASE_DIR, simulation.id, run.id)
     )
-    if (os.path.isfile(network_file) 
-            and os.path.isfile(parameters_file) 
+    if (os.path.isfile(network_file)
+            and os.path.isfile(parameters_file)
             and os.path.isfile(results_file)):
         # Load the data for the network.
         with open(network_file, 'r') as f:
@@ -2513,9 +2583,9 @@ def network_view_run(request, simulation, run):
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 
-#====================
+# ====================
 # Class-Based Views
-#====================
+# ====================
 
 class MatrixListView(SingleTableMixin, FilterView):
     """Class-based view to show an OD Matrix as a table.
@@ -2545,6 +2615,7 @@ class MatrixListView(SingleTableMixin, FilterView):
         context['total'] = self.demandsegment.matrix.total
         return context
 
+
 class PTMatrixListView(SingleTableMixin, FilterView):
     """Class-based view to show the public-transit OD matrix as a table.
 
@@ -2572,6 +2643,7 @@ class PTMatrixListView(SingleTableMixin, FilterView):
         context['public_transit'] = True
         return context
 
+
 class CentroidListView(SingleTableMixin, FilterView):
     table_class = CentroidTable
     model = Centroid
@@ -2590,6 +2662,7 @@ class CentroidListView(SingleTableMixin, FilterView):
         context['simulation'] = self.simulation
         context['object'] = 'centroid'
         return context
+
 
 class CrossingListView(SingleTableMixin, FilterView):
     table_class = CrossingTable
@@ -2610,6 +2683,7 @@ class CrossingListView(SingleTableMixin, FilterView):
         context['object'] = 'crossing'
         return context
 
+
 class LinkListView(SingleTableMixin, FilterView):
     table_class = LinkTable
     model = Link
@@ -2629,6 +2703,7 @@ class LinkListView(SingleTableMixin, FilterView):
         context['object'] = 'link'
         return context
 
+
 class FunctionListView(SingleTableMixin, FilterView):
     table_class = FunctionTable
     model = Function
@@ -2647,6 +2722,7 @@ class FunctionListView(SingleTableMixin, FilterView):
         context['simulation'] = self.simulation
         context['object'] = 'function'
         return context
+
 
 class TollListView(SingleTableMixin, FilterView):
     table_class = TollTable
@@ -2668,9 +2744,10 @@ class TollListView(SingleTableMixin, FilterView):
         context['simulation'] = self.simulation
         return context
 
-#====================
+
+# ====================
 # Receivers
-#====================
+# ====================
 
 @receiver(pre_delete, sender=FunctionSet)
 def pre_delete_function_set(sender, instance, **kwargs):
@@ -2679,6 +2756,7 @@ def pre_delete_function_set(sender, instance, **kwargs):
     """
     # Delete all functions (this also deletes the links).
     instance.function_set.all().delete()
+
 
 @receiver(pre_delete, sender=Network)
 def pre_delete_network(sender, instance, **kwargs):
@@ -2697,6 +2775,7 @@ def pre_delete_network(sender, instance, **kwargs):
     instance.crossing_set.all().delete()
     pre_delete.connect(pre_delete_crossing, sender=Crossing)
 
+
 @receiver(pre_delete, sender=Centroid, dispatch_uid="centroid")
 def pre_delete_centroid(sender, instance, **kwargs):
     """Delete all links related to a centroid before deleting the centroid.
@@ -2708,11 +2787,13 @@ def pre_delete_centroid(sender, instance, **kwargs):
     Link.objects.filter(origin=instance.id).delete()
     Link.objects.filter(destination=instance.id).delete()
 
+
 @receiver(pre_delete, sender=Crossing, dispatch_uid="crossing")
 def pre_delete_crossing(sender, instance, **kwargs):
     """Delete all links related to a crossing before deleting the crossing."""
     Link.objects.filter(origin=instance.id).delete()
     Link.objects.filter(destination=instance.id).delete()
+
 
 @receiver(pre_delete, sender=Demand)
 def pre_delete_demand(sender, instance, **kwargs):
@@ -2745,8 +2826,8 @@ def pre_delete_demand(sender, instance, **kwargs):
         matrix.delete()
 
 
-#Shows all events
-def showEvents(request):
+# Shows all events
+def show_events(request):
     """Sorts events by date"""
     event_list = Event.objects.order_by('-date')
 
@@ -2755,7 +2836,8 @@ def showEvents(request):
     context = {'events': event_list, 'form': event_form}
     return render(request, 'metro_app/events_view.html', context)
 
-def create_Event(request):
+
+def create_event(request):
     my_form = EventForm(request.POST or None)
     if my_form.is_valid():
         event_title = my_form.cleaned_data['title']
@@ -2765,26 +2847,28 @@ def create_Event(request):
 
         my_form = EventForm()
 
+    return show_events(request)
 
-    return showEvents(request)
 
-def delete_Event(request, pk):
+def delete_event(request, pk):
     event = get_object_or_404(Event, id=pk)
 
     if request.method == 'POST':
         event.delete()
 
-    return showEvents(request)
+    return show_events(request)
 
-#Loads the edit Event page
-def edit_Event_Show(request, pk):
+
+# Loads the edit Event page
+def edit_event_show(request, pk):
     event = get_object_or_404(Event, id=pk)
     my_form = EventForm(initial={'title': event.title, 'description': event.description})
 
     context = {'event': event, 'form': my_form}
     return render(request, 'metro_app/events_edit.html', context)
 
-def edit_Event(request, pk):
+
+def edit_event(request, pk):
     event = get_object_or_404(Event, id=pk)
     my_form = EventForm(request.POST)
 
@@ -2792,13 +2876,80 @@ def edit_Event(request, pk):
         event_title = my_form.cleaned_data['title']
         event_description = my_form.cleaned_data['description']
         event_author = event.author
-        event = Event.objects.filter(id=pk).update(title=event_title, author=event_author, description=event_description, date=datetime.datetime.now())
+        event = Event.objects.filter(id=pk).update(title=event_title,
+                                                   author=event_author,
+                                                   description=event_description,
+                                                   date=datetime.datetime.now())
 
-    return showEvents(request)
+    return show_events(request)
 
-#====================
+
+def show_articles(request):
+    article_list = Article.objects.order_by('-id')
+    article_form = ArticleForm()
+    article_files = ArticleFile.objects
+
+    articles = []
+
+    for article in article_list:
+        documents = article_files.filter(file_article=article.id)
+        articles.append(tuple((article, documents)))
+
+    context = {'articles': articles, 'form': article_form}
+    return render(request, 'metro_app/articles_view.html', context)
+
+
+def download_article_file(request, path):
+    try:
+        articles_path = (settings.BASE_DIR
+                         + '\website_files\\articles\\')  # Change for linux
+        file_path = articles_path + path
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                response = HttpResponse(f, content_type='application/pdf')
+                response['Content-Disposition'] = \
+                    'attachment; filename=' + os.path.basename(file_path)
+                return response
+        else:
+            raise Http404()
+    except FileNotFoundError:
+        # Should notify an admin that the file is missing.
+        raise Http404()
+
+
+def create_article(request):
+    my_form = ArticleForm(request.POST or None)
+    files = request.FILES.getlist('files')
+    if my_form.is_valid():
+
+        article_title = my_form.cleaned_data['title']
+        article_author = request.user
+
+        article = Article.objects.create(title=article_title, creator=article_author)
+
+        for f in files:
+            file_name = os.path.basename(f.name)
+            article_file = ArticleFile.objects.create(file=f, file_name=file_name, file_article=article)
+
+        my_form = ArticleForm()
+    else:
+        print(my_form.errors)
+
+    return show_articles(request)
+
+
+def delete_article(request, pk):
+    article = get_object_or_404(Article, id=pk)
+
+    if request.method == 'POST':
+        article.delete()
+
+    return show_articles(request)
+
+
+# ====================
 # Functions
-#====================
+# ====================
 
 def run_simulation(run):
     """Function to start a SimulationRun.
@@ -2811,8 +2962,8 @@ def run_simulation(run):
     metrosim_dir = settings.BASE_DIR + '/metrosim_files/'
     metrosim_file = '{0}execs/metrosim'.format(metrosim_dir)
     arg_file = (
-        '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'.format(metrosim_dir, 
-                                                             simulation.id, 
+        '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'.format(metrosim_dir,
+                                                             simulation.id,
                                                              run.id)
     )
     with open(arg_file, 'w') as f:
@@ -2857,6 +3008,7 @@ def run_simulation(run):
                              argfile=arg_file,
                              second_script=build_results_file)
     subprocess.Popen(command, shell=True)
+
 
 def gen_formset(object_name, simulation, request=None):
     """Function to generate a formset either from a simulation object or from a
