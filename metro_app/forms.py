@@ -556,14 +556,15 @@ class FunctionModelFormSet(BaseModelFormSet):
 
 class EventForm(forms.Form):
     title = forms.CharField()
-    description = forms.CharField(required=False,
-                                  widget=forms.Textarea(
-                                      attrs={
-                                      "cols":20}))
+    description = forms.CharField(required=False, widget=forms.Textarea(
+        attrs={"cols":20}))
 
 class ArticleForm(forms.Form):
     title = forms.CharField()
-    files = forms.FileField(widget=forms.ClearableFileInput(attrs={'multiple': True}), required=False)
+    description = forms.CharField(required=False, widget=forms.Textarea(
+        attrs={"cols":20}))
+    files = forms.FileField(widget=forms.ClearableFileInput(attrs={
+        'multiple': True}), required=False)
 
 
 

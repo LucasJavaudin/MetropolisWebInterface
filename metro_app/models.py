@@ -891,8 +891,12 @@ class Event(models.Model):
 
 
 class Article(models.Model):
-    title = models.CharField(max_length=300, blank=False, null=False, default='', db_column='title')
-    creator = models.CharField(max_length=150, blank=False, null=False, default='', db_column='author')
+    title = models.CharField(max_length=300, blank=False, null=False,
+                             default='', db_column='title')
+    description = models.TextField(blank=True, null=True,
+                                   db_column='description')
+    creator = models.CharField(max_length=150, blank=False, null=False,
+                               default='', db_column='author')
 
     def __str__(self):
         return str(self.id)

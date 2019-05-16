@@ -57,7 +57,8 @@ Metropolis
 
 			<h5 class="lead">{{ article.0.creator }}</h5>
 			<hr class="my-4">
-
+			<p>{{ article.0.description|linebreaks}}</p>
+			<hr class="my-4">
 			{% for file in article.1%}
 			{{ file.get_download|safe }}
 			<br>

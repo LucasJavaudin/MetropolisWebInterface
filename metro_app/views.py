@@ -2902,7 +2902,7 @@ def show_articles(request):
 def download_article_file(request, path):
     try:
         articles_path = (settings.BASE_DIR
-                         + '\website_files\\articles\\')  # Change for linux
+                         + '/website_files/articles/')  # Change for linux
         file_path = articles_path + path
         if os.path.exists(file_path):
             with open(file_path, 'rb') as f:
@@ -2923,9 +2923,12 @@ def create_article(request):
     if my_form.is_valid():
 
         article_title = my_form.cleaned_data['title']
+        article_description = my_form.cleaned_data['description']
         article_author = request.user
 
-        article = Article.objects.create(title=article_title, creator=article_author)
+        article = Article.objects.create(title=article_title,
+                                         description = article_description,
+                                         creator=article_author)
 
         for f in files:
             file_name = os.path.basename(f.name)
