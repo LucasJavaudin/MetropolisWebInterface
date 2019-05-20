@@ -14,6 +14,7 @@ urlpatterns = [
     re_path(r'^articles/(?P<path>.*)$', views.download_article_file, name='article_file_download'),
     path(r'articles_view/add_article', views.create_article, name='articles_add'),
     re_path(r'delete_article/(?P<pk>[0-9]+)/', views.delete_article, name='articles_delete'),
+    path(r'<simulation_id>/export/', views.simulation_export, name='simulation_export'),
 
 
     path(r'',

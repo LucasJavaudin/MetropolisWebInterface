@@ -62,6 +62,7 @@ Metropolis
 			<td>
 				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-edit"></i> Edit</a>
 				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_export' simulation.id %}"><i class="fas fa-download"></i>Export</a>
 				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#deleteModal_{{ simulation.id }}"><i class="far fa-trash-alt"></i> Delete</button>
 			</td>
 		</tr>
@@ -92,6 +93,7 @@ Metropolis
 				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-eye"></i> View</a>
 				{% if user.is_authenticated %}
 				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_export' simulation.id %}"><i class="fas fa-download"></i>Export</a>
 				{% endif %}
 			</td>
 		</tr>
@@ -122,6 +124,7 @@ Metropolis
 				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-eye"></i> View</a>
 				{% if user.is_authenticated %}
 				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
+				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_export' simulation.id %}"><i class="fas fa-download"></i>Export</a>
 				{% endif %}
 			</td>
 		</tr>

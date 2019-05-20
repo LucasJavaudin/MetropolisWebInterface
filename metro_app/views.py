@@ -7,9 +7,11 @@ import time
 import urllib
 import re
 import os
+import shutil
 import csv
 import subprocess
-from io import StringIO
+from io import StringIO, BytesIO
+import zipfile
 from shutil import copyfile
 import json
 import codecs
@@ -1308,7 +1310,7 @@ def matrix_save(request, simulation, demandsegment):
 
 @public_required
 @check_demand_relation
-def matrix_export(request, simulation, demandsegment):
+def matrix_export(simulation, demandsegment):
     """View to send a file with the OD Matrix to the user."""
     matrix = demandsegment.matrix
     matrix_couples = Matrix.objects.filter(matrices=matrix)
@@ -1332,6 +1334,24 @@ def matrix_export(request, simulation, demandsegment):
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
+
+def matrix_export_save(simulation, demandsegment, dir):
+    """View to send a file with the OD Matrix to the user."""
+    matrix = demandsegment.matrix
+    matrix_couples = Matrix.objects.filter(matrices=matrix)
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    filename = dir + '/matrix(' + demandsegment.usertype.name + ')(' + str(demandsegment.usertype.user_id) + ').tsv'
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
+        # Write a custom header.
+        writer.writerow(['origin', 'destination', 'population'])
+        writer.writerows(values)
+
+    return filename
 
 
 @require_POST
@@ -1570,6 +1590,7 @@ def pricing_export(request, simulation):
         # Write a custom header.
         writer.writerow(['link', 'values', 'times', 'traveler_type'])
         writer.writerows(values)
+
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
@@ -1579,6 +1600,31 @@ def pricing_export(request, simulation):
     os.remove(filename)
     return response
 
+def pricing_export_save(simulation, dir):
+    """View to send a file with the tolls of an user type."""
+    # Get all tolls.
+    policies = get_query('policy', simulation)
+    tolls = policies.filter(type='PRICING')
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    filename = dir + '/pricings.tsv'
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = list()
+        for toll in tolls:
+            if toll.usertype:
+                usertype_id = toll.usertype.user_id
+            else:
+                usertype_id = ''
+            values.append([toll.location.user_id, toll.get_value_vector(),
+                           toll.get_time_vector(), usertype_id])
+        # Write a custom header.
+        writer.writerow(['link', 'values', 'times', 'traveler_type'])
+        writer.writerows(values)
+
+    return filename
 
 @require_POST
 @owner_required
@@ -1979,6 +2025,22 @@ def public_transit_export(request, simulation):
     os.remove(filename)
     return response
 
+def public_transit_export_save(simulation,dir):
+    """View to send a file with the public transit OD Matrix to the user."""
+    matrix_couples = get_query('public_transit', simulation)
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    filename = dir + '/public_transit.tsv'
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
+        # Write a custom header.
+        writer.writerow(['origin', 'destination', 'travel time'])
+        writer.writerows(values)
+
+    return filename
 
 @public_required
 def object_view(request, simulation, object):
@@ -2376,6 +2438,53 @@ def object_export(request, simulation, object):
     os.remove(filename)
     return response
 
+def object_export_save(simulation, object, dir):
+    """View to export all instances of a network object."""
+    query = get_query(object, simulation)
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    filename = dir + '/' + object + 's.tsv'
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        if object == 'centroid':
+            fields = ['id', 'name', 'x', 'y', 'db_id']
+        elif object == 'crossing':
+            fields = ['id', 'name', 'x', 'y', 'db_id']
+        elif object == 'link':
+            fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
+                      'speed', 'capacity', 'vdf']
+        elif object == 'function':
+            fields = ['id', 'expression']
+        writer = csv.writer(f, delimiter='\t')
+        if object in ('centroid', 'crossing'):
+            writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
+            values = query.values_list('user_id', 'name', 'x', 'y', 'id')
+        elif object == 'function':
+            writer.writerow(['id', 'name', 'expression'])
+            values = query.values_list('user_id', 'name', 'expression')
+        elif object == 'link':
+            writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
+                             'capacity', 'function', 'origin', 'destination'])
+            values = query.values_list('user_id', 'name', 'lanes', 'length',
+                                       'speed', 'capacity', 'vdf__user_id')
+            # Origin and destination id must be converted to user_id.
+            centroids = get_query('centroid', simulation)
+            crossings = get_query('crossing', simulation)
+            ids = list(centroids.values_list('id', 'user_id'))
+            ids += list(crossings.values_list('id', 'user_id'))
+            # Map id of nodes to their user_id.
+            id_mapping = dict(ids)
+            origins = query.values_list('origin', flat=True)
+            origins = np.array([id_mapping[n] for n in origins])
+            destinations = query.values_list('destination', flat=True)
+            destinations = np.array([id_mapping[n] for n in destinations])
+            # Add origin and destination user ids to the values array.
+            origins = np.transpose([origins])
+            destinations = np.transpose([destinations])
+            values = np.hstack([values, origins, destinations])
+        writer.writerows(values)
+
+    return filename
 
 @owner_required
 def object_delete(request, simulation, object):
@@ -2847,7 +2956,7 @@ def create_event(request):
 
         my_form = EventForm()
 
-    return show_events(request)
+    return HttpResponseRedirect(reverse('metro:events_view'))
 
 
 def delete_event(request, pk):
@@ -2856,7 +2965,7 @@ def delete_event(request, pk):
     if request.method == 'POST':
         event.delete()
 
-    return show_events(request)
+    return HttpResponseRedirect(reverse('metro:events_view'))
 
 
 # Loads the edit Event page
@@ -2881,7 +2990,7 @@ def edit_event(request, pk):
                                                    description=event_description,
                                                    date=datetime.datetime.now())
 
-    return show_events(request)
+    return HttpResponseRedirect(reverse('metro:events_view'))
 
 
 def show_articles(request):
@@ -2938,7 +3047,7 @@ def create_article(request):
     else:
         print(my_form.errors)
 
-    return show_articles(request)
+    return HttpResponseRedirect(reverse('metro:articles_view'))
 
 
 def delete_article(request, pk):
@@ -2947,7 +3056,59 @@ def delete_article(request, pk):
     if request.method == 'POST':
         article.delete()
 
-    return show_articles(request)
+    return HttpResponseRedirect(reverse('metro:articles_view'))
+
+@public_required
+def simulation_export(request, simulation):
+    """View to make a zip file of all simulation parameters."""
+
+    seed = np.random.randint(10000)
+    dir = '{0}/website_files/exports/{1}'.format(settings.BASE_DIR, seed)
+    os.makedirs(dir)
+
+    files_names = []
+
+    files_names.append(object_export_save(simulation, 'centroid', dir))
+    files_names.append(object_export_save(simulation, 'crossing', dir))
+    files_names.append(object_export_save(simulation, 'link', dir))
+    files_names.append(object_export_save(simulation, 'function', dir))
+    files_names.append(public_transit_export_save(simulation, dir))
+    files_names.append(pricing_export_save(simulation, dir))
+
+
+    demandsegments = get_query('demandsegment', simulation)
+    for demandsegment in demandsegments:
+        files_names.append(matrix_export_save(simulation, demandsegment, dir))
+
+
+
+    #Need to add parameters file here
+
+    zipname = '{0}.zip'.format(str(simulation))
+
+    s = BytesIO()
+
+    file = zipfile.ZipFile(s, 'w')
+
+    for f in files_names:
+        # Calculate path for file in zip
+        fdir, fname = os.path.split(f)
+        zip_path = os.path.join(zipname, fname)
+
+        # Add file, at correct path
+        file.write(f, zip_path)
+
+    file.close()
+
+    # Grab ZIP file from in-memory, make response with correct MIME-type
+    response = HttpResponse(s.getvalue())
+    response['content_type'] = 'application/x-zip-compressed'
+    # ..and correct content-disposition
+    response['Content-Disposition'] = 'attachment; filename={0}.zip'.format(str(simulation))
+
+    shutil.rmtree(dir, ignore_errors=True)
+
+    return response
 
 
 # ====================
