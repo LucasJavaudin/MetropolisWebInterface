@@ -10,11 +10,14 @@ This file must be in the directory metro_app.
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
+
+print('Starting script...')
+
 # Execute the script with the virtualenv.
 try:
     activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
     with open(activate_this_file) as f:
-            exec(f.read(), {'__file__': activate_this_file})
+        exec(f.read(), {'__file__': activate_this_file})
 except FileNotFoundError:
     print('Running script without a virtualenv.')
     pass
@@ -26,10 +29,16 @@ import csv
 import json
 import codecs
 
+# Set matplotlib config directory.
+mplconfigdir = '/home/metropolis/matplotlib'
+if os.path.isdir(mplconfigdir):
+    os.environ['MPLCONFIGDIR'] = mplconfigdir
+
 import django
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import connection
 
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
@@ -42,12 +51,13 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE",
 django.setup()
 
 from metro_app.models import *
-from metro_app.views import NETWORK_THRESHOLD
+from metro_app.views import LINK_THRESHOLD
 from metro_app.functions import *
+
 
 def import_output(run):
     """Import the results of the SimulationRun.
-    
+
     Return a dictionary with the ids of the links and a numpy array with the
     results for each type.
     """
@@ -66,7 +76,7 @@ def import_output(run):
         for row in reader:
             output['link_ids'].append(row[0])
 
-    if len(output['link_ids']) >= NETWORK_THRESHOLD:
+    if len(output['link_ids']) >= LINK_THRESHOLD:
         # Large network, only store one type of results (phi_in_H).
         output_types = ['phi_in_H']
     else:
@@ -85,7 +95,7 @@ def import_output(run):
                 # Create a list to store the output of this link.
                 link_output = []
                 # Store link id (only once).
-                for period in range(1, len(row)-1): # Last column is empty.
+                for period in range(1, len(row) - 1):  # Last column is empty.
                     link_output.append(row[period])
                 output[output_type].append(link_output)
         # Convert the list to a numpy array.
@@ -95,6 +105,7 @@ def import_output(run):
         output[output_type] = np.array(output[output_type], dtype=np.int16)
     return output
 
+
 def export_link_results(output, export_file):
     # Create a dictionary to map the link ids with the link user ids.
     link_mapping = dict()
@@ -102,7 +113,7 @@ def export_link_results(output, export_file):
     for link in links:
         link_mapping[link.id] = link.user_id
     # Check size of network.
-    large_network = len(output['link_ids']) >= NETWORK_THRESHOLD
+    large_network = len(output['link_ids']) >= LINK_THRESHOLD
     # Write a csv.
     with codecs.open(export_file, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
@@ -113,8 +124,8 @@ def export_link_results(output, export_file):
             labels = ['in-flow_H', 'in-flow_S', 'out-flow_H', 'out-flow_S',
                       'ttime_H', 'ttime_S']
         nb_periods = len(output['phi_in_H'][0])
-        headers = ['{}_{}'.format(l, i+1) 
-                   for l in labels 
+        headers = ['{}_{}'.format(l, i + 1)
+                   for l in labels
                    for i in range(nb_periods)]
         headers = ['link'] + headers
         writer.writerow(headers)
@@ -135,9 +146,10 @@ def export_link_results(output, export_file):
                 row += list(values)
             writer.writerow(row)
 
+
 def build_results(output):
     """Convert the results to color values.
-    
+
     Return a dictionary with the same structure as the network output with the
     results for each links, a colorscale and stats for each output type.
     """
@@ -150,13 +162,14 @@ def build_results(output):
     transparency = .8
     size = 500
     colorscale_values = np.arange(0, size, 1)
-    colorscale = [cmap(val/(size-1)) for val in colorscale_values]
-    colorscale = ['rgba({0}, {1}, {2}, {3})'.format(color[0]*255, color[1]*255,
-                                                    color[2]*255, transparency)
-                  for color in colorscale]
+    colorscale = [cmap(val / (size - 1)) for val in colorscale_values]
+    colorscale = [
+        'rgba({0}, {1}, {2}, {3})'.format(color[0] * 255, color[1] * 255,
+                                          color[2] * 255, transparency)
+        for color in colorscale]
     results['colorscale'] = colorscale
 
-    if len(link_ids) > NETWORK_THRESHOLD:
+    if len(link_ids) > LINK_THRESHOLD:
         # Large network.
         output_types = ['phi_in_H']
     else:
@@ -195,15 +208,17 @@ def build_results(output):
 
     return results
 
+
 def export_network_results(run, results):
     """Sore the built results to a json file."""
     simulation = run.simulation
     output_file = (
         '{0}/website_files/network_output/results_{1}_{2}.json'
-        .format(settings.BASE_DIR, simulation.id, run.id)
+            .format(settings.BASE_DIR, simulation.id, run.id)
     )
     with open(output_file, 'w') as f:
         json.dump(results, f)
+
 
 def clean_files(run):
     """Remove some files which are used during the run and are no longer
@@ -212,10 +227,10 @@ def clean_files(run):
     metrosim_dir = settings.BASE_DIR + '/metrosim_files/'
 
     # try:
-        # log_file = '{0}logs/run_{1!s}.txt'.format(metrosim_dir, run.id)
-        # os.remove(log_file)
+    # log_file = '{0}logs/run_{1!s}.txt'.format(metrosim_dir, run.id)
+    # os.remove(log_file)
     # except FileNotFoundError:
-        # pass
+    # pass
 
     try:
         arg_file = ('{0}argfiles/simulation_{1!s}_run_{2!s}.txt'
@@ -236,6 +251,7 @@ def clean_files(run):
         except FileNotFoundError:
             pass
 
+
 def end_run(run, failed=False):
     """Change the status of the SimulationRun and send an e-mail to the user.
     """
@@ -248,16 +264,18 @@ def end_run(run, failed=False):
         run.status = 'Over'
     run.save()
 
+
 def congestion_colormap():
     """Return a matplotlib colormap that looks good to visualize congestion."""
     cmap_name = 'congestion_colormap'
     colors = [
-        (153/255, 255/255, 102/255),    # light green
-        (255/255, 219/255, 77/255),     # yellowish
-        (255/255, 0, 0),                # red
+        (153 / 255, 255 / 255, 102 / 255),  # light green
+        (255 / 255, 219 / 255, 77 / 255),  # yellowish
+        (255 / 255, 0, 0),  # red
     ]
     cmap = LinearSegmentedColormap.from_list(cmap_name, colors)
     return cmap
+
 
 def value_to_color(val, cmap, min_val, max_val):
     """Return the rgb color of a value using a color map."""
@@ -268,12 +286,26 @@ def value_to_color(val, cmap, min_val, max_val):
     color = cmap(val)
     # Convert the result to a format compatible with javascript:
     # 'rgb(255, 255, 255)'.
-    color = 'rgb({0}, {1}, {2})'.format(int(color[0]*255),
-                                        int(color[1]*255),
-                                        int(color[2]*255))
+    color = 'rgb({0}, {1}, {2})'.format(int(color[0] * 255),
+                                        int(color[1] * 255),
+                                        int(color[2] * 255))
     return color
 
-print('Starting script...')
+
+def clean_database(simulation):
+    """Drop from the database the tables created for the run."""
+    matrices = get_query('matrices', simulation)
+    matrices_id = list(matrices.values_list('id', flat=True))
+    matrices_id.append(simulation.scenario.supply.pttimes.id)
+    with connection.cursor() as cursor:
+        for matrice_id in matrices_id:
+            cursor.execute(
+                "DROP TABLE IF EXISTS Matrix_{id};"
+                    .format(id=matrice_id)
+            )
+
+
+print('Reading the script argument')
 
 # Read argument of the script call.
 try:
@@ -281,6 +313,8 @@ try:
 except IndexError:
     raise SystemExit('MetroArgError: This script must be executed with the id '
                      + 'of the SimulationRun has an argument.')
+
+print('Finding SimulationRun')
 
 # Get the SimulationRun object of the argument.
 try:
@@ -300,7 +334,7 @@ try:
     print('Writing link-specific results file...')
     EXPORT_FILE = (
         '{0}/website_files/network_output/link_results_{1}_{2}.txt'
-        .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
+            .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
     )
     export_link_results(OUTPUT, EXPORT_FILE)
     print('Preparing the network view...')
@@ -309,6 +343,8 @@ try:
     export_network_results(RUN, RESULTS)
     print('Cleaning files...')
     clean_files(RUN)
+    print('Cleaning database...')
+    clean_database(SIMULATION)
 except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
     # Catch any error (I explicitely write the two most common errors).
     print('Ending run with error(s)...')
@@ -318,7 +354,7 @@ except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
 print('Checking if network results are correctly stored...')
 FILE = (
     '{0}/website_files/network_output/results_{1}_{2}.json'
-    .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
+        .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
 )
 if os.path.isfile(FILE):
     RUN.network_output = True
@@ -331,13 +367,13 @@ DB_NAME = settings.DATABASES['default']['NAME']
 print('Writing traveler-specific output...')
 FILE = (
     '{0}/metrosim_files/output/metrosim_users_{1}_{2}.txt'
-    .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
+        .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
 )
 if os.path.isfile(FILE):
     try:
         EXPORT_FILE = (
             '{0}/website_files/network_output/user_results_{1}_{2}.txt'
-            .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
+                .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
         )
         # Create a dictionary to map the centroid ids with the centroid user ids.
         centroid_mapping = dict()
@@ -361,7 +397,8 @@ if os.path.isfile(FILE):
                 writer = csv.writer(g, delimiter='\t')
                 # Writer a custom header.
                 writer.writerow(['origin', 'destination', 'travelerType',
-                                 'driveCar', 'alphaTI', 'beta', 'gamma', 'alphaPT',
+                                 'driveCar', 'alphaTI', 'beta', 'gamma',
+                                 'alphaPT',
                                  'ptPenalty', 'td', 'ta', 'ltstart', 'htstar',
                                  'fee', 'surplus'])
                 for row in reader:
@@ -369,7 +406,8 @@ if os.path.isfile(FILE):
                     destination_id = centroid_mapping[int(row[1])]
                     traveler_type = usertype_mapping[int(row[2])]
                     writer.writerow([origin_id, destination_id, traveler_type,
-                                     row[3], row[4], row[5], row[6], row[7], row[8],
+                                     row[3], row[4], row[5], row[6], row[7],
+                                     row[8],
                                      row[9], row[10], row[11], row[12], row[13],
                                      row[14]])
     except Exception as e:
