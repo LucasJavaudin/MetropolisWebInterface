@@ -1313,7 +1313,7 @@ def matrix_save(request, simulation, demandsegment):
 
 @public_required
 @check_demand_relation
-def matrix_export(simulation, demandsegment):
+def matrix_export(request, simulation, demandsegment):
     """View to send a file with the OD Matrix to the user."""
     matrix = demandsegment.matrix
     matrix_couples = Matrix.objects.filter(matrices=matrix)
