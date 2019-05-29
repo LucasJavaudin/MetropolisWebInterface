@@ -2484,7 +2484,8 @@ def object_export_save(simulation, object, dir):
             # Add origin and destination user ids to the values array.
             origins = np.transpose([origins])
             destinations = np.transpose([destinations])
-            values = np.hstack([values, origins, destinations])
+            if values:
+                values = np.hstack([values, origins, destinations])
         writer.writerows(values)
 
     return filename
