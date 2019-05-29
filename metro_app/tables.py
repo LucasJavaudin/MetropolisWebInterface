@@ -48,9 +48,11 @@ class TollTable(tables.Table):
     link_id = tables.Column(accessor='location.user_id')
     link_name = tables.Column(accessor='location.name')
     value_vector = tables.Column(accessor='get_value_vector',
-                                 verbose_name='Value')
+                                 verbose_name='Value',
+                                 order_by='baseValue')
     time_vector = tables.Column(accessor='get_time_vector',
-                                verbose_name='Time')
+                                verbose_name='Time',
+                                orderable=False)
     user_type = tables.Column(accessor='usertype.name',
                               verbose_name='Traveler Type')
 
