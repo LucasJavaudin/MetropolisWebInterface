@@ -2085,7 +2085,7 @@ def object_list(request, simulation, object):
     elif object == 'function':
         return FunctionListView.as_view()(request, simulation=simulation)
     else:
-        return Http404()
+        raise Http404()
 
 
 @owner_required
@@ -2387,59 +2387,62 @@ def object_import(request, simulation, object):
 @public_required
 def object_export(request, simulation, object):
     """View to export all instances of a network object."""
-    query = get_query(object, simulation)
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        if object == 'centroid':
-            fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object == 'crossing':
-            fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object == 'link':
-            fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
-                      'speed', 'capacity', 'vdf']
-        elif object == 'function':
-            fields = ['id', 'expression']
-        writer = csv.writer(f, delimiter='\t')
-        if object in ('centroid', 'crossing'):
-            writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
-            values = query.values_list('user_id', 'name', 'x', 'y', 'id')
-        elif object == 'function':
-            writer.writerow(['id', 'name', 'expression'])
-            values = query.values_list('user_id', 'name', 'expression')
-        elif object == 'link':
-            writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
-                             'capacity', 'function', 'origin', 'destination'])
-            values = query.values_list('user_id', 'name', 'lanes', 'length',
-                                       'speed', 'capacity', 'vdf__user_id')
-            # Origin and destination id must be converted to user_id.
-            centroids = get_query('centroid', simulation)
-            crossings = get_query('crossing', simulation)
-            ids = list(centroids.values_list('id', 'user_id'))
-            ids += list(crossings.values_list('id', 'user_id'))
-            # Map id of nodes to their user_id.
-            id_mapping = dict(ids)
-            origins = query.values_list('origin', flat=True)
-            origins = np.array([id_mapping[n] for n in origins])
-            destinations = query.values_list('destination', flat=True)
-            destinations = np.array([id_mapping[n] for n in destinations])
-            # Add origin and destination user ids to the values array.
-            origins = np.transpose([origins])
-            destinations = np.transpose([destinations])
-            values = np.hstack([values, origins, destinations])
-        writer.writerows(values)
-    with codecs.open(filename, 'r', encoding='utf8') as f:
-        # Build a response to send a file.
-        response = HttpResponse(f.read())
-        response['content_type'] = 'text/tab-separated-values'
-        response['Content-Disposition'] = \
-            'attachement; filename={}.tsv'.format(metro_to_user(object))
-    # We delete the export file to save disk space.
-    os.remove(filename)
-    return response
+    if object in ('centroid', 'crossing', 'link', 'function'):
+        query = get_query(object, simulation)
+        # To avoid conflict if two users export a file at the same time, we
+        # generate a random name for the export file.
+        seed = np.random.randint(10000)
+        filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
+                                                              seed)
+        with codecs.open(filename, 'w', encoding='utf8') as f:
+            if object == 'centroid':
+                fields = ['id', 'name', 'x', 'y', 'db_id']
+            elif object == 'crossing':
+                fields = ['id', 'name', 'x', 'y', 'db_id']
+            elif object == 'link':
+                fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
+                          'speed', 'capacity', 'vdf']
+            elif object == 'function':
+                fields = ['id', 'expression']
+            writer = csv.writer(f, delimiter='\t')
+            if object in ('centroid', 'crossing'):
+                writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
+                values = query.values_list('user_id', 'name', 'x', 'y', 'id')
+            elif object == 'function':
+                writer.writerow(['id', 'name', 'expression'])
+                values = query.values_list('user_id', 'name', 'expression')
+            elif object == 'link':
+                writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
+                                 'capacity', 'function', 'origin', 'destination'])
+                values = query.values_list('user_id', 'name', 'lanes', 'length',
+                                           'speed', 'capacity', 'vdf__user_id')
+                # Origin and destination id must be converted to user_id.
+                centroids = get_query('centroid', simulation)
+                crossings = get_query('crossing', simulation)
+                ids = list(centroids.values_list('id', 'user_id'))
+                ids += list(crossings.values_list('id', 'user_id'))
+                # Map id of nodes to their user_id.
+                id_mapping = dict(ids)
+                origins = query.values_list('origin', flat=True)
+                origins = np.array([id_mapping[n] for n in origins])
+                destinations = query.values_list('destination', flat=True)
+                destinations = np.array([id_mapping[n] for n in destinations])
+                # Add origin and destination user ids to the values array.
+                origins = np.transpose([origins])
+                destinations = np.transpose([destinations])
+                values = np.hstack([values, origins, destinations])
+            writer.writerows(values)
+        with codecs.open(filename, 'r', encoding='utf8') as f:
+            # Build a response to send a file.
+            response = HttpResponse(f.read())
+            response['content_type'] = 'text/tab-separated-values'
+            response['Content-Disposition'] = \
+                'attachement; filename={}.tsv'.format(metro_to_user(object))
+        # We delete the export file to save disk space.
+        os.remove(filename)
+        return response
+    else:
+        raise Http404()
 
 def object_export_save(simulation, object, dir):
     """View to export all instances of a network object."""
