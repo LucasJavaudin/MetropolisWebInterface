@@ -139,6 +139,25 @@ def check_demand_relation(view):
     return wrap
 
 
+def check_object_name(view):
+    """Decorator used in the object views to ensure that the object variable is
+    correctly specified.
+    """
+
+    def wrap(*args, **kwargs):
+        # The decorator is run after public_required or owner_required so
+        # simulation_id has already been converted to a Simulation object.
+        simulation = kwargs.pop('simulation')
+        object_name = kwargs.pop('object_name')
+        if object_name in ('centroid', 'crossing', 'function', 'link'):
+            return view(*args, simulation=simulation, object_name=object_name)
+        else:
+            # Invalid object name.
+            raise Http404()
+
+    return wrap
+
+
 def check_run_relation(view):
     """Decorator used in the run views to ensure that the run and the
     simulation are related.
@@ -2069,13 +2088,14 @@ def public_transit_export_save(simulation,dir):
     return filename
 
 @public_required
-def object_view(request, simulation, object):
+@check_object_name
+def object_view(request, simulation, object_name):
     """Main view of a network object."""
     owner = can_edit(request.user, simulation)
-    query = get_query(object, simulation)
+    query = get_query(object_name, simulation)
     large_count = query.count() > OBJECT_THRESHOLD
     network_empty = False
-    if object == 'link':
+    if object_name == 'link':
         # Allow the user to edit links only if there are at least two centroids,
         # one crossing and one congestion function.
         nb_centroids = get_query('centroid', simulation).count()
@@ -2088,7 +2108,7 @@ def object_view(request, simulation, object):
         'simulation': simulation,
         'owner': owner,
         'count': query.count(),
-        'object': object,
+        'object': object_name,
         'large_count': large_count,
         'network_empty': network_empty,
         'import_form': import_form,
@@ -2097,29 +2117,29 @@ def object_view(request, simulation, object):
 
 
 @public_required
-def object_list(request, simulation, object):
+@check_object_name
+def object_list(request, simulation, object_name):
     """View to list all instances of a network object."""
-    if object == 'centroid':
+    if object_name == 'centroid':
         return CentroidListView.as_view()(request, simulation=simulation)
-    elif object == 'crossing':
+    elif object_name == 'crossing':
         return CrossingListView.as_view()(request, simulation=simulation)
-    elif object == 'link':
+    elif object_name == 'link':
         return LinkListView.as_view()(request, simulation=simulation)
-    elif object == 'function':
+    elif object_name == 'function':
         return FunctionListView.as_view()(request, simulation=simulation)
-    else:
-        return Http404()
 
 
 @owner_required
-def object_edit(request, simulation, object):
+@check_object_name
+def object_edit(request, simulation, object_name):
     """View to edit all instances of a network object."""
     # Object is either 'centroid', 'crossing', 'link' or 'function'.
     # Create a formset to edit the objects.
-    formset = gen_formset(object, simulation)
+    formset = gen_formset(object_name, simulation)
     context = {
         'simulation': simulation,
-        'object': object,
+        'object': object_name,
         'formset': formset,
     }
     return render(request, 'metro_app/object_edit.html', context)
@@ -2127,10 +2147,11 @@ def object_edit(request, simulation, object):
 
 @require_POST
 @owner_required
-def object_edit_save(request, simulation, object):
+@check_object_name
+def object_edit_save(request, simulation, object_name):
     """View to save the edited network objects."""
     # Retrieve the formset from the POST data.
-    formset = gen_formset(object, simulation, request=request)
+    formset = gen_formset(object_name, simulation, request=request)
     if formset.is_valid():
         # Save the formset (updated values and newly created objects).
         formset.save()
@@ -2139,13 +2160,13 @@ def object_edit_save(request, simulation, object):
         changed_forms = list(
             set(formset.forms) - set(formset.deleted_forms)
         )
-        if object in ['centroid', 'crossing', 'link']:
+        if object_name in ['centroid', 'crossing', 'link']:
             for form in changed_forms:
                 # Link the object to the correct network.
                 form.instance.network.add(
                     simulation.scenario.supply.network
                 )
-        elif object == 'function':
+        elif object_name == 'function':
             for form in changed_forms:
                 # Link the function to the correct functionset.
                 form.vdf_id = form.instance.id
@@ -2156,7 +2177,7 @@ def object_edit_save(request, simulation, object):
         simulation.has_changed = True
         simulation.save()
         return HttpResponseRedirect(reverse(
-            'metro:object_edit', args=(simulation.id, object,)
+            'metro:object_edit', args=(simulation.id, object_name,)
         ))
     else:
         # Redirect to a page with the errors.
@@ -2169,7 +2190,8 @@ def object_edit_save(request, simulation, object):
 
 @require_POST
 @owner_required
-def object_import(request, simulation, object):
+@check_object_name
+def object_import(request, simulation, object_name):
     """View to import instances of a network object.
     This view could be much more simple but I tried to use as little as
     possible Django ORM (the querysets) to speed up the view.
@@ -2181,13 +2203,13 @@ def object_import(request, simulation, object):
     Python built-in set are used to perform comparison of arrays quickly.
     """
     try:
-        if object == 'function':
+        if object_name == 'function':
             parent = simulation.scenario.supply.functionset
         else:
             parent = simulation.scenario.supply.network
-        query = get_query(object, simulation)
+        query = get_query(object_name, simulation)
         user_id_set = set(query.values_list('user_id', flat=True))
-        if object == 'link':
+        if object_name == 'link':
             # To import links, we retrieve the user ids of all centroids, crossings
             # and functions and we build mappings between ids and objects.
             centroids = get_query('centroid', simulation)
@@ -2219,7 +2241,7 @@ def object_import(request, simulation, object):
         # Store the user_id of the imported instance to avoid two instances
         # with the same id.
         imported_ids = set()
-        if object == 'centroid':
+        if object_name == 'centroid':
             # Do not import centroid with same id as a crossing.
             crossings = get_query('crossing', simulation)
             imported_ids = set(crossings.values_list('user_id', flat=True))
@@ -2237,7 +2259,7 @@ def object_import(request, simulation, object):
                             Centroid(user_id=id, name=row['name'],
                                      x=float(row['x']), y=float(row['y']))
                         )
-        elif object == 'crossing':
+        elif object_name == 'crossing':
             # Do not import crossing with same id as a centroid.
             centroids = get_query('centroid', simulation)
             imported_ids = set(centroids.values_list('user_id', flat=True))
@@ -2255,7 +2277,7 @@ def object_import(request, simulation, object):
                             Crossing(user_id=id, name=row['name'],
                                      x=float(row['x']), y=float(row['y']))
                         )
-        elif object == 'function':
+        elif object_name == 'function':
             for row in reader:
                 id = int(row['id'])
                 if not id in imported_ids:
@@ -2269,7 +2291,7 @@ def object_import(request, simulation, object):
                             Function(user_id=id, name=row['name'],
                                      expression=row['expression'])
                         )
-        elif object == 'link':
+        elif object_name == 'link':
             for row in reader:
                 id = int(row['id'])
                 if not id in imported_ids:
@@ -2300,29 +2322,29 @@ def object_import(request, simulation, object):
                                      capacity=float(row['capacity']))
                             )
         if to_be_updated:
-            if object in ('centroid', 'crossing'):
+            if object_name in ('centroid', 'crossing'):
                 values = set(query.values_list('user_id', 'name', 'x', 'y'))
-            elif object == 'function':
+            elif object_name == 'function':
                 values = set(query.values_list('user_id', 'name', 'expression'))
-            elif object == 'link':
+            elif object_name == 'link':
                 values = set(query.values_list('user_id', 'name', 'origin',
                                                'destination', 'vdf_id', 'lanes',
                                                'length', 'speed', 'capacity'))
             # Find the instances that really need to be updated (the values have
             # changed).
             to_be_updated = to_be_updated.difference(values)
-            if object in ('centroid', 'crossing', 'function'):
+            if object_name in ('centroid', 'crossing', 'function'):
                 # Update the objects (it would be faster to delete and re-create
                 # them but this would require to also change the foreign keys of
                 # the links).
                 for values in to_be_updated:
                     # Index 0 of values is the id column i.e. the user_id.
                     instance = query.filter(user_id=values[0])
-                    if object in ('centroid', 'crossing'):
+                    if object_name in ('centroid', 'crossing'):
                         instance.update(name=values[1], x=values[2], y=values[3])
                     else:  # Function
                         instance.update(name=values[1], expression=values[2])
-            elif object == 'link':
+            elif object_name == 'link':
                 # Delete the links and re-create them.
                 ids = list(query.values_list('id', 'user_id'))
                 # Create a mapping between the user ids and the ids.
@@ -2370,7 +2392,7 @@ def object_import(request, simulation, object):
         chunks = [to_be_created[x:x + chunk_size]
                   for x in range(0, len(to_be_created), chunk_size)]
         # Remove the orphan instances.
-        if object == 'function':
+        if object_name == 'function':
             query.model.objects \
                 .exclude(functionset__in=FunctionSet.objects.all()) \
                 .delete()
@@ -2382,7 +2404,7 @@ def object_import(request, simulation, object):
             # Retrieve the newly created instances and add the many-to-many
             # relation.
             # Add the many-to-many relation.
-            if object == 'function':
+            if object_name == 'function':
                 new_instances = query.model.objects \
                     .exclude(functionset__in=FunctionSet.objects.all())
                 for instance in new_instances:
@@ -2395,43 +2417,44 @@ def object_import(request, simulation, object):
         simulation.has_changed = True
         simulation.save()
         return HttpResponseRedirect(
-            reverse('metro:object_list', args=(simulation.id, object,))
+            reverse('metro:object_list', args=(simulation.id, object_name,))
         )
     except Exception as e:
         print(e)
         context = {
             'simulation': simulation,
-            'object': object,
+            'object': object_name,
         }
         return render(request, 'metro_app/import_error.html', context)
 
 @public_required
-def object_export(request, simulation, object):
+@check_object_name
+def object_export(request, simulation, object_name):
     """View to export all instances of a network object."""
-    query = get_query(object, simulation)
+    query = get_query(object_name, simulation)
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
     seed = np.random.randint(10000)
     filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
                                                           seed)
     with codecs.open(filename, 'w', encoding='utf8') as f:
-        if object == 'centroid':
+        if object_name == 'centroid':
             fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object == 'crossing':
+        elif object_name == 'crossing':
             fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object == 'link':
+        elif object_name == 'link':
             fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
                       'speed', 'capacity', 'vdf']
-        elif object == 'function':
+        elif object_name == 'function':
             fields = ['id', 'expression']
         writer = csv.writer(f, delimiter='\t')
-        if object in ('centroid', 'crossing'):
+        if object_name in ('centroid', 'crossing'):
             writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
             values = query.values_list('user_id', 'name', 'x', 'y', 'id')
-        elif object == 'function':
+        elif object_name == 'function':
             writer.writerow(['id', 'name', 'expression'])
             values = query.values_list('user_id', 'name', 'expression')
-        elif object == 'link':
+        elif object_name == 'link':
             writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
                              'capacity', 'function', 'origin', 'destination'])
             values = query.values_list('user_id', 'name', 'lanes', 'length',
@@ -2457,40 +2480,40 @@ def object_export(request, simulation, object):
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
         response['Content-Disposition'] = \
-            'attachement; filename={}.tsv'.format(metro_to_user(object))
+            'attachement; filename={}.tsv'.format(metro_to_user(object_name))
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
 
-def object_export_save(simulation, object, dir):
+def object_export_save(simulation, object_name, dir):
     """View to export all instances of a network object."""
-    query = get_query(object, simulation)
+    query = get_query(object_name, simulation)
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
-    filename = dir + '/' + object + 's.tsv'
+    filename = dir + '/' + object_name + 's.tsv'
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
-        if object == 'centroid':
+        if object_name == 'centroid':
             filename = dir + '/zones.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object == 'crossing':
+        elif object_name == 'crossing':
             filename = dir + '/Intersections.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object == 'link':
+        elif object_name == 'link':
             filename = dir + '/links.tsv'
             fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
                       'speed', 'capacity', 'vdf']
-        elif object == 'function':
+        elif object_name == 'function':
             filename = dir + '/functions.tsv'
             fields = ['id', 'expression']
         writer = csv.writer(f, delimiter='\t')
-        if object in ('centroid', 'crossing'):
+        if object_name in ('centroid', 'crossing'):
             writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
             values = query.values_list('user_id', 'name', 'x', 'y', 'id')
-        elif object == 'function':
+        elif object_name == 'function':
             writer.writerow(['id', 'name', 'expression'])
             values = query.values_list('user_id', 'name', 'expression')
-        elif object == 'link':
+        elif object_name == 'link':
             writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
                              'capacity', 'function', 'origin', 'destination'])
             values = query.values_list('user_id', 'name', 'lanes', 'length',
@@ -2516,14 +2539,15 @@ def object_export_save(simulation, object, dir):
     return filename
 
 @owner_required
-def object_delete(request, simulation, object):
+@check_object_name
+def object_delete(request, simulation, object_name):
     """View to delete all instances of a network objects."""
-    query = get_query(object, simulation)
+    query = get_query(object_name, simulation)
     query.delete()
     simulation.has_changed = True
     simulation.save()
     return HttpResponseRedirect(reverse(
-        'metro:object_view', args=(simulation.id, object,)
+        'metro:object_view', args=(simulation.id, object_name,)
     ))
 
 
