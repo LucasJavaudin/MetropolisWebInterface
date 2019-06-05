@@ -363,6 +363,7 @@ def simulation_add_action(request):
         simulation.comment = form.cleaned_data['comment']
         simulation.public = form.cleaned_data['public']
         simulation.environment = form.cleaned_data['environment']
+        simulation.contact = form.cleaned_data['contact']
         # Create models associated with the new simulation.
         network = Network()
         network.name = simulation.name

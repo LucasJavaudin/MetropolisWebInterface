@@ -87,8 +87,7 @@ class BaseSimulationForm(forms.ModelForm):
 
     class Meta:
         model = Simulation
-        fields = ['name', 'comment', 'environment', 'public']
-        #fields = ['name', 'comment', 'public']
+        fields = ['name', 'comment', 'environment', 'contact', 'public']
 
 class ParametersSimulationForm(forms.ModelForm):
     """Form to edit the parameters of a simulation."""

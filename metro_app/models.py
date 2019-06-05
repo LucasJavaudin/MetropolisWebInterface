@@ -735,6 +735,13 @@ class Simulation(models.Model):
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE
     )
+    contact = models.BooleanField(
+        verbose_name='Available for contact',
+        default=False,
+        help_text=(
+            'If checked, anyone with access to the simulation will be able to access your email to contact you.'
+        )
+    )
     public = models.BooleanField(
         verbose_name='Public simulation',
         default=True,
