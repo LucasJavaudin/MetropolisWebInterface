@@ -59,7 +59,12 @@ def can_view(user, simulation):
     The user can view the simulation if the simulation is public, if he owns
     the simulation or if he is a superuser.
     """
-    if simulation.public or simulation.user == user or user.is_superuser:
+    env_users = None
+    if simulation.environment is not None:
+        env_users = simulation.environment.users.all().filter(id=user.id)
+
+    if simulation.public or simulation.user == user or user.is_superuser or \
+            env_users:
         return True
     else:
         return False

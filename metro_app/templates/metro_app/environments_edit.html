@@ -1,0 +1,31 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Metropolis
+{% endblock %}
+
+{% block main %}
+
+
+{% if environment %}
+<div class="container">
+	<div style="background:transparent !important" class="jumbotron">
+		<div class="modal-header">
+			<h5 class="modal-title" id="modalEditTitle">Add a user</h5>
+		</div>
+		<form action="{% url 'metro:environments_add' environment.id %}"
+			  method="post">
+			<div class="modal-body">
+				{% csrf_token %}
+				{% bootstrap_form form show_label=True %}
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-primary mx-auto">Add
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endif %}
+{% endblock %}

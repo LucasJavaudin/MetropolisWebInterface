@@ -28,6 +28,17 @@
 		{% elif object == 'link' %}
 		id, name, origin, destination, function, lanes, length, speed, capacity.
 		{% endif %}
+		{% if usertype %}
+		name, comment, alphaTI_mean, alphaTI_std alphaTI_type, alphaTP_mean,
+		alphaTP_std, alphaTP_type, beta_mean, beta_std, beta_type, delta_mean,
+		delta_std, delta_type, departureMu_mean, departureMu_std,
+		departureMu_type, gamma_mean, gamma_std, gamma_type, modeMu_mean,
+		modeMu_std, modeMu_type, penaltyTP_mean, penaltyTP_std,
+		penaltyTP_type,  routeMu_mean, routeMu_std, routeMu_type, tstar_mean,
+		tstar_std, tstar_type, typeOfRouteChoice, typeOfDepartureMu,
+		typeOfRouteMu, typeOfModeMu, localATIS, modeChoice, modeShortRun,
+		commuteType
+		{% endif %}
 		{% endif %}
 	</div>
 

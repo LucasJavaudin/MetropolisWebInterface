@@ -18,7 +18,7 @@ Metropolis
 
 		<p>
 		<p class="font-weight-bold">My file was not imported correctly. What is wrong?</p>
-		Check that your file is a well-formatted tsv file (tab-separated-values file). The first line of the file must be a header containing the name of the columns. You can check the required column names when you click on the import button. If you still get an error, <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">open a new issue</a> with a description of your problem (attach the tsv file to the issue).
+		Check that your file is a well-formatted tsv file (tab-separated-values file) or csv file (comma-separated-values file). The first line of the file must be a header containing the name of the columns. You can check the required column names when you click on the import button. If you still get an error, <a href="https://github.com/LucasJavaudin/MetropolisWebInterface/issues">open a new issue</a> with a description of your problem (attach the tsv or csv file to the issue).
 		</p>
 		<br>
 
@@ -38,6 +38,12 @@ Metropolis
 			<dt>MetroError:Flow record exceeding maximum value</dt>
 			<dd>The number of travelers on a link, at a given point in time, is too large. You might have to reduce the total number of travelers of the simulation.</dd>
 		</dl>
+		</p>
+		<br>
+
+		<p>
+		<p class="font-weight-bold">I have a large network and the network view is very slow. What is wrong?</p>
+		This is because the network view takes a lot of ressources on your computer's GPU. Try enabling your discrete GPU on your browser.
 		</p>
 		<br>
 

@@ -83,9 +83,12 @@ class BaseSimulationForm(forms.ModelForm):
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
 
+        #if self.fields.widget.att
+
     class Meta:
         model = Simulation
-        fields = ['name', 'comment', 'public']
+        fields = ['name', 'comment', 'environment', 'public']
+        #fields = ['name', 'comment', 'public']
 
 class ParametersSimulationForm(forms.ModelForm):
     """Form to edit the parameters of a simulation."""
@@ -566,7 +569,26 @@ class ArticleForm(forms.Form):
     files = forms.FileField(widget=forms.ClearableFileInput(attrs={
         'multiple': True}), required=False)
 
+class EnvironmentForm(forms.Form):
+    name = forms.CharField(max_length=200)
 
+class EnvironmentUserAddForm(forms.Form):
+    username = forms.CharField(max_length=150, required=True)
+
+    def is_valid(self):
+        valid = super(EnvironmentUserAddForm, self).is_valid()
+
+        if not valid:
+            return valid
+
+        try:
+            user = User.objects.get(username = self.cleaned_data['username'])
+
+        except User.DoesNotExist:
+            self._errors['no_user'] = 'User does not exist'
+            return False
+
+        return True
 
 #====================
 # FormSets

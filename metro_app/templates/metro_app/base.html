@@ -46,6 +46,9 @@
 				</li>
 				{% if user.is_authenticated %}
 				<li class="nav-item">
+					<a class="nav-link" href="{% url 'metro:environments_view' %}"><i class="fas fa-boxes"></i> Environments</a>
+				</li>
+				<li class="nav-item">
 					<a class="nav-link" href="{% url 'metro:logout' %}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 				</li>
 				{% else %}

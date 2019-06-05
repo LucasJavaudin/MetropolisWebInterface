@@ -4,7 +4,6 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.urls import reverse
 from django.utils import timezone
 
-
 ### New fields ###
 
 class BlobField(models.Field):
@@ -744,6 +743,8 @@ class Simulation(models.Model):
             + ' everyone'
         )
     )
+    environment = models.ForeignKey('Environment', blank=True, null=True,
+                                    on_delete=models.CASCADE)
     has_changed = models.BooleanField(default=True)
     locked = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
@@ -915,6 +916,18 @@ class ArticleFile(models.Model):
     def get_download(self):
         return "<a href='" + self.file.name + "'>" + self.file_name + "</a>"
 
+class Environment(models.Model):
+    name = models.CharField(max_length=200)
+    users = models.ManyToManyField(settings.AUTH_USER_MODEL)
+
+    def __str__(self):
+        return str(self.name)
+
+    def is_authorised(self, user):
+        if user in self.users.all():
+            return True
+        else:
+            return False
 
 
 ### Results tables ###

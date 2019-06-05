@@ -1,0 +1,84 @@
+{% extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+
+{% block title %}
+Metropolis
+{% endblock %}
+
+{% block main %}
+
+{% if user.is_superuser %}
+<center>
+	<button type="button" class="btn btn-primary btn-lg"
+			title="Create a new event" data-toggle="modal"
+			data-target="#newEnvironmentForm">
+		<i class="fas fa-calendar-plus"></i> New Environment
+	</button>
+</center>
+
+<div class="modal fade" id="newEnvironmentForm" tabindex="-1" role="dialog"
+	 aria-hidden="true" aria-labelledby="modalTitle">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="modalTitle">Create a new
+					environment</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:environments_create' %}" method="post">
+				<div class="modal-body">
+					{% csrf_token %}
+					{% bootstrap_form form show_label=True %}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Create</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<br>
+{% endif%}
+
+{% for environment in environments %}
+<h4>{{ environment.name }}</h4>
+
+	<form
+			action="{% url 'metro:environments_add_view' environment.id%}"
+		  method="post">
+		{% csrf_token %}
+		<button class="btn btn-outline-secondary" type="submit">Add
+			User</button>
+	</form>
+<table class="table table-hover table-bordered">
+	<thead class="thead-light">
+		<tr>
+			<th scope="col">User</th>
+			<th scope="col"></th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for user_env in environment.users.all %}
+		<tr>
+			<td class="align-middle">{{ user_env }}</td>
+			{% if user.is_superuser %}
+			<td class="align-middle">
+				<span class="btn-group">
+					<form action="{% url 'metro:environment_user_delete' environment.id user_env.id %}" method="post">
+						{% csrf_token %}
+						<button class="btn btn-outline-danger" type="submit">Delete</button>
+					</form>
+				</span>
+			</td>
+			{% endif %}
+		</tr>
+	{% endfor %}
+	</tbody>
+</table>
+
+{% endfor %}
+{% endblock %}

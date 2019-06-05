@@ -29,6 +29,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, logout, login
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import Group
 from django.db.models import Sum
 from django.dispatch import receiver
 from django.db.models.signals import pre_delete
@@ -174,9 +175,18 @@ def simulation_manager(request):
     # Create lists of simulations.
     simulation_user_list = Simulation.objects.filter(user_id=request.user.id)
     simulation_public_list = \
-        Simulation.objects.filter(public=True).exclude(user_id=request.user.id)
+        Simulation.objects.filter(public=True).exclude(
+            user_id=request.user.id).filter(environment=None)
     simulation_pinned_list = \
         Simulation.objects.filter(public=True).filter(pinned=True)
+    env_list = Environment.objects.filter(users=request.user.id)
+    simulation_env_list = []
+
+    for env in env_list:
+        simulation_public_list = simulation_public_list
+        sim = Simulation.objects.filter(environment=env)
+        simulation_env_list.append((env, sim))
+
     simulation_private_list = None
     if request.user.is_superuser:
         # Superuser can see private simulations.
@@ -190,6 +200,7 @@ def simulation_manager(request):
     copy_form = BaseSimulationForm(prefix='copy')
     context = {
         'simulation_user_list': simulation_user_list,
+        'simulation_env_list': simulation_env_list,
         'simulation_public_list': simulation_public_list,
         'simulation_pinned_list': simulation_pinned_list,
         'simulation_private_list': simulation_private_list,
@@ -332,6 +343,7 @@ def simulation_add_action(request):
         simulation.name = form.cleaned_data['name']
         simulation.comment = form.cleaned_data['comment']
         simulation.public = form.cleaned_data['public']
+        simulation.environment = form.cleaned_data['environment']
         # Create models associated with the new simulation.
         network = Network()
         network.name = simulation.name
@@ -1388,7 +1400,11 @@ def matrix_import(request, simulation, demandsegment):
         # Convert the imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
-        reader = csv.DictReader(tsv_file, delimiter='\t')
+        if encoded_file.name.split(".")[-1] == 'tsv':
+            reader = csv.DictReader(tsv_file, delimiter='\t')
+        else:
+            reader = csv.DictReader(tsv_file, delimiter=',')
+        # For each imported OD pair, if the pair already exists in t
         # For each imported OD pair, if the pair already exists in the OD Matrix,
         # it is stored to be updated, else it is stored to be created.
         to_be_updated = set()
@@ -1400,7 +1416,7 @@ def matrix_import(request, simulation, demandsegment):
             )
             if pair in existing_pairs:
                 to_be_updated.add((*pair, float(row['population'])))
-            else:
+            elif float(row['population']) > 0:
                 to_be_created.append(
                     Matrix(p=centroid_mapping[int(row['origin'])],
                            q=centroid_mapping[int(row['destination'])],
@@ -1654,7 +1670,11 @@ def pricing_import(request, simulation):
         # Convert the imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
-        reader = csv.DictReader(tsv_file, delimiter='\t')
+        if encoded_file.name.split(".")[-1] == 'tsv':
+            reader = csv.DictReader(tsv_file, delimiter='\t')
+        else:
+            reader = csv.DictReader(tsv_file, delimiter=',')
+        # For each imported OD pair, if the pair already exists in t
         if 'traveler_type' in reader.fieldnames:
             has_type = True
         else:
@@ -1930,7 +1950,10 @@ def public_transit_import(request, simulation):
         # Convert the imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
-        reader = csv.DictReader(tsv_file, delimiter='\t')
+        if encoded_file.name.split(".")[-1] == 'tsv':
+            reader = csv.DictReader(tsv_file, delimiter='\t')
+        else:
+            reader = csv.DictReader(tsv_file, delimiter=',')
         # For each imported OD pair, if the pair already exists in the OD Matrix,
         # it is stored to be updated, else it is stored to be created.
         to_be_updated = set()
@@ -2148,7 +2171,6 @@ def object_edit_save(request, simulation, object):
 @owner_required
 def object_import(request, simulation, object):
     """View to import instances of a network object.
-
     This view could be much more simple but I tried to use as little as
     possible Django ORM (the querysets) to speed up the view.
     Basically, this view looks at each row in the imported file to find if an
@@ -2383,7 +2405,6 @@ def object_import(request, simulation, object):
         }
         return render(request, 'metro_app/import_error.html', context)
 
-
 @public_required
 def object_export(request, simulation, object):
     """View to export all instances of a network object."""
@@ -2450,13 +2471,17 @@ def object_export_save(simulation, object, dir):
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
         if object == 'centroid':
+            filename = dir + '/zones.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
         elif object == 'crossing':
+            filename = dir + '/Intersections.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
         elif object == 'link':
+            filename = dir + '/links.tsv'
             fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
                       'speed', 'capacity', 'vdf']
         elif object == 'function':
+            filename = dir + '/functions.tsv'
             fields = ['id', 'expression']
         writer = csv.writer(f, delimiter='\t')
         if object in ('centroid', 'crossing'):
@@ -3113,6 +3138,260 @@ def simulation_export(request, simulation):
     shutil.rmtree(dir, ignore_errors=True)
 
     return response
+
+def usertype_import(request, simulation_id):
+
+    """View to convert the imported file to usertype in the database."""
+
+    simulation = Simulation.objects.get(pk=simulation_id)
+
+    try:
+
+        # Get an empty Vector or create one if there is none.
+        if Vector.objects.filter(data='').exists():
+            empty_vector = Vector.objects.filter(data='')[0]
+        else:
+            empty_vector = Vector(data='')
+            empty_vector.save()
+        # Convert the imported file to a csv DictReader.
+        encoded_file = request.FILES['import_file']
+        tsv_file = StringIO(encoded_file.read().decode())
+        if encoded_file.name.split(".")[-1] == 'tsv':
+            reader = csv.DictReader(tsv_file, delimiter='\t')
+        else:
+            reader = csv.DictReader(tsv_file, delimiter=',')
+
+        # For each imported link, if a Policy exists for the link, baseValue is
+        # updated, else a new Policy is created.
+        for row in reader:
+
+            name = row['name']
+            comment = row['comment']
+
+            alphaTI_mean = row['alphaTI_mean']
+            alphaTI_std = row['alphaTI_std']
+            alphaTI_type = row['alphaTI_type']
+            alphaTI = Distribution(mean=alphaTI_mean,
+                                                 std=alphaTI_std,
+                                                 type=alphaTI_type)
+            alphaTI.save()
+
+            alphaTP_mean = row['alphaTP_mean']
+            alphaTP_std = row['alphaTP_std']
+            alphaTP_type = row['alphaTP_type']
+            alphaTP = Distribution(mean=alphaTP_mean, std=alphaTP_std, type=alphaTP_type)
+            alphaTP.save()
+
+            beta_mean = row['beta_mean']
+            beta_std = row['beta_std']
+            beta_type = row['beta_type']
+            beta = Distribution(mean=beta_mean,
+                                                 std=beta_std,
+                                                 type=beta_type)
+            beta.save()
+
+            delta_mean = row['delta_mean']
+            delta_std = row['delta_std']
+            delta_type = row['delta_type']
+            delta = Distribution(mean=delta_mean,
+                                                 std=delta_std,
+                                                 type=delta_type)
+            delta.save()
+
+            departureMu_mean = row['departureMu_mean']
+            departureMu_std = row['departureMu_std']
+            departureMu_type = row['departureMu_type']
+            departureMu = Distribution(mean=departureMu_mean,
+                                                 std=departureMu_std,
+                                                 type=departureMu_type)
+            departureMu.save()
+
+            gamma_mean = row['gamma_mean']
+            gamma_std = row['gamma_std']
+            gamma_type = row['gamma_type']
+            gamma = Distribution(mean=gamma_mean,
+                                                 std=gamma_std,
+                                                 type=gamma_type)
+            gamma.save()
+
+            modeMu_mean = row['modeMu_mean']
+            modeMu_std = row['modeMu_std']
+            modeMu_type = row['modeMu_type']
+            modeMu = Distribution(mean=modeMu_mean,
+                                                 std=modeMu_std,
+                                                 type=modeMu_type)
+            modeMu.save()
+
+            penaltyTP_mean = row['penaltyTP_mean']
+            penaltyTP_std = row['penaltyTP_std']
+            penaltyTP_type = row['penaltyTP_type']
+            penaltyTP = Distribution(mean=penaltyTP_mean,
+                                                 std=penaltyTP_std,
+                                                 type=penaltyTP_type)
+            penaltyTP.save()
+
+            routeMu_mean = row['routeMu_mean']
+            routeMu_std = row['routeMu_std']
+            routeMu_type = row['routeMu_type']
+            routeMu = Distribution(mean=routeMu_mean,
+                                                std=routeMu_std,
+                                                type=routeMu_type)
+            routeMu.save()
+
+            tstar_mean = row['tstar_mean']
+            tstar_std = row['tstar_std']
+            tstar_type = row['tstar_type']
+            tstar = Distribution(mean=tstar_mean,
+                                                std=tstar_std,
+                                                type=tstar_type)
+            tstar.save()
+
+            typeOfRouteChoice = row['typeOfRouteChoice']
+            typeOfDepartureMu = row['typeOfDepartureMu']
+            typeOfRouteMu = row['typeOfRouteMu']
+            typeOfModeMu = row['typeOfModeMu']
+            localATIS = row['localATIS']
+            modeChoice = row['modeChoice']
+            modeShortRun = row['modeShortRun']
+            commuteType = row['commuteType']
+
+            usertypes = get_query('usertype', simulation)
+            if usertypes.exists():
+                user_id = usertypes.last().user_id + 1
+            else:
+                user_id = 1
+
+            #usertype = UserType(name=name, comment=comment, alphaTI=alphaTI, alphaTP=alphaTP, beta=beta, delta=delta, departureMu=departureMu, gamma=gamma, modeMu=modeMu, penaltyTP=penaltyTP, routeMu=routeMu, tstar=tstar, typeOfRouteChoice=typeOfRouteChoice, localATIS=localATIS, modeChoice=modeChoice, modeShortRun=modeShortRun, commuteType=commuteType, user_id=user_id)
+            usertype = UserType()
+            usertype.alphaTI = alphaTI
+            usertype.alphaTP = alphaTP
+            usertype.beta = beta
+            usertype.delta = delta
+            usertype.departureMu = departureMu
+            usertype.gamma = gamma
+            usertype.modeMu = modeMu
+            usertype.penaltyTP = penaltyTP
+            usertype.routeMu = routeMu
+            usertype.tstar = tstar
+            usertype.user_id = user_id
+            usertype.typeOfRouteChoice = typeOfRouteChoice
+            usertype.typeOfDepartureMu = typeOfDepartureMu
+            usertype.typeOfRouteMu = typeOfRouteMu
+            usertype.typeOfModeMu = typeOfModeMu
+            usertype.localATIS = localATIS
+            usertype.modeChoice = modeChoice
+            usertype.modeShortRun = modeShortRun
+            usertype.commuteType = commuteType
+            usertype.save()
+
+            matrix = Matrices()
+            matrix.save()
+            demandsegment = DemandSegment()
+            demandsegment.usertype = usertype
+            demandsegment.matrix = matrix
+            demandsegment.save()
+            demandsegment.demand.add(simulation.scenario.demand)
+            print(UserType.modeMu)
+            print(UserType.alphaTI)
+
+        return HttpResponseRedirect(reverse(
+            'metro:demand_view', args=(simulation_id,)
+        ))
+    except Exception as e:
+        # Catch any exception while importing the file and return an error page
+        # if there is any.
+        print(e)
+        context = {
+            'simulation': simulation,
+            'object': 'pricing',
+        }
+        return render(request, 'metro_app/import_error.html', context)
+
+def usertype_export(request, simulation_id, demandsegment_id):
+    demand = DemandSegment.objects.get(pk=demandsegment_id)
+    usertype = demand.usertype
+
+
+    """View to send a file with the OD Matrix to the user."""
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    seed = np.random.randint(10000)
+    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
+                                                          seed)
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = UserType.objects.filter(id=usertype.id).values_list('name', 'comment', 'alphaTI__mean', 'alphaTI__std', 'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type', 'beta__mean', 'beta__std', 'beta__type', 'delta__mean', 'delta__std', 'delta__type', 'departureMu__mean', 'departureMu__std', 'departureMu__type', 'gamma__mean', 'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std', 'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std', 'penaltyTP__type', 'routeMu__mean', 'routeMu__std', 'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type', 'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun', 'commuteType')
+
+        # Write a custom header.
+        writer.writerow(['name', 'comment', 'alphaTI_mean', 'alphaTI_std', 'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type', 'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std', 'delta_type', 'departureMu_mean', 'departureMu_std', 'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type', 'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean', 'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std', 'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type', 'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun', 'commuteType'])
+        writer.writerows(values)
+    with codecs.open(filename, 'r', encoding='utf8') as f:
+        # Build a response to send a file.'beta_mean',
+        response = HttpResponse(f.read())
+        response['content_type'] = 'text/tab-separated-values'
+        response['Content-Disposition'] = 'attachement; filename={0}.tsv'.format(str(usertype))
+    # We delete the export file to save disk space.
+    os.remove(filename)
+    return response
+
+def environments_view(request):
+
+    if request.user.is_authenticated:
+        auth_environments = Environment.objects.filter(users=request.user)
+    else:
+        auth_environments = {}
+    form = EnvironmentForm()
+
+    context = {'environments': auth_environments, 'form': form}
+    env = auth_environments[0]
+    return render(request, 'metro_app/environments_view.html', context)
+
+def environment_create(request):
+    my_form = EnvironmentForm(request.POST or None)
+    if my_form.is_valid():
+        env_name = my_form.cleaned_data['name']
+        env_user = {request.user}
+
+        environment = Environment.objects.create(name=env_name)
+        environment.users.set(env_user)
+
+        my_form = EnvironmentForm()
+
+    return HttpResponseRedirect(reverse('metro:environments_view'))
+
+def environment_add_view(request, pk):
+    environment = pk
+    env = get_object_or_404(Environment, id=environment)
+    my_form = EnvironmentUserAddForm()
+
+    context = {'environment': env, 'form': my_form}
+
+    return render(request, 'metro_app/environments_edit.html', context)
+
+def environment_add(request, environment):
+    env = get_object_or_404(Environment, id=environment)
+    my_form = EnvironmentUserAddForm(request.POST or None)
+    if my_form.is_valid():
+
+        username = my_form.cleaned_data['username']
+        user = User.objects.get(username=username)
+
+        env.users.add(user)
+        my_form = EnvironmentUserAddForm()
+        return HttpResponseRedirect(reverse('metro:environments_view'))
+
+
+    context = {'environment': env, 'form': my_form}
+    return render(request, 'metro_app/environments_edit.html', context)
+
+def environment_user_delete(request, environment, user):
+    env = get_object_or_404(Environment, id=environment)
+
+    if request.method == 'POST':
+        env.users.remove(user)
+
+    return HttpResponseRedirect(reverse('metro:environments_view'))
 
 
 # ====================
