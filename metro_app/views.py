@@ -2674,31 +2674,34 @@ def network_view(request, simulation):
     """View of the network of a simulation."""
     # If the network is large, the display method is different.
     links = get_query('link', simulation)
-    large_network = links.count() > NETWORK_THRESHOLD
-    # File where the data for the network are stored.
-    output_file = (
-        '{0}/website_files/network_output/network_{1!s}.json'
-            .format(settings.BASE_DIR, simulation.id)
-    )
-    if simulation.has_changed or not os.path.isfile(output_file):
-        # Generate a new output file.
-        output = network_output(simulation, large_network)
-        with open(output_file, 'w') as f:
-            json.dump(output, f)
-        # Do not generate a new output file the next time (unless the
-        # simulation changes).
-        simulation.has_changed = False
-        simulation.save()
+    if links:
+        large_network = links.count() > NETWORK_THRESHOLD
+        # File where the data for the network are stored.
+        output_file = (
+            '{0}/website_files/network_output/network_{1!s}.json'
+                .format(settings.BASE_DIR, simulation.id)
+        )
+        if simulation.has_changed or not os.path.isfile(output_file):
+            # Generate a new output file.
+            output = network_output(simulation, large_network)
+            with open(output_file, 'w') as f:
+                json.dump(output, f)
+            # Do not generate a new output file the next time (unless the
+            # simulation changes).
+            simulation.has_changed = False
+            simulation.save()
+        else:
+            # Use data from the existing output file.
+            with open(output_file, 'r') as f:
+                output = json.load(f)
+        context = {
+            'simulation': simulation,
+            'output': output,
+            'large_network': large_network,
+        }
+        return render(request, 'metro_app/network.html', context)
     else:
-        # Use data from the existing output file.
-        with open(output_file, 'r') as f:
-            output = json.load(f)
-    context = {
-        'simulation': simulation,
-        'output': output,
-        'large_network': large_network,
-    }
-    return render(request, 'metro_app/network.html', context)
+        raise Http404()
 
 
 @public_required
@@ -3369,7 +3372,7 @@ def environments_view(request):
     form = EnvironmentForm()
 
     context = {'environments': auth_environments, 'form': form}
-    env = auth_environments[0]
+    # env = auth_environments[0]
     return render(request, 'metro_app/environments_view.html', context)
 
 def environment_create(request):
