@@ -195,7 +195,7 @@ def simulation_manager(request):
     simulation_user_list = Simulation.objects.filter(user_id=request.user.id)
     simulation_public_list = \
         Simulation.objects.filter(public=True).exclude(
-            user_id=request.user.id).filter(environment=None)
+            user_id=request.user.id)
     simulation_pinned_list = \
         Simulation.objects.filter(public=True).filter(pinned=True)
     env_list = Environment.objects.filter(users=request.user.id)
@@ -212,11 +212,11 @@ def simulation_manager(request):
         simulation_private_list = \
             Simulation.objects.filter(public=False).exclude(user=request.user)
     # Create a form for new simulations.
-    simulation_form = BaseSimulationForm()
+    simulation_form = BaseSimulationForm(request.user)
     # Create a form for copied simulations (the form has the same fields as the
     # form for new simulations, we add the prefix copy to differentiate the
     # two).
-    copy_form = BaseSimulationForm(prefix='copy')
+    copy_form = BaseSimulationForm(request.user, prefix='copy')
     context = {
         'simulation_user_list': simulation_user_list,
         'simulation_env_list': simulation_env_list,
@@ -354,7 +354,7 @@ def simulation_add_action(request):
     public).
     """
     # Create a form with the data send and check if it is valid.
-    form = BaseSimulationForm(request.POST)
+    form = BaseSimulationForm(request.user, request.POST)
     if form.is_valid():
         # Create a new simulation with the attributes sent.
         simulation = Simulation()
@@ -439,7 +439,7 @@ def copy_simulation(request):
     it again.  This will generate a new id for the object. We must ensure that
     all relations between the objects remain consistent.
     """
-    copy_form = BaseSimulationForm(request.POST, prefix='copy')
+    copy_form = BaseSimulationForm(request.user, request.POST, prefix='copy')
     if copy_form.is_valid():
         # The simulation id is hidden in an input of the pop-up (the id is
         # changed by javascript.
@@ -885,9 +885,9 @@ def simulation_view(request, simulation):
     # Some elements are only displayed if the user owns the simulation.
     owner = can_edit(request.user, simulation)
     # Create the form to copy the simulation.
-    copy_form = BaseSimulationForm(prefix='copy')
+    copy_form = BaseSimulationForm(request.user, prefix='copy')
     # Create the form to edit name, comment and public.
-    edit_form = BaseSimulationForm(instance=simulation)
+    edit_form = BaseSimulationForm(request.user, instance=simulation)
     # Create the form to edit the parameters.
     simulation_form = ParametersSimulationForm(owner=owner,
                                                instance=simulation)
@@ -1003,7 +1003,7 @@ def simulation_view_edit(request, simulation):
     """View to save the modification to the name, comment and status of the
     simulation.
     """
-    edit_form = BaseSimulationForm(data=request.POST, instance=simulation)
+    edit_form = BaseSimulationForm(request.user, data=request.POST, instance=simulation)
     if edit_form.is_valid():
         edit_form.save()
         return HttpResponseRedirect(
@@ -2236,7 +2236,10 @@ def object_import(request, simulation, object_name):
         # Convert imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
-        reader = csv.DictReader(tsv_file, delimiter='\t')
+        if encoded_file.name.split(".")[-1] == 'tsv':
+            reader = csv.DictReader(tsv_file, delimiter='\t')
+        else:
+            reader = csv.DictReader(tsv_file, delimiter=',')
         to_be_updated = set()
         to_be_created = list()
         # Store the user_id of the imported instance to avoid two instances
@@ -3369,7 +3372,6 @@ def environments_view(request):
     form = EnvironmentForm()
 
     context = {'environments': auth_environments, 'form': form}
-    env = auth_environments[0]
     return render(request, 'metro_app/environments_view.html', context)
 
 def environment_create(request):
@@ -3390,7 +3392,7 @@ def environment_add_view(request, pk):
     env = get_object_or_404(Environment, id=environment)
     my_form = EnvironmentUserAddForm()
 
-    context = {'environment': env, 'form': my_form}
+    context = {'environment': env, 'form': my_form, 'error': False}
 
     return render(request, 'metro_app/environments_edit.html', context)
 
@@ -3407,7 +3409,7 @@ def environment_add(request, environment):
         return HttpResponseRedirect(reverse('metro:environments_view'))
 
 
-    context = {'environment': env, 'form': my_form}
+    context = {'environment': env, 'form': my_form, 'error': True}
     return render(request, 'metro_app/environments_edit.html', context)
 
 def environment_user_delete(request, environment, user):
@@ -3418,6 +3420,11 @@ def environment_user_delete(request, environment, user):
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
+def environment_delete(request, environment):
+    env = get_object_or_404(Environment, id=environment)
+    env.delete()
+
+    return HttpResponseRedirect(reverse('metro:environments_view'))
 
 # ====================
 # Functions

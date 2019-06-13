@@ -34,6 +34,8 @@ urlpatterns = [
          views.environment_add, name='environments_add'),
     re_path(r'environments/(?P<environment>[0-9]+)/(?P<user>[0-9]+)',
          views.environment_user_delete, name='environment_user_delete'),
+    re_path(r'environments/delete/(?P<environment>[0-9]+)',
+         views.environment_delete, name='environments_delete'),
 
     #Lucas Javaudin
     path(r'',
