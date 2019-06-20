@@ -3167,6 +3167,8 @@ def simulation_export(request, simulation):
 
     return response
 
+@require_POST
+@owner_required
 def usertype_import(request, simulation_id):
 
     """View to convert the imported file to usertype in the database."""
@@ -3363,6 +3365,7 @@ def usertype_export(request, simulation_id, demandsegment_id):
     os.remove(filename)
     return response
 
+@login_required
 def environments_view(request):
 
     if request.user.is_authenticated:
@@ -3371,7 +3374,9 @@ def environments_view(request):
         auth_environments = {}
     form = EnvironmentForm()
 
-    context = {'environments': auth_environments, 'form': form}
+    permission = request.user.has_perm('metro_app.add_environment')
+
+    context = {'environments': auth_environments, 'form': form, 'permission': permission}
     return render(request, 'metro_app/environments_view.html', context)
 
 def environment_create(request):
@@ -3380,8 +3385,10 @@ def environment_create(request):
         env_name = my_form.cleaned_data['name']
         env_user = {request.user}
 
-        environment = Environment.objects.create(name=env_name)
+        environment = Environment.objects.create(name=env_name, creator=env_user)
         environment.users.set(env_user)
+
+
 
         my_form = EnvironmentForm()
 
@@ -3405,6 +3412,8 @@ def environment_add(request, environment):
         user = User.objects.get(username=username)
 
         env.users.add(user)
+
+
         my_form = EnvironmentUserAddForm()
         return HttpResponseRedirect(reverse('metro:environments_view'))
 

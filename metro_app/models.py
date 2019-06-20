@@ -926,6 +926,8 @@ class ArticleFile(models.Model):
 class Environment(models.Model):
     name = models.CharField(max_length=200)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL)
+    creator = models.CharField(max_length=150, blank=False, null=False,
+                               default='', db_column='author')
 
     def __str__(self):
         return str(self.name)

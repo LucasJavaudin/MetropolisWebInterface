@@ -7,7 +7,7 @@ Metropolis
 
 {% block main %}
 
-{% if user.is_superuser %}
+{% if permission %}
 <center>
 	<button type="button" class="btn btn-primary btn-lg"
 			title="Create a new event" data-toggle="modal"
@@ -73,7 +73,7 @@ Metropolis
 		</div>
 	</div>
 </div>
-
+	{% if user == environment.creator or user.is_superuser%}
 	<form action="{% url 'metro:environments_add_view' environment.id%}"
 		  method="post">
 		{% csrf_token %}
@@ -81,6 +81,7 @@ Metropolis
 			User</button>
 	</form>
 	<button type="button" class="btn btn-outline-danger"  data-toggle="modal" data-target="#deleteModal_{{ environment.id }}">Delete</button>
+	{% endif %}
 
 <table class="table table-hover table-bordered">
 	<thead class="thead-light">
@@ -93,7 +94,7 @@ Metropolis
 	{% for user_env in environment.users.all %}
 		<tr>
 			<td class="align-middle">{{ user_env }}</td>
-			{% if user.is_superuser and user_env != user %}
+			{% if user_env != user and user.is_superuser or user_env.name == environment.creator and user_env != user %}
 			<td class="align-middle">
 				<span class="btn-group">
 					<form action="{% url 'metro:environment_user_delete' environment.id user_env.id %}" method="post">
