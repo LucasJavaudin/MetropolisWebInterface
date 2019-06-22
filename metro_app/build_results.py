@@ -78,7 +78,7 @@ def import_output(run):
 
     if len(output['link_ids']) >= LINK_THRESHOLD:
         # Large network, only store one type of results (phi_in_H).
-        output_types = ['phi_in_H']
+        output_types = ['phi_in_H', 'ttime_H']
     else:
         # Small network, we can store everything.
         output_types = ['phi_in_H', 'phi_in_S', 'phi_out_H', 'phi_out_S',
@@ -119,7 +119,7 @@ def export_link_results(output, export_file):
         writer = csv.writer(f, delimiter='\t')
         # Writer a custom header.
         if large_network:
-            labels = ['in-flow_H']
+            labels = ['in-flow_H', 'ttime_H']
         else:
             labels = ['in-flow_H', 'in-flow_S', 'out-flow_H', 'out-flow_S',
                       'ttime_H', 'ttime_S']
@@ -132,7 +132,7 @@ def export_link_results(output, export_file):
         # Write rows.
         if large_network:
             # Large network, only store one type of results (phi_in_H).
-            output_types = ['phi_in_H']
+            output_types = ['phi_in_H', 'ttime_H']
         else:
             # Small network, we can store everything.
             output_types = ['phi_in_H', 'phi_in_S', 'phi_out_H', 'phi_out_S',
@@ -171,7 +171,7 @@ def build_results(output):
 
     if len(link_ids) > NETWORK_THRESHOLD:
         # Large network.
-        output_types = ['phi_in_H']
+        output_types = ['phi_in_H', 'ttime_H']
     else:
         # Small network.
         output_types = ['phi_in_H', 'phi_in_S', 'phi_out_H', 'phi_out_S',

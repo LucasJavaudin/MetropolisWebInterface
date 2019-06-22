@@ -125,6 +125,10 @@ function drawLinks() {
 		drawLinkLegend(results.colorscale, results.stats.phi_in_H.min, results.stats.phi_in_H.max);
 		edges.forEach(function(e) { e.color=results.phi_in_H.colors[e.id][period] });
 		s.refresh();
+	} else if (selectorValue == 'ttime'){
+		drawLinkLegend(results.colorscale, results.stats.ttime_H.min, results.stats.ttime_H.max);
+		edges.forEach(function(e) { e.color=results.ttime_H.colors[e.id][period] });
+		s.refresh();
 	/*
 	} else if (selectorValue == 'phi_in' && hsValue == 's'){
 		drawLinkLegend(results.colorscale, results.stats.phi_in_S.min, results.stats.phi_in_S.max);
