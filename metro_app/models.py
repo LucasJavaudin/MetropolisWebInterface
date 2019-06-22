@@ -1010,14 +1010,12 @@ class SimulationMOEs(models.Model):
         help_text='Standard error of the consumer surplus (in euros)'
     )
     early = models.FloatField(
-        default=0, verbose_name='Early Cost (€)',
-        help_text=('Average schedule delay cost of drivers who arrive too '
-                   + 'early (in euros)')
+        default=0, verbose_name='Mean Early Delay (min)',
+        help_text=('Average delay of drivers who arrive too early (in minutes)')
     )
     late = models.FloatField(
-        default=0, verbose_name='Late Cost (€)',
-        help_text=('Average schedule delay cost of drivers who arrive too '
-                   + 'late (in euros)')
+        default=0, verbose_name='Mean Late Delay (min)',
+        help_text=('Average delay of drivers who arrive too late (in minutes)')
     )
     scost = models.FloatField(
         default=0, verbose_name='Schedule Delay Cost (€)',
