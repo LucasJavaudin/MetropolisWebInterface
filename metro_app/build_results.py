@@ -51,7 +51,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE",
 django.setup()
 
 from metro_app.models import *
-from metro_app.views import LINK_THRESHOLD
+from metro_app.views import LINK_THRESHOLD, NETWORK_THRESHOLD
 from metro_app.functions import *
 
 
@@ -169,7 +169,7 @@ def build_results(output):
         for color in colorscale]
     results['colorscale'] = colorscale
 
-    if len(link_ids) > LINK_THRESHOLD:
+    if len(link_ids) > NETWORK_THRESHOLD:
         # Large network.
         output_types = ['phi_in_H']
     else:
