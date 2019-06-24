@@ -28,7 +28,7 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.contrib.auth import authenticate, logout, login
 from django.contrib.auth import views as auth_views
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group
 from django.db.models import Sum
 from django.dispatch import receiver
@@ -180,6 +180,35 @@ def check_run_relation(view):
 
     return wrap
 
+def environment_owner_required(view):
+    """Decorator to execute a function only if the requesting user has edit
+    access to the environment.
+    """
+
+    def wrap(*args, **kwargs):
+        user = args[0].user  # The first arg is the request object.
+        environment_id = kwargs.pop('environment_id')
+        environment = get_object_or_404(Environment, pk=environment_id)
+        if can_edit_environment(user, environment):
+            return view(*args, environment=environment_id, **kwargs)
+        else:
+            return HttpResponseRedirect(reverse('metro:environments_view'))
+
+    return wrap
+
+def environment_can_create(view):
+    """Decorator to execute a function only if the requesting user can create an environment.
+    """
+
+    def wrap(*args, **kwargs):
+        user = args[0].user  # The first arg is the request object.
+
+        if user.has_perm('metro_app.add_environment'):
+            return view(*args, **kwargs)
+        else:
+            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
+    return wrap
 
 # ====================
 # Views
@@ -3002,8 +3031,12 @@ def show_events(request):
     context = {'events': event_list, 'form': event_form}
     return render(request, 'metro_app/events_view.html', context)
 
-
+@user_passes_test(lambda u: u.is_superuser)
 def create_event(request):
+    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    if not request.user.is_superuser:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     my_form = EventForm(request.POST or None)
     if my_form.is_valid():
         event_title = my_form.cleaned_data['title']
@@ -3015,8 +3048,12 @@ def create_event(request):
 
     return HttpResponseRedirect(reverse('metro:events_view'))
 
-
+@user_passes_test(lambda u: u.is_superuser)
 def delete_event(request, pk):
+    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    if not request.user.is_superuser:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     event = get_object_or_404(Event, id=pk)
 
     if request.method == 'POST':
@@ -3024,17 +3061,25 @@ def delete_event(request, pk):
 
     return HttpResponseRedirect(reverse('metro:events_view'))
 
-
 # Loads the edit Event page
+@user_passes_test(lambda u: u.is_superuser)
 def edit_event_show(request, pk):
+    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    if not request.user.is_superuser:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     event = get_object_or_404(Event, id=pk)
     my_form = EventForm(initial={'title': event.title, 'description': event.description})
 
     context = {'event': event, 'form': my_form}
     return render(request, 'metro_app/events_edit.html', context)
 
-
+@user_passes_test(lambda u: u.is_superuser)
 def edit_event(request, pk):
+    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    if not request.user.is_superuser:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     event = get_object_or_404(Event, id=pk)
     my_form = EventForm(request.POST)
 
@@ -3064,7 +3109,7 @@ def show_articles(request):
     context = {'articles': articles, 'form': article_form}
     return render(request, 'metro_app/articles_view.html', context)
 
-
+@login_required
 def download_article_file(request, path):
     try:
         articles_path = (settings.BASE_DIR
@@ -3082,8 +3127,12 @@ def download_article_file(request, path):
         # Should notify an admin that the file is missing.
         raise Http404()
 
-
+@user_passes_test(lambda u: u.is_superuser)
 def create_article(request):
+    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    if not request.user.is_superuser:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     my_form = ArticleForm(request.POST or None)
     files = request.FILES.getlist('files')
     if my_form.is_valid():
@@ -3106,8 +3155,12 @@ def create_article(request):
 
     return HttpResponseRedirect(reverse('metro:articles_view'))
 
-
+@user_passes_test(lambda u: u.is_superuser)
 def delete_article(request, pk):
+    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    if not request.user.is_superuser:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
     article = get_object_or_404(Article, id=pk)
 
     if request.method == 'POST':
@@ -3337,7 +3390,8 @@ def usertype_import(request, simulation_id):
         }
         return render(request, 'metro_app/import_error.html', context)
 
-def usertype_export(request, simulation_id, demandsegment_id):
+@public_required
+def usertype_export(request, simulation, demandsegment_id):
     demand = DemandSegment.objects.get(pk=demandsegment_id)
     usertype = demand.usertype
 
@@ -3379,7 +3433,12 @@ def environments_view(request):
     context = {'environments': auth_environments, 'form': form, 'permission': permission}
     return render(request, 'metro_app/environments_view.html', context)
 
+@login_required
+@environment_can_create
 def environment_create(request):
+
+
+
     my_form = EnvironmentForm(request.POST or None)
     if my_form.is_valid():
         env_name = my_form.cleaned_data['name']
@@ -3394,8 +3453,9 @@ def environment_create(request):
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
-def environment_add_view(request, pk):
-    environment = pk
+@login_required
+@environment_owner_required
+def environment_add_view(request, environment):
     env = get_object_or_404(Environment, id=environment)
     my_form = EnvironmentUserAddForm()
 
@@ -3403,6 +3463,8 @@ def environment_add_view(request, pk):
 
     return render(request, 'metro_app/environments_edit.html', context)
 
+@login_required
+@environment_owner_required
 def environment_add(request, environment):
     env = get_object_or_404(Environment, id=environment)
     my_form = EnvironmentUserAddForm(request.POST or None)
@@ -3421,6 +3483,8 @@ def environment_add(request, environment):
     context = {'environment': env, 'form': my_form, 'error': True}
     return render(request, 'metro_app/environments_edit.html', context)
 
+@login_required
+@environment_owner_required
 def environment_user_delete(request, environment, user):
     env = get_object_or_404(Environment, id=environment)
 
@@ -3429,6 +3493,8 @@ def environment_user_delete(request, environment, user):
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
+@login_required
+@environment_owner_required
 def environment_delete(request, environment):
     env = get_object_or_404(Environment, id=environment)
     env.delete()
