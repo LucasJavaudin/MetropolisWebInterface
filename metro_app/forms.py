@@ -80,7 +80,10 @@ class BaseSimulationForm(forms.ModelForm):
 
     def __init__(self, user, *args, **kwargs):
         super(BaseSimulationForm, self).__init__(*args, **kwargs)
-        auth_environments = Environment.objects.filter(users=user)
+        if user.is_authenticated:
+            auth_environments = Environment.objects.filter(users=user)
+        else:
+            auth_environments = Environment.objects.none()
         self.fields['environment'] = forms.ModelChoiceField(
             queryset=auth_environments, required=False)
         # Field comment is not required.
