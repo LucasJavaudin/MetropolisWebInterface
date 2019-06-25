@@ -80,6 +80,17 @@ def can_edit(user, simulation):
     else:
         return False
 
+def can_edit_environment(user, environment):
+    """Check if the user can edit a specific simulation.
+
+    The user can edit the simulation if he owns the simulation or if he is a
+    superuser.
+    """
+    if environment.creator == user or user.is_superuser:
+        return True
+    else:
+        return False
+
 def metro_to_user(object):
     """Convert the name of a network object (used in the source code) to a name
     suitable for users.

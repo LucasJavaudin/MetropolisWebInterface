@@ -7,7 +7,7 @@ Metropolis
 
 {% block main %}
 
-{% if user.is_superuser %}
+{% if permission %}
 <center>
 	<button type="button" class="btn btn-primary btn-lg"
 			title="Create a new event" data-toggle="modal"
@@ -44,16 +44,45 @@ Metropolis
 <br>
 {% endif%}
 
+{% if not environments %}
+<div class="container">
+	<div class="alert alert-primary">
+		You are currently not part of any environment.
+	</div>
+</div>
+{% endif %}
+
 {% for environment in environments %}
 <h4>{{ environment.name }}</h4>
-
-	<form
-			action="{% url 'metro:environments_add_view' environment.id%}"
+<div class="modal fade" id="deleteModal_{{ environment.id }}" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Delete an environment</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				Do you really want to delete '{{ environment.name }}'?
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+				<a role="button" class="btn btn-danger mx-auto" href="{% url 'metro:environments_delete' environment.id %}">Delete</a>
+			</div>
+		</div>
+	</div>
+</div>
+	{% if user == environment.creator or user.is_superuser%}
+	<form action="{% url 'metro:environments_add_view' environment.id%}"
 		  method="post">
 		{% csrf_token %}
 		<button class="btn btn-outline-secondary" type="submit">Add
 			User</button>
 	</form>
+	<button type="button" class="btn btn-outline-danger"  data-toggle="modal" data-target="#deleteModal_{{ environment.id }}">Delete</button>
+	{% endif %}
+
 <table class="table table-hover table-bordered">
 	<thead class="thead-light">
 		<tr>
@@ -65,7 +94,7 @@ Metropolis
 	{% for user_env in environment.users.all %}
 		<tr>
 			<td class="align-middle">{{ user_env }}</td>
-			{% if user.is_superuser %}
+			{% if user_env != user and user.is_superuser or user_env.name == environment.creator and user_env != user %}
 			<td class="align-middle">
 				<span class="btn-group">
 					<form action="{% url 'metro:environment_user_delete' environment.id user_env.id %}" method="post">

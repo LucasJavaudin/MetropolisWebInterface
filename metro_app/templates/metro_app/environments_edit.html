@@ -10,6 +10,13 @@ Metropolis
 
 {% if environment %}
 <div class="container">
+	{% if error %}
+	<div class="alert alert-danger">
+		The username you entered does not exists.
+	</div>
+	<br>
+	{% endif %}
+
 	<div style="background:transparent !important" class="jumbotron">
 		<div class="modal-header">
 			<h5 class="modal-title" id="modalEditTitle">Add a user</h5>

@@ -75,10 +75,20 @@ class BaseSimulationForm(forms.ModelForm):
     The form is used to create new a simulation, to copy a simulation or to
     edit the variable of an existing simulation.
     """
-    def __init__(self, *args, **kwargs):
+
+    #environment = forms.ModelChoiceField(queryset=Environment.objects.none())
+
+    def __init__(self, user, *args, **kwargs):
         super(BaseSimulationForm, self).__init__(*args, **kwargs)
+        if user.is_authenticated:
+            auth_environments = Environment.objects.filter(users=user)
+        else:
+            auth_environments = Environment.objects.none()
+        self.fields['environment'] = forms.ModelChoiceField(
+            queryset=auth_environments, required=False)
         # Field comment is not required.
         self.fields['comment'].required = False
+
         # Add tooltips.
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
