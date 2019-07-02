@@ -2513,7 +2513,7 @@ def object_export(request, simulation, object_name):
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
         response['Content-Disposition'] = \
-            'attachement; filename={}.tsv'.format(metro_to_user(object_name))
+            'attachement; filename={}s.tsv'.format(metro_to_user(object_name))
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
@@ -2523,7 +2523,7 @@ def object_export_save(simulation, object_name, dir):
     query = get_query(object_name, simulation)
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
-    filename = metro_names_to_names(object_name, dir)
+    filename = dir + '/' + metro_to_user(object_name) + 's.tsv'
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
         if object_name == 'centroid':
@@ -2564,23 +2564,6 @@ def object_export_save(simulation, object_name, dir):
             if values:
                 values = np.hstack([values, origins, destinations])
         writer.writerows(values)
-
-    return filename
-
-#Used to convert names used by the METROPOLIS interface (centroid, crossing, etc...)
-#to names displayed to the user (zones, intersections, ...)
-def metro_names_to_names(object_name, dir):
-
-    if object_name == 'centroid':
-        filename = dir + '/zones.tsv'
-    elif object_name == 'crossing':
-        filename = dir + '/intersections.tsv'
-    elif object_name == 'link':
-        filename = dir + '/links.tsv'
-    elif object_name == 'function':
-        filename = dir + '/functions.tsv'
-    else:
-        filename = None
 
     return filename
 
