@@ -210,7 +210,7 @@ def build_results(output):
 
 
 def export_network_results(run, results):
-    """Sore the built results to a json file."""
+    """Store the built results to a json file."""
     simulation = run.simulation
     output_file = (
         '{0}/website_files/network_output/results_{1}_{2}.json'

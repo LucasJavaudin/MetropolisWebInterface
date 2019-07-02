@@ -2523,21 +2523,17 @@ def object_export_save(simulation, object_name, dir):
     query = get_query(object_name, simulation)
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
-    filename = dir + '/' + object_name + 's.tsv'
+    filename = metro_names_to_names(object_name, dir)
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
         if object_name == 'centroid':
-            filename = dir + '/zones.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
         elif object_name == 'crossing':
-            filename = dir + '/Intersections.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
         elif object_name == 'link':
-            filename = dir + '/links.tsv'
             fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
                       'speed', 'capacity', 'vdf']
         elif object_name == 'function':
-            filename = dir + '/functions.tsv'
             fields = ['id', 'expression']
         writer = csv.writer(f, delimiter='\t')
         if object_name in ('centroid', 'crossing'):
@@ -2568,6 +2564,23 @@ def object_export_save(simulation, object_name, dir):
             if values:
                 values = np.hstack([values, origins, destinations])
         writer.writerows(values)
+
+    return filename
+
+#Used to convert names used by the METROPOLIS interface (centroid, crossing, etc...)
+#to names displayed to the user (zones, intersections, ...)
+def metro_names_to_names(object_name, dir):
+
+    if object_name == 'centroid':
+        filename = dir + '/zones.tsv'
+    elif object_name == 'crossing':
+        filename = dir + '/intersections.tsv'
+    elif object_name == 'link':
+        filename = dir + '/links.tsv'
+    elif object_name == 'function':
+        filename = dir + '/functions.tsv'
+    else:
+        filename = None
 
     return filename
 
