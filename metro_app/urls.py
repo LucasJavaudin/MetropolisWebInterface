@@ -52,6 +52,8 @@ urlpatterns = [
         views.how_to, name='how_to'),
     path(r'tutorial',
         views.tutorial, name='tutorial'),
+    path(r'osm_tutorial',
+        views.osm_tutorial, name='osm_tutorial'),
     path(r'contributors',
         views.contributors, name='contributors'),
     path(r'disqus',

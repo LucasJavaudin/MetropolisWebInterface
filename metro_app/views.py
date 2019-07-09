@@ -364,6 +364,21 @@ def tutorial(request):
         raise Http404()
 
 
+def osm_tutorial(request):
+    """Simple view to send the osm_tutorial pdf to the user."""
+    try:
+        file_path = (settings.BASE_DIR
+                     + '/website_files/OpenStreetMap_tutorial.pdf')
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f, content_type='application/pdf')
+            response['Content-Disposition'] = \
+                'attachment; filename="osm_tool_tutorial.pdf"'
+            return response
+    except FileNotFoundError:
+        # Should notify an admin that the file is missing.
+        raise Http404()
+
+
 def contributors(request):
     """Simple view to show the people who contributed to the project."""
     return render(request, 'metro_app/contributors.html')
