@@ -81,10 +81,7 @@ def can_edit(user, simulation):
         return False
 
 def can_edit_environment(user, environment):
-    """Check if the user can edit a specific simulation.
-
-    The user can edit the simulation if he owns the simulation or if he is a
-    superuser.
+    """Check if the user can edit a specific environment.
     """
     if environment.creator == user or user.is_superuser:
         return True

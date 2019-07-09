@@ -2513,7 +2513,7 @@ def object_export(request, simulation, object_name):
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
         response['Content-Disposition'] = \
-            'attachement; filename={}.tsv'.format(metro_to_user(object_name))
+            'attachement; filename={}s.tsv'.format(metro_to_user(object_name))
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
@@ -2523,21 +2523,17 @@ def object_export_save(simulation, object_name, dir):
     query = get_query(object_name, simulation)
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
-    filename = dir + '/' + object_name + 's.tsv'
+    filename = dir + '/' + metro_to_user(object_name) + 's.tsv'
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
         if object_name == 'centroid':
-            filename = dir + '/zones.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
         elif object_name == 'crossing':
-            filename = dir + '/Intersections.tsv'
             fields = ['id', 'name', 'x', 'y', 'db_id']
         elif object_name == 'link':
-            filename = dir + '/links.tsv'
             fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
                       'speed', 'capacity', 'vdf']
         elif object_name == 'function':
-            filename = dir + '/functions.tsv'
             fields = ['id', 'expression']
         writer = csv.writer(f, delimiter='\t')
         if object_name in ('centroid', 'crossing'):
