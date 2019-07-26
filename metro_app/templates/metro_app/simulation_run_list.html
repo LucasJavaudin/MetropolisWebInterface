@@ -65,6 +65,11 @@
 								Download traveler-specific results
 							</a>
 							{% endif %}
+							{% if run.user_path %}
+							<a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_user_path' simulation.id run.id %}">
+								Download traveler paths
+							</a>
+							{% endif %}
 						</div>
 					</center>
 				</td>

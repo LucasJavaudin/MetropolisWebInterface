@@ -1052,5 +1052,6 @@ class SimulationRun(models.Model):
     network_output = models.BooleanField(default=False)
     link_output = models.BooleanField(default=False)
     user_output = models.BooleanField(default=False)
+    user_path = models.BooleanField(default=False)
     class Meta:
         db_table = 'SimulationRun'

@@ -120,6 +120,8 @@ urlpatterns = [
         views.simulation_run_link_output, name='simulation_run_link_output'),
     path(r'<simulation_id>/run/<run_id>/user_output',
         views.simulation_run_user_output, name='simulation_run_user_output'),
+    path(r'<simulation_id>/run/<run_id>/user_path',
+        views.simulation_run_user_path, name='simulation_run_user_path'),
     path(r'register',
         views.register, name='register'),
     path(r'register/action',

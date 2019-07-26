@@ -343,8 +343,8 @@ try:
     export_network_results(RUN, RESULTS)
     print('Cleaning files...')
     clean_files(RUN)
-    print('Cleaning database...')
-    clean_database(SIMULATION)
+    # print('Cleaning database...')
+    # clean_database(SIMULATION)
 except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
     # Catch any error (I explicitely write the two most common errors).
     print('Ending run with error(s)...')
@@ -363,8 +363,8 @@ if os.path.isfile(EXPORT_FILE):
 
 DB_NAME = settings.DATABASES['default']['NAME']
 
-# Create a tsv file with a readable user-specific output.
-print('Writing traveler-specific output...')
+# Create a tsv file with a readable user-specific cost output.
+print('Writing traveler-specific cost output...')
 FILE = (
     '{0}/metrosim_files/output/metrosim_users_{1}_{2}.txt'
         .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
@@ -410,12 +410,45 @@ if os.path.isfile(FILE):
                                      row[8],
                                      row[9], row[10], row[11], row[12], row[13],
                                      row[14]])
+        os.remove(FILE)
     except Exception as e:
-        print('Error while writing user-specific results file')
+        print('Error while writing user-specific costs file')
         print(e)
-
 if os.path.isfile(EXPORT_FILE):
     RUN.user_output = True
+
+# Create a tsv file with a readable user-specific path output.
+print('Writing traveler-specific path output...')
+FILE = (
+    '{0}/metrosim_files/output/metrosim_events_{1}_{2}.txt'
+        .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
+)
+if os.path.isfile(FILE):
+    try:
+        EXPORT_FILE = (
+            '{0}/website_files/network_output/user_paths_{1}_{2}.txt'
+                .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
+        )
+        # Create a dictionary to map the link ids with the link user ids.
+        link_mapping = dict()
+        links = get_query('link', SIMULATION.id)
+        for link in links:
+            link_mapping[link.id] = link.user_id
+        with codecs.open(FILE, 'r', encoding='utf8') as f:
+            with codecs.open(EXPORT_FILE, 'w', encoding='utf8') as g:
+                reader = csv.reader(f, delimiter='\t')
+                writer = csv.writer(g, delimiter='\t')
+                # Writer a custom header.
+                writer.writerow(['traveler_id', 'in_time', 'link_id'])
+                for row in reader:
+                    link_id = link_mapping[int(row[2])]
+                    writer.writerow([row[0], row[1], link_id])
+        os.remove(FILE)
+    except Exception as e:
+        print('Error while writing user-specific paths file')
+        print(e)
+if os.path.isfile(EXPORT_FILE):
+    RUN.user_path = True
 
 RUN.save()
 

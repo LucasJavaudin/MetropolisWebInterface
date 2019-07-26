@@ -2713,6 +2713,27 @@ def simulation_run_user_output(request, simulation, run):
 
 
 @public_required
+@check_run_relation
+def simulation_run_user_path(request, simulation, run):
+    """Simple view to send the user-specific results of the run to the user."""
+    try:
+        db_name = settings.DATABASES['default']['NAME']
+        file_path = (
+            '{0}/website_files/network_output/user_paths_{1}_{2}.txt'
+                .format(settings.BASE_DIR, simulation.id, run.id)
+        )
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read())
+            response['content_type'] = 'text/tab-separated-values'
+            response['Content-Disposition'] = \
+                'attachement; filename=user_paths.tsv'
+            return response
+    except FileNotFoundError:
+        # Should notify an admin that the file is missing.
+        raise Http404()
+
+
+@public_required
 def network_view(request, simulation):
     """View of the network of a simulation."""
     # If the network is large, the display method is different.
