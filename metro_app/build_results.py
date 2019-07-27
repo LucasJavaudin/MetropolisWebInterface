@@ -411,11 +411,10 @@ if os.path.isfile(FILE):
                                      row[9], row[10], row[11], row[12], row[13],
                                      row[14]])
         os.remove(FILE)
+        RUN.user_output = True
     except Exception as e:
         print('Error while writing user-specific costs file')
         print(e)
-if os.path.isfile(EXPORT_FILE):
-    RUN.user_output = True
 
 # Create a tsv file with a readable user-specific path output.
 print('Writing traveler-specific path output...')
@@ -444,11 +443,10 @@ if os.path.isfile(FILE):
                     link_id = link_mapping[int(row[2])]
                     writer.writerow([row[0], row[1], link_id])
         os.remove(FILE)
+        RUN.user_path = True
     except Exception as e:
         print('Error while writing user-specific paths file')
         print(e)
-if os.path.isfile(EXPORT_FILE):
-    RUN.user_path = True
 
 RUN.save()
 
