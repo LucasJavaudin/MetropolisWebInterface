@@ -63,10 +63,10 @@ matrices = get_query('matrices', simulation)
 nb_travelers = matrices.aggregate(Sum('total'))['total__sum']
 if nb_travelers > TRAVELERS_THRESHOLD:
     simulation.outputUsersTimes = 'false'
-    simulation.outputUsersPath = 'false'
+    simulation.outputUsersPaths = 'false'
 else:
     simulation.outputUsersTimes = 'true'
-    simulation.outputUsersPath = 'true'
+    simulation.outputUsersPaths = 'true'
 simulation.save()
 
 # Use the existing network output file if it exists.
