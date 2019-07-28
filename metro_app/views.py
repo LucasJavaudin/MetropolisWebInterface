@@ -2757,14 +2757,15 @@ def simulation_run_user_path(request, simulation, run):
     try:
         db_name = settings.DATABASES['default']['NAME']
         file_path = (
-            '{0}/website_files/network_output/user_paths_{1}_{2}.txt'
+            '{0}/website_files/network_output/user_paths_{1}_{2}.tsv.gz'
                 .format(settings.BASE_DIR, simulation.id, run.id)
         )
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read())
             response['content_type'] = 'text/tab-separated-values'
+            response['content_encoding'] = 'gzip'
             response['Content-Disposition'] = \
-                'attachement; filename=user_paths.tsv'
+                'attachement; filename=user_paths.tsv.gz'
             return response
     except FileNotFoundError:
         # Should notify an admin that the file is missing.
@@ -3500,43 +3501,6 @@ def pre_delete_function_set(sender, instance, **kwargs):
     """
     # Delete all functions (this also deletes the links).
     instance.function_set.all().delete()
-
-
-@receiver(pre_delete, sender=Network)
-def pre_delete_network(sender, instance, **kwargs):
-    """Delete all objects related to a network before deleting the network.
-    
-    The links are deleted when the functions are deleted.
-    """
-    # Disable the pre_delete signal for centroids (the signal is useless
-    # because the links are already deleted but it slows down the deleting
-    # process).
-    pre_delete.disconnect(sender=Centroid, dispatch_uid="centroid")
-    instance.centroid_set.all().delete()
-    # Enable the pre_delete signal again.
-    pre_delete.connect(pre_delete_centroid, sender=Centroid)
-    pre_delete.disconnect(sender=Crossing, dispatch_uid="crossing")
-    instance.crossing_set.all().delete()
-    pre_delete.connect(pre_delete_crossing, sender=Crossing)
-
-
-@receiver(pre_delete, sender=Centroid, dispatch_uid="centroid")
-def pre_delete_centroid(sender, instance, **kwargs):
-    """Delete all links related to a centroid before deleting the centroid.
-    
-    The signal should not be activated when deleting the whole simulation
-    because the links are already deleted when deleting the centroids so it
-    slows down the deleting process.
-    """
-    Link.objects.filter(origin=instance.id).delete()
-    Link.objects.filter(destination=instance.id).delete()
-
-
-@receiver(pre_delete, sender=Crossing, dispatch_uid="crossing")
-def pre_delete_crossing(sender, instance, **kwargs):
-    """Delete all links related to a crossing before deleting the crossing."""
-    Link.objects.filter(origin=instance.id).delete()
-    Link.objects.filter(destination=instance.id).delete()
 
 
 @receiver(pre_delete, sender=Demand)

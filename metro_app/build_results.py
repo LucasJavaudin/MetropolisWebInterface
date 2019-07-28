@@ -28,6 +28,7 @@ import sys
 import csv
 import json
 import codecs
+import gzip
 
 # Set matplotlib config directory.
 mplconfigdir = '/home/metropolis/matplotlib'
@@ -425,7 +426,7 @@ FILE = (
 if os.path.isfile(FILE):
     try:
         EXPORT_FILE = (
-            '{0}/website_files/network_output/user_paths_{1}_{2}.txt'
+            '{0}/website_files/network_output/user_paths_{1}_{2}.tsv.gz'
                 .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
         )
         # Create a dictionary to map the link ids with the link user ids.
@@ -434,7 +435,7 @@ if os.path.isfile(FILE):
         for link in links:
             link_mapping[link.id] = link.user_id
         with codecs.open(FILE, 'r', encoding='utf8') as f:
-            with codecs.open(EXPORT_FILE, 'w', encoding='utf8') as g:
+            with gzip.open(EXPORT_FILE, 'wt') as g:
                 reader = csv.reader(f, delimiter='\t')
                 writer = csv.writer(g, delimiter='\t')
                 # Writer a custom header.
