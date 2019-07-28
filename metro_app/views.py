@@ -512,7 +512,7 @@ def copy_simulation(request):
             network.save()
             # (1.1) Links.
             # Find last link id right before executing the raw SQL query.
-            last_id = Link.objects.last().id
+            link_last_id = Link.objects.last().id
             # Copy all links of the old network.
             cursor.execute(
                 "INSERT INTO Link (name, destination, lanes, length, origin, "
@@ -531,12 +531,12 @@ def copy_simulation(request):
             # Find id of last inserted link. It might be better to find the
             # copy of the last link of the old network in case other links
             # where added at the same time.
-            new_last_id = Link.objects.last().id
+            new_link_last_id = Link.objects.last().id
             # Add the many-to-many relations between links and network.
             cursor.execute(
                 "INSERT INTO Network_Link (network_id, link_id) "
                 "SELECT '%s', id FROM Link WHERE id > %s and id <= %s;",
-                [network.id, last_id, new_last_id]
+                [network.id, link_last_id, new_link_last_id]
             )
             # (1.2) Functions.
             # Find last function id.
@@ -667,21 +667,17 @@ def copy_simulation(request):
                 "UPDATE Link "
                 "JOIN centroid_ids "
                 "ON Link.origin = centroid_ids.old "
-                "JOIN Network_Link "
-                "ON Link.id = Network_Link.link_id "
                 "SET Link.origin = centroid_ids.new "
-                "WHERE Network_Link.network_id = %s;",
-                [network.id]
+                "WHERE Link.id > %s AND Link.id <= %s;",
+                [link_last_id, new_link_last_id]
             )
             cursor.execute(
                 "UPDATE Link "
                 "JOIN centroid_ids "
                 "ON Link.destination = centroid_ids.old "
-                "JOIN Network_Link "
-                "ON Link.id = Network_Link.link_id "
                 "SET Link.destination = centroid_ids.new "
-                "WHERE Network_Link.network_id = %s;",
-                [network.id]
+                "WHERE Link.id > %s AND Link.id <= %s;",
+                [link_last_id, new_link_last_id]
             )
             # (1.4) Crossings.
             # Find last crossing id.
@@ -740,21 +736,17 @@ def copy_simulation(request):
                 "UPDATE Link "
                 "JOIN crossing_ids "
                 "ON Link.origin = crossing_ids.old "
-                "JOIN Network_Link "
-                "ON Link.id = Network_Link.link_id "
                 "SET Link.origin = crossing_ids.new "
-                "WHERE Network_Link.network_id = %s;",
-                [network.id]
+                "WHERE Link.id > %s AND Link.id <= %s;",
+                [link_last_id, new_link_last_id]
             )
             cursor.execute(
                 "UPDATE Link "
                 "JOIN crossing_ids "
                 "ON Link.destination = crossing_ids.old "
-                "JOIN Network_Link "
-                "ON Link.id = Network_Link.link_id "
                 "SET Link.destination = crossing_ids.new "
-                "WHERE Network_Link.network_id = %s;",
-                [network.id]
+                "WHERE Link.id > %s AND Link.id <= %s;",
+                [link_last_id, new_link_last_id]
             )
             # (1.5) Public transit.
             pttimes = Matrices.objects.get(pk=simulation.scenario.supply.pttimes.id)
@@ -913,13 +905,21 @@ def simulation_delete(request, simulation):
     
     The view deletes the Simulation object and all objects associated with it.
     """
+    print('0')
     SimulationMOEs.objects.filter(simulation=simulation.id).delete()
+    print('0')
     network = simulation.scenario.supply.network
+    print('0')
     functionset = simulation.scenario.supply.functionset
+    print('0')
     demand = simulation.scenario.demand
+    print('0')
     network.delete()
+    print('0')
     functionset.delete()
+    print('0')
     demand.delete()
+    print('0')
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 
@@ -2587,7 +2587,53 @@ def object_export_save(simulation, object_name, dir):
 def object_delete(request, simulation, object_name):
     """View to delete all instances of a network objects."""
     query = get_query(object_name, simulation)
-    query.delete()
+    if object_name in ('centroid', 'crossing'):
+        # Django cannot manage well delete for these objects.
+        name = 'Centroid' if object_name == 'centroid' else 'Crossing'
+        ids = query.values_list('id', flat=True)
+        str_ids = ','.join([str(x) for x in ids])
+        with connection.cursor() as cursor:
+            if object_name == 'centroid':
+                cursor.execute(
+                    "DELETE FROM Matrix WHERE p IN ({});".format(str_ids)
+                )
+                cursor.execute(
+                    "DELETE FROM Matrix WHERE q IN ({});".format(str_ids)
+                )
+            cursor.execute(
+                "DELETE FROM Network_{} "
+                "WHERE {}_id IN ({});".format(name, object_name, str_ids)
+            )
+            cursor.execute(
+                "DELETE Network_Link "
+                "FROM Network_Link JOIN Link "
+                "ON Network_Link.link_id = Link.id "
+                "WHERE Link.origin IN ({});".format(str_ids)
+            )
+            cursor.execute(
+                "DELETE Network_Link "
+                "FROM Network_Link JOIN Link "
+                "ON Network_Link.link_id = Link.id "
+                "WHERE Link.destination IN ({});".format(str_ids)
+            )
+            cursor.execute(
+                "DELETE FROM {} WHERE id IN ({});".format(name, str_ids)
+            )
+            cursor.execute(
+                "DELETE FROM Link WHERE origin IN ({});".format(str_ids)
+            )
+            cursor.execute(
+                "DELETE FROM Link WHERE destination IN ({});".format(str_ids)
+            )
+        if object_name == 'centroid':
+            # Reset the number of travelers.
+            matrices = get_query('matrices', simulation)
+            for matrix in matrices:
+                matrix.total = 0
+                matrix.save()
+    else:
+        # Let Django do the job.
+        query.delete()
     simulation.has_changed = True
     simulation.save()
     return HttpResponseRedirect(reverse(
@@ -2975,87 +3021,6 @@ class TollListView(SingleTableMixin, FilterView):
         return context
 
 
-# ====================
-# Receivers
-# ====================
-
-@receiver(pre_delete, sender=FunctionSet)
-def pre_delete_function_set(sender, instance, **kwargs):
-    """Delete all objects related to a functionset before deleting the
-    functionset.
-    """
-    # Delete all functions (this also deletes the links).
-    instance.function_set.all().delete()
-
-
-@receiver(pre_delete, sender=Network)
-def pre_delete_network(sender, instance, **kwargs):
-    """Delete all objects related to a network before deleting the network.
-    
-    The links are deleted when the functions are deleted.
-    """
-    # Disable the pre_delete signal for centroids (the signal is useless
-    # because the links are already deleted but it slows down the deleting
-    # process).
-    pre_delete.disconnect(sender=Centroid, dispatch_uid="centroid")
-    instance.centroid_set.all().delete()
-    # Enable the pre_delete signal again.
-    pre_delete.connect(pre_delete_centroid, sender=Centroid)
-    pre_delete.disconnect(sender=Crossing, dispatch_uid="crossing")
-    instance.crossing_set.all().delete()
-    pre_delete.connect(pre_delete_crossing, sender=Crossing)
-
-
-@receiver(pre_delete, sender=Centroid, dispatch_uid="centroid")
-def pre_delete_centroid(sender, instance, **kwargs):
-    """Delete all links related to a centroid before deleting the centroid.
-    
-    The signal should not be activated when deleting the whole simulation
-    because the links are already deleted when deleting the centroids so it
-    slows down the deleting process.
-    """
-    Link.objects.filter(origin=instance.id).delete()
-    Link.objects.filter(destination=instance.id).delete()
-
-
-@receiver(pre_delete, sender=Crossing, dispatch_uid="crossing")
-def pre_delete_crossing(sender, instance, **kwargs):
-    """Delete all links related to a crossing before deleting the crossing."""
-    Link.objects.filter(origin=instance.id).delete()
-    Link.objects.filter(destination=instance.id).delete()
-
-
-@receiver(pre_delete, sender=Demand)
-def pre_delete_demand(sender, instance, **kwargs):
-    """Delete all demand segments before deleting the demand."""
-    demandsegments = instance.demandsegment_set.all()
-    for demandsegment in demandsegments:
-        usertype = demandsegment.usertype
-        matrix = demandsegment.matrix
-        alphaTI = usertype.alphaTI
-        alphaTP = usertype.alphaTP
-        beta = usertype.beta
-        delta = usertype.delta
-        departureMu = usertype.departureMu
-        gamma = usertype.gamma
-        routeMu = usertype.routeMu
-        modeMu = usertype.modeMu
-        tstar = usertype.tstar
-        penaltyTP = usertype.penaltyTP
-        alphaTI.delete()
-        alphaTP.delete()
-        beta.delete()
-        delta.delete()
-        gamma.delete()
-        departureMu.delete()
-        routeMu.delete()
-        modeMu.delete()
-        penaltyTP.delete()
-        tstar.delete()
-        # Delete the matrix (the demand segment should be already deleted).
-        matrix.delete()
-
-
 # Shows all events
 def show_events(request):
     """Sorts events by date"""
@@ -3258,7 +3223,6 @@ def simulation_export(request, simulation):
 @require_POST
 @owner_required
 def usertype_import(request, simulation_id):
-
     """View to convert the imported file to usertype in the database."""
 
     simulation = Simulation.objects.get(pk=simulation_id)
@@ -3456,7 +3420,6 @@ def usertype_export(request, simulation, demandsegment_id):
 
 @login_required
 def environments_view(request):
-
     if request.user.is_authenticated:
         auth_environments = Environment.objects.filter(users=request.user)
     else:
@@ -3471,9 +3434,6 @@ def environments_view(request):
 @login_required
 @environment_can_create
 def environment_create(request):
-
-
-
     my_form = EnvironmentForm(request.POST or None)
     if my_form.is_valid():
         env_name = my_form.cleaned_data['name']
@@ -3535,6 +3495,88 @@ def environment_delete(request, environment):
     env.delete()
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
+
+
+# ====================
+# Receivers
+# ====================
+
+@receiver(pre_delete, sender=FunctionSet)
+def pre_delete_function_set(sender, instance, **kwargs):
+    """Delete all objects related to a functionset before deleting the
+    functionset.
+    """
+    # Delete all functions (this also deletes the links).
+    instance.function_set.all().delete()
+
+
+@receiver(pre_delete, sender=Network)
+def pre_delete_network(sender, instance, **kwargs):
+    """Delete all objects related to a network before deleting the network.
+    
+    The links are deleted when the functions are deleted.
+    """
+    # Disable the pre_delete signal for centroids (the signal is useless
+    # because the links are already deleted but it slows down the deleting
+    # process).
+    pre_delete.disconnect(sender=Centroid, dispatch_uid="centroid")
+    instance.centroid_set.all().delete()
+    # Enable the pre_delete signal again.
+    pre_delete.connect(pre_delete_centroid, sender=Centroid)
+    pre_delete.disconnect(sender=Crossing, dispatch_uid="crossing")
+    instance.crossing_set.all().delete()
+    pre_delete.connect(pre_delete_crossing, sender=Crossing)
+
+
+@receiver(pre_delete, sender=Centroid, dispatch_uid="centroid")
+def pre_delete_centroid(sender, instance, **kwargs):
+    """Delete all links related to a centroid before deleting the centroid.
+    
+    The signal should not be activated when deleting the whole simulation
+    because the links are already deleted when deleting the centroids so it
+    slows down the deleting process.
+    """
+    Link.objects.filter(origin=instance.id).delete()
+    Link.objects.filter(destination=instance.id).delete()
+
+
+@receiver(pre_delete, sender=Crossing, dispatch_uid="crossing")
+def pre_delete_crossing(sender, instance, **kwargs):
+    """Delete all links related to a crossing before deleting the crossing."""
+    Link.objects.filter(origin=instance.id).delete()
+    Link.objects.filter(destination=instance.id).delete()
+
+
+@receiver(pre_delete, sender=Demand)
+def pre_delete_demand(sender, instance, **kwargs):
+    """Delete all demand segments before deleting the demand."""
+    demandsegments = instance.demandsegment_set.all()
+    for demandsegment in demandsegments:
+        usertype = demandsegment.usertype
+        matrix = demandsegment.matrix
+        alphaTI = usertype.alphaTI
+        alphaTP = usertype.alphaTP
+        beta = usertype.beta
+        delta = usertype.delta
+        departureMu = usertype.departureMu
+        gamma = usertype.gamma
+        routeMu = usertype.routeMu
+        modeMu = usertype.modeMu
+        tstar = usertype.tstar
+        penaltyTP = usertype.penaltyTP
+        alphaTI.delete()
+        alphaTP.delete()
+        beta.delete()
+        delta.delete()
+        gamma.delete()
+        departureMu.delete()
+        routeMu.delete()
+        modeMu.delete()
+        penaltyTP.delete()
+        tstar.delete()
+        # Delete the matrix (the demand segment should be already deleted).
+        matrix.delete()
+
 
 # ====================
 # Functions
