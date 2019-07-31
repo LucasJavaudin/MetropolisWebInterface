@@ -3221,11 +3221,11 @@ def simulation_export(request, simulation):
 
 @require_POST
 @owner_required
-def usertype_import(request, simulation_id):
+def usertype_import(request, simulation):
 
     """View to convert the imported file to usertype in the database."""
 
-    simulation = Simulation.objects.get(pk=simulation_id)
+    simulation_id = simulation.pk
 
     try:
 
@@ -3499,6 +3499,7 @@ def environment_delete(request, environment):
     env.delete()
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
+
 
 # ====================
 # Functions
