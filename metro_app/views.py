@@ -2247,213 +2247,196 @@ def object_import(request, simulation, object_name):
         query = get_query(object_name, simulation)
         user_id_set = set(query.values_list('user_id', flat=True))
         if object_name == 'link':
-            # To import links, we retrieve the user ids of all centroids, crossings
-            # and functions and we build mappings between ids and objects.
+            # To import links, we retrieve the ids and user ids of all
+            # centroids, crossings and functions in DataFrames.
+            cols = ['user_id', 'id']
             centroids = get_query('centroid', simulation)
-            centroid_ids = set(centroids.values_list('user_id', flat=True))
+            centroid_df = pd.DataFrame(centroids.values_list(*cols),
+                                       columns=cols)
             crossings = get_query('crossing', simulation)
-            crossing_ids = set(crossings.values_list('user_id', flat=True))
-            node_ids = centroid_ids.union(crossing_ids)
-            # Mapping between the user id and the id of the nodes.
-            node_mapping = dict()
-            for centroid in centroids:
-                node_mapping[centroid.user_id] = centroid.id
-            for crossing in crossings:
-                node_mapping[crossing.user_id] = crossing.id
+            crossing_df = pd.DataFrame(crossings.values_list(*cols),
+                                       columns=cols)
+            node_df = pd.concat([centroid_df, crossing_df])
             functions = get_query('function', simulation)
-            function_ids = set(functions.values_list('user_id', flat=True))
-            # Mapping between the user id and the id of the functions.
-            function_id_mapping = dict()
-            # Mapping between the user id and the instance of the functions
-            function_mapping = dict()
-            for function in functions:
-                function_id_mapping[function.user_id] = function.id
-                function_mapping[function.user_id] = function
+            function_df = pd.DataFrame({
+                'user_id': functions.values_list('user_id', flat=True),
+                'id': functions.values_list('id', flat=True),
+                'instance': list(functions),
+            })
         # Convert imported file to a csv DictReader.
         encoded_file = request.FILES['import_file']
         tsv_file = StringIO(encoded_file.read().decode())
         if encoded_file.name.split(".")[-1] == 'tsv':
-            reader = csv.DictReader(tsv_file, delimiter='\t')
+            df = pd.read_csv(tsv_file, delimiter='\t')
         else:
-            reader = csv.DictReader(tsv_file, delimiter=',')
-        to_be_updated = set()
-        to_be_created = list()
-        # Store the user_id of the imported instance to avoid two instances
-        # with the same id.
-        imported_ids = set()
-        if object_name == 'centroid':
-            # Do not import centroid with same id as a crossing.
-            crossings = get_query('crossing', simulation)
-            imported_ids = set(crossings.values_list('user_id', flat=True))
-            for row in reader:
-                id = int(row['id'])
-                if not id in imported_ids:
-                    imported_ids.add(id)
-                    if id in user_id_set:
-                        to_be_updated.add(
-                            (id, row['name'], float(row['x']),
-                             float(row['y']))
-                        )
-                    else:
-                        to_be_created.append(
-                            Centroid(user_id=id, name=row['name'],
-                                     x=float(row['x']), y=float(row['y']))
-                        )
-        elif object_name == 'crossing':
-            # Do not import crossing with same id as a centroid.
-            centroids = get_query('centroid', simulation)
-            imported_ids = set(centroids.values_list('user_id', flat=True))
-            for row in reader:
-                id = int(row['id'])
-                if not id in imported_ids:
-                    imported_ids.add(id)
-                    if id in user_id_set:
-                        to_be_updated.add(
-                            (id, row['name'], float(row['x']),
-                             float(row['y']))
-                        )
-                    else:
-                        to_be_created.append(
-                            Crossing(user_id=id, name=row['name'],
-                                     x=float(row['x']), y=float(row['y']))
-                        )
+            df = pd.read_csv(tsv_file, delimiter=',')
+        if 'name' in df.columns:
+            df['name'] = df['name'].astype(str)
+        else:
+            # Name column is optionnal.
+            # Create the column if it does not exist.
+            df['name'] = ''
+        if object_name in ('centroid', 'crossing'):
+            if object_name == 'centroid':
+                # Do not import centroid with same id as a crossing.
+                crossings = get_query('crossing', simulation)
+                imported_ids = crossings.values_list('user_id', flat=True)
+            else:
+                # Do not import crossing with same id as a centroid.
+                centroids = get_query('centroid', simulation)
+                imported_ids = set(centroids.values_list('user_id', flat=True))
+            df = df[['id', 'name', 'x', 'y']]
+            df = df.loc[~df['id'].isin(imported_ids)]
         elif object_name == 'function':
-            for row in reader:
-                id = int(row['id'])
-                if not id in imported_ids:
-                    imported_ids.add(id)
-                    if id in user_id_set:
-                        to_be_updated.add(
-                            (id, row['name'], row['expression'])
-                        )
-                    else:
-                        to_be_created.append(
-                            Function(user_id=id, name=row['name'],
-                                     expression=row['expression'])
-                        )
+            df = df[['id', 'name', 'expression']]
         elif object_name == 'link':
-            for row in reader:
-                id = int(row['id'])
-                if not id in imported_ids:
-                    imported_ids.add(id)
-                    if id in user_id_set:
-                        to_be_updated.add(
-                            (id, row['name'],
-                             node_mapping[int(row['origin'])],
-                             node_mapping[int(row['destination'])],
-                             function_id_mapping[int(row['function'])],
-                             float(row['lanes']), float(row['length']),
-                             float(row['speed']), float(row['capacity']))
-                        )
-                    else:
-                        if int(row['origin']) in node_ids \
-                                and int(row['destination']) in node_ids \
-                                and int(row['function']) in function_ids:
-                            # Ignore the links with unidentified origin,
-                            # destination or function.
-                            to_be_created.append(
-                                Link(user_id=id, name=row['name'],
-                                     origin=node_mapping[int(row['origin'])],
-                                     destination=node_mapping[int(row['destination'])],
-                                     vdf=function_mapping[int(row['function'])],
-                                     lanes=float(row['lanes']),
-                                     length=float(row['length']),
-                                     speed=float(row['speed']),
-                                     capacity=float(row['capacity']))
-                            )
-        if to_be_updated:
+            # We need to add useful columns to the DataFrame.
+            # Add column id_origin with the id of the origin node.
+            df = df.merge(node_df, left_on='origin', right_on='user_id',
+                          suffixes=('', '_origin'))
+            # Add column id_destination with the id of the destination
+            # node.
+            df = df.merge(node_df, left_on='destination',
+                          right_on='user_id',
+                          suffixes=('', '_destination'))
+            # Add column instance_function with the function object of the
+            # given user_id.
+            df = df.merge(function_df, left_on='function',
+                          right_on='user_id', suffixes=('', '_function'))
+            df = df[['id', 'name', 'id_origin', 'id_destination',
+                     'id_function', 'instance', 'length', 'lanes', 'speed',
+                     'capacity']]
+        # Remove duplicated ids.
+        df = df.drop_duplicates(subset='id', keep='last')
+        # Check if user_id already exists.
+        df['new'] = ~(df['id'].isin(user_id_set))
+        if not df['new'].all():
+            # Some existing objects needs to be updated.
+            if object_name == 'link':
+                new_values = set(
+                    map(tuple, df.loc[~df['new']].drop(
+                        columns=['new', 'instance']
+                    ).values)
+                )
+            else:
+                new_values = set(
+                    map(tuple, df.loc[~df['new']].drop(columns='new').values)
+                )
             if object_name in ('centroid', 'crossing'):
-                values = set(query.values_list('user_id', 'name', 'x', 'y'))
+                old_values = set(
+                    query.values_list('user_id', 'name', 'x', 'y')
+                )
             elif object_name == 'function':
-                values = set(query.values_list('user_id', 'name', 'expression'))
+                old_values = set(
+                    query.values_list('user_id', 'name', 'expression')
+                )
             elif object_name == 'link':
-                values = set(query.values_list('user_id', 'name', 'origin',
-                                               'destination', 'vdf_id', 'lanes',
-                                               'length', 'speed', 'capacity'))
-            # Find the instances that really need to be updated (the values have
-            # changed).
-            to_be_updated = to_be_updated.difference(values)
+                old_values = set(
+                    query.values_list('user_id', 'name', 'origin',
+                                      'destination', 'vdf_id', 'length',
+                                      'lanes', 'speed', 'capacity')
+                )
+            # Find the instances that really need to be updated (i.e. the
+            # values have changed).
+            for v in new_values:
+                if v[0] == 0:
+                    print(v)
+                    for v1 in old_values:
+                        if v1[0] == 0:
+                            print(v1)
+                            print(v == v1)
+                            break
+                    break
+            new_values = new_values.difference(old_values)
+            print(len(new_values))
             if object_name in ('centroid', 'crossing', 'function'):
-                # Update the objects (it would be faster to delete and re-create
-                # them but this would require to also change the foreign keys of
-                # the links).
-                for values in to_be_updated:
+                # Update the objects (it would be faster to delete and
+                # re-create them but this would require to also change the
+                # foreign keys of the links).
+                for values in new_values:
                     # Index 0 of values is the id column i.e. the user_id.
                     instance = query.filter(user_id=values[0])
                     if object_name in ('centroid', 'crossing'):
-                        instance.update(name=values[1], x=values[2], y=values[3])
+                        instance.update(
+                            name=values[1], x=values[2], y=values[3]
+                        )
                     else:  # Function
                         instance.update(name=values[1], expression=values[2])
             elif object_name == 'link':
-                # Delete the links and re-create them.
-                ids = list(query.values_list('id', 'user_id'))
-                # Create a mapping between the user ids and the ids.
-                id_mapping = dict()
-                for i in range(len(values)):
-                    id_mapping[ids[i][1]] = ids[i][0]
-                # Retrieve the ids of the links to be updated with the mapping and
-                # delete them.
-                to_be_updated_ids = [id_mapping[values[0]]
-                                     for values in to_be_updated]
-                with connection.cursor() as cursor:
-                    chunk_size = 20000
-                    chunks = [
-                        to_be_updated_ids[x:x + chunk_size]
-                        for x in range(0, len(to_be_updated_ids), chunk_size)
-                    ]
-                    for chunk in chunks:
-                        # Delete the relations first.
-                        cursor.execute(
-                            "DELETE FROM Network_Link "
-                            "WHERE link_id IN %s;",
-                            [chunk]
-                        )
-                        cursor.execute(
-                            "DELETE FROM Link "
-                            "WHERE id IN %s;",
-                            [chunk]
-                        )
-                # Create a mapping between the id and the instance of the
-                # functions.
-                function_mapping = dict()
-                for function in functions:
-                    function_mapping[function.id] = function
-                # Now, create the updated instances with the new values.
-                to_be_created += [
-                    Link(user_id=values[0], name=values[1], origin=values[2],
-                         destination=values[3], vdf=function_mapping[values[4]],
-                         lanes=values[5], length=values[6], speed=values[7],
-                         capacity=values[8])
-                    for values in to_be_updated
-                ]
-        # Create the new objects in bulk.
-        # The chunk size is limited by the MySQL engine (timeout if it is too big).
-        chunk_size = 10000
-        chunks = [to_be_created[x:x + chunk_size]
-                  for x in range(0, len(to_be_created), chunk_size)]
-        # Remove the orphan instances.
-        if object_name == 'function':
-            query.model.objects \
-                .exclude(functionset__in=FunctionSet.objects.all()) \
-                .delete()
-        else:
-            query.model.objects.exclude(network__in=Network.objects.all()).delete()
-        for chunk in chunks:
-            # Create the new instances.
-            query.model.objects.bulk_create(chunk, chunk_size)
-            # Retrieve the newly created instances and add the many-to-many
-            # relation.
-            # Add the many-to-many relation.
+                # Delete the updated links.
+                user_ids = [values[0] for values in new_values]
+                old_links = query.filter(user_id__in=user_ids)
+                old_links.delete()
+                # Re-create the updated links with the new links.
+                df.loc[df['id'].isin(user_ids), 'new'] = True
+        if df['new'].any():
+            # Only keep the new objects.
+            df = df.loc[df['new']]
+            # Create the new objects in bulk.
+            # The chunk size is limited by the MySQL engine (timeout if it is
+            # too big).
+            chunk_size = 10000
+            new_objects = list()
+            if object_name == 'centroid':
+                for key, row in df.iterrows():
+                    new_objects.append(
+                        Centroid(user_id=row['id'], name=row['name'],
+                                 x=row['x'], y=row['y'])
+                    )
+            elif object_name == 'crossing':
+                for key, row in df.iterrows():
+                    new_objects.append(
+                        Crossing(user_id=row['id'], name=row['name'],
+                                 x=row['x'], y=row['y'])
+                    )
+            elif object_name == 'function':
+                for key, row in df.iterrows():
+                    new_objects.append(
+                        Function(user_id=row['id'], name=row['name'],
+                                 expression=row['expression'])
+                    )
+            elif object_name == 'link':
+                for key, row in df.iterrows():
+                    new_objects.append(
+                        Link(user_id=row['id'], name=row['name'],
+                             origin=row['id_origin'], 
+                             destination=row['id_destination'],
+                             vdf=row['instance'], length=row['length'],
+                             lanes=row['lanes'], speed=row['speed'],
+                             capacity=row['capacity'])
+                    )
+            chunks = [new_objects[x:x + chunk_size]
+                      for x in range(0, len(new_objects), chunk_size)]
+            for chunk in chunks:
+                # Create the new instances.
+                query.model.objects.bulk_create(chunk, chunk_size)
+            # Retrieve new ids.
+            last_id = query.model.objects.last().id
+            new_ids = np.arange(last_id-len(new_objects)+1, last_id+1)
+            # Add the many-to-many relation to Network or FunctionSet.
+            relations = list()
             if object_name == 'function':
-                new_instances = query.model.objects \
-                    .exclude(functionset__in=FunctionSet.objects.all())
-                for instance in new_instances:
-                    instance.functionset.add(parent)
+                for new_id in new_ids:
+                    relations.append(
+                        query.model.functionset.through(
+                            functionset_id=parent.id, function_id=new_id
+                        )
+                    )
+                query.model.functionset.through.objects.bulk_create(
+                    relations, batch_size=chunk_size
+                )
             else:
-                new_instances = query.model.objects \
-                    .exclude(network__in=Network.objects.all())
-                for instance in new_instances:
-                    instance.network.add(parent)
+                # Pass arguments as dict to avoid more if conditions.
+                object_id = '{}_id'.format(object_name)
+                for new_id in new_ids:
+                    relations.append(
+                        query.model.network.through(
+                            **{'network_id': parent.id, object_id: new_id}
+                        )
+                    )
+                query.model.network.through.objects.bulk_create(
+                    relations, batch_size=chunk_size
+                )
         simulation.has_changed = True
         simulation.save()
         return HttpResponseRedirect(
