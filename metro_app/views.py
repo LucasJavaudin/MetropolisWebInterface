@@ -3198,10 +3198,10 @@ def simulation_export(request, simulation):
 
 @require_POST
 @owner_required
-def usertype_import(request, simulation_id):
+def usertype_import(request, simulation):
     """View to convert the imported file to usertype in the database."""
 
-    simulation = Simulation.objects.get(pk=simulation_id)
+    simulation_id = simulation.pk
 
     try:
 
@@ -3349,8 +3349,6 @@ def usertype_import(request, simulation_id):
             demandsegment.matrix = matrix
             demandsegment.save()
             demandsegment.demand.add(simulation.scenario.demand)
-            print(UserType.modeMu)
-            print(UserType.alphaTI)
 
         return HttpResponseRedirect(reverse(
             'metro:demand_view', args=(simulation_id,)
