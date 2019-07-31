@@ -2251,16 +2251,16 @@ def object_import(request, simulation, object_name):
             # centroids, crossings and functions in DataFrames.
             cols = ['user_id', 'id']
             centroids = get_query('centroid', simulation)
-            centroid_df = pd.DataFrame(centroids.values_list(*cols),
+            centroid_df = pd.DataFrame(list(centroids.values_list(*cols)),
                                        columns=cols)
             crossings = get_query('crossing', simulation)
-            crossing_df = pd.DataFrame(crossings.values_list(*cols),
+            crossing_df = pd.DataFrame(list(crossings.values_list(*cols)),
                                        columns=cols)
             node_df = pd.concat([centroid_df, crossing_df])
             functions = get_query('function', simulation)
             function_df = pd.DataFrame({
-                'user_id': functions.values_list('user_id', flat=True),
-                'id': functions.values_list('id', flat=True),
+                'user_id': list(functions.values_list('user_id', flat=True)),
+                'id': list(functions.values_list('id', flat=True)),
                 'instance': list(functions),
             })
         # Convert imported file to a csv DictReader.
