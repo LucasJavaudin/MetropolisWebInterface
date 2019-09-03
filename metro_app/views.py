@@ -1,4 +1,5 @@
 """This file defines the views of the website.
+test
 
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
@@ -966,11 +967,11 @@ def simulation_view(request, simulation):
     if runs['in_progress']:
         runs['last'] = run_in_progress.last()
     # Check if the simulation can be run (there are a network and travelers).
-    complete_simulation = (network['centroids'] > 1
-                           and network['crossings'] > 0
-                           and network['links'] > 0
-                           and network['functions'] > 0
-                           and travelers['nb_travelers'] > 0)
+    complete_network = (network['centroids'] > 1
+                        and network['crossings'] > 0
+                        and network['links'] > 0
+                        and network['functions'] > 0)
+    complete_simulation = complete_network and travelers['nb_travelers'] > 0
     # Check if there is a public transit network (in case modal choice is
     # enabled).
     good_pt = True
@@ -996,6 +997,7 @@ def simulation_view(request, simulation):
         'travelers': travelers,
         'policy': policy,
         'runs': runs,
+        'complete_network': complete_network,
         'complete_simulation': complete_simulation,
         'good_pt': good_pt,
         'run_form': run_form,

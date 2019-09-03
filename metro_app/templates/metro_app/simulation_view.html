@@ -76,7 +76,7 @@
 				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:network_view' simulation.id %}" title="View a graph of the network">
 					<i class="fas fa-road"></i> Network View
 				</a>
-				{% elif network.links %}
+				{% elif complete_network %}
 				<a role="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#loadingNetwork" onclick="runNetworkProgressBar()" href="{% url 'metro:network_view' simulation.id %}" title="View a graph of the network">
 					<i class="fas fa-road"></i> Network View
 				</a>
@@ -474,7 +474,7 @@
 </div>
 {% endif %}
 
-{% if not network.generated and network.links %}
+{% if not network.generated and complete_network %}
 <div class="modal fade" id="loadingNetwork" tabindex="-1" role="dialog" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">
