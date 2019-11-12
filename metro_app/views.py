@@ -3200,7 +3200,6 @@ def simulation_export(request, simulation):
 
 @require_POST
 @owner_required
-@check_demand_relation
 def usertype_import(request, simulation):
     """View to convert the imported file to usertype in the database."""
 
@@ -3368,9 +3367,8 @@ def usertype_import(request, simulation):
 
 @public_required
 @check_demand_relation
-def usertype_export(request, simulation, demandsegment_id):
-    demand = DemandSegment.objects.get(pk=demandsegment_id)
-    usertype = demand.usertype
+def usertype_export(request, simulation, demandsegment):
+    usertype = demandsegment.usertype
 
 
     """View to send a file with the OD Matrix to the user."""
