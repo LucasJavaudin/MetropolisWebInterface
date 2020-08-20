@@ -109,8 +109,8 @@ class ParametersSimulationForm(forms.ModelForm):
                 self.fields[field].disabled = True
         # Some fields are not required.
         not_required_fields = [
-                'horizontalQueueing', 'stac_check', 'iterations_check',
-            'stacLim'
+            'horizontalQueueing', 'stac_check', 'iterations_check', 'stacLim',
+            'random_seed_check', 'random_seed',
         ]
         for field in not_required_fields:
             self.fields[field].required = False
@@ -122,11 +122,14 @@ class ParametersSimulationForm(forms.ModelForm):
             'updateInput();'
         self.fields['horizontalQueueing'].widget.attrs['onchange'] = \
             'updateInput();'
+        self.fields['random_seed_check'].widget.attrs['onchange'] = \
+            'updateInput();'
         # Add min and max values.
         self.fields['stacLim'].widget.attrs['min'] = 0
         self.fields['stacLim'].widget.attrs['max'] = 100
         self.fields['iterations'].widget.attrs['min'] = 0
         self.fields['jamDensity'].widget.attrs['min'] = 0
+        self.fields['random_seed'].widget.attrs['min'] = 0
         # Add tooltips.
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
@@ -134,13 +137,14 @@ class ParametersSimulationForm(forms.ModelForm):
     class Meta:
         model = Simulation
         fields = [
-                'stacLim', 'iterations', 'startTime', 'lastRecord',
-                'recordsInterval', 'jamDensity', 'advancedLearningProcess',
-                'horizontalQueueing', 'stac_check', 'iterations_check',
+            'stacLim', 'iterations', 'startTime', 'lastRecord',
+            'recordsInterval', 'jamDensity', 'advancedLearningProcess',
+            'horizontalQueueing', 'stac_check', 'iterations_check',
+            'random_seed_check', 'random_seed'
         ]
         # Metropolis booleans should be checkboxes.
         widgets = {
-                'horizontalQueueing': CustomCheckboxInput(),
+            'horizontalQueueing': CustomCheckboxInput(),
         }
 
 class RunForm(forms.ModelForm):

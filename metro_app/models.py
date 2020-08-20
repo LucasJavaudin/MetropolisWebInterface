@@ -755,6 +755,17 @@ class Simulation(models.Model):
     has_changed = models.BooleanField(default=True)
     locked = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
+    random_seed = models.IntegerField(
+        default=0,
+        help_text='Seed used by the random number generator',
+    )
+    random_seed_check = models.BooleanField(
+        default=False,
+        help_text=(
+            'If checked, the random number generator use the specified seed; '
+            'else, a random seed is used'
+        ),
+    )
     def __str__(self):
         return self.name
     class Meta:

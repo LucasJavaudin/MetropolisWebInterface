@@ -262,14 +262,36 @@
 						</div>
 
 						<center>
-							<h5 class="mt-5">Learning model</h5>
+							<h5 class="mt-5">Queuing model</h5>
 						</center>
 
-						<label for="id_advancedLearningProcess" class="mt-3">
-							Learning process
-						</label>
+						<label for="id_jamDensity" class="mt-3">Spillback</label>
 						<div class="input-group">
-							{% render_field simulation_form.advancedLearningProcess|append_attr:"multiple" class="form-control" %}
+							<div class="input-group-prepend">
+								<div class="input-group-text">
+									{{ simulation_form.horizontalQueueing }}
+								</div>
+							</div>
+							{% render_field simulation_form.jamDensity class="form-control" %}
+							<div class="input-group-append">
+								<div class="input-group-text">
+									m
+								</div>
+							</div>
+						</div>
+
+						<center>
+							<h5 class="mt-5">Random number generator</h5>
+						</center>
+
+						<label for="id_random_seed" class="mt-3">Set seed</label>
+						<div class="input-group">
+							<div class="input-group-prepend">
+								<div class="input-group-text">
+									{{ simulation_form.random_seed_check }}
+								</div>
+							</div>
+							{% render_field simulation_form.random_seed class="form-control" %}
 						</div>
 
 					</div>
@@ -295,22 +317,14 @@
 						</div>
 
 						<center>
-							<h5 class="mt-5">Queuing model</h5>
+							<h5 class="mt-5">Learning model</h5>
 						</center>
 
-						<label for="id_jamDensity" class="mt-3">Spillback</label>
+						<label for="id_advancedLearningProcess" class="mt-3">
+							Learning process
+						</label>
 						<div class="input-group">
-							<div class="input-group-prepend">
-								<div class="input-group-text">
-									{{ simulation_form.horizontalQueueing }}
-								</div>
-							</div>
-							{% render_field simulation_form.jamDensity class="form-control" %}
-							<div class="input-group-append">
-								<div class="input-group-text">
-									m
-								</div>
-							</div>
+							{% render_field simulation_form.advancedLearningProcess|append_attr:"multiple" class="form-control" %}
 						</div>
 
 					</div>
@@ -631,6 +645,11 @@ function updateInput() {
 		$('#id_jamDensity').prop('disabled', false);
 	} else {
 		$('#id_jamDensity').prop('disabled', true);
+	}
+	if($('#id_random_seed_check').prop('checked')){
+		$('#id_random_seed').prop('disabled', false);
+	} else {
+		$('#id_random_seed').prop('disabled', true);
 	}
 }
 

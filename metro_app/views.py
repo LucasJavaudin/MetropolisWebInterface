@@ -1052,7 +1052,7 @@ def simulation_view_edit(request, simulation):
         # Redirect to a page with the errors (should not happen).
         context = {
             'simulation': simulation,
-            'form': simulation_form,
+            'form': edit_form,
         }
         return render(request, 'metro_app/errors.html', context)
 
@@ -3545,11 +3545,16 @@ def run_simulation(run):
         log = metrosim_dir + 'logs/run_{}.txt'.format(run.id)
         tmp = metrosim_dir + 'output'
         stop = metrosim_dir + 'stop_files/run_{}.stop'.format(run.id)
+        if simulation.random_seed_check:
+            random_seed = simulation.random_seed
+        else:
+            random_seed = -1
         arguments = ('-dbHost "{0}" -dbName "{1}" -dbUser "{2}" '
                      + '-dbPass "{3}" -logFile "{4}" -tmpDir "{5}" '
-                     + '-stopFile "{6}" -simId "{7!s}" -runId "{8!s}"'
+                     + '-stopFile "{6}" -simId "{7!s}" -runId "{8!s}" '
+                     + '-randomSeed "{9!s}"'
                      ).format(db_host, db_name, db_user, db_pass, log, tmp,
-                              stop, simulation.id, run.id)
+                              stop, simulation.id, run.id, random_seed)
         f.write(arguments)
 
     # Run the script 'prepare_run.py' then run metrosim then run the script 
