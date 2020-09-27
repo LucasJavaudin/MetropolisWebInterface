@@ -17,6 +17,7 @@ from django.db import connection
 
 from .models import *
 
+
 def get_query(object_name, simulation):
     """Function used to return all instances of an object related to a
     simulation.
@@ -55,13 +56,14 @@ def get_query(object_name, simulation):
             simulation=simulation
         )
     elif object_name == 'public_transit':
-        if simulation.scenario.supply.pttimes: # Variable pttimes can be null.
+        if simulation.scenario.supply.pttimes:  # Variable pttimes can be null.
             query = Matrix.objects.filter(
                 matrices=simulation.scenario.supply.pttimes
             )
     elif object_name == 'policy':
         query = Policy.objects.filter(scenario=simulation.scenario)
     return query
+
 
 def can_view(user, simulation):
     """Check if the user can view a specific simulation.
@@ -79,6 +81,7 @@ def can_view(user, simulation):
     else:
         return False
 
+
 def can_edit(user, simulation):
     """Check if the user can edit a specific simulation.
 
@@ -90,6 +93,7 @@ def can_edit(user, simulation):
     else:
         return False
 
+
 def can_edit_environment(user, environment):
     """Check if the user can edit a specific environment.
     """
@@ -97,6 +101,7 @@ def can_edit_environment(user, environment):
         return True
     else:
         return False
+
 
 def metro_to_user(object):
     """Convert the name of a network object (used in the source code) to a name
@@ -112,6 +117,7 @@ def metro_to_user(object):
         return 'congestion function'
     return ''
 
+
 def custom_check_test(value):
     """Custom check_test to convert metropolis string booleans into Python
     booleans.
@@ -121,21 +127,23 @@ def custom_check_test(value):
     else:
         return False
 
+
 def get_node_choices(simulation):
     """Return all the nodes (centroids and crossings) related to a simulation.
 
     These nodes can be origin or destination of links.
     """
     centroids = Centroid.objects.filter(
-            network__supply__scenario__simulation=simulation
+        network__supply__scenario__simulation=simulation
     )
     crossings = Crossing.objects.filter(
-            network__supply__scenario__simulation=simulation
+        network__supply__scenario__simulation=simulation
     )
     centroid_choices = [(centroid.id, str(centroid)) for centroid in centroids]
     crossing_choices = [(crossing.id, str(crossing)) for crossing in crossings]
     node_choices = centroid_choices + crossing_choices
     return node_choices
+
 
 def run_simulation(run):
     """Function to start a SimulationRun.
@@ -173,7 +181,7 @@ def run_simulation(run):
                               stop, simulation.id, run.id, random_seed)
         f.write(arguments)
 
-    # Run the script 'prepare_run.py' then run metrosim then run the script 
+    # Run the script 'prepare_run.py' then run metrosim then run the script
     # 'run_end.py'.
     # The two scripts are run with the run.id as an argument.
     prepare_run_file = settings.BASE_DIR + '/metro_app/prepare_run.py'
@@ -183,13 +191,13 @@ def run_simulation(run):
             settings.BASE_DIR, run.id
         )
     )
-    # Command looks like: 
+    # Command looks like:
     #
     # python3 ./metro_app/prepare_results.py y
     # 2>&1 | tee ./website_files/script_logs/run_y.txt
     # && ./metrosim_files/execs/metrosim
-    # ./metrosim_files/arg_files/simulation_x_run_y.txt 
-    # && python3 ./metro_app/build_results.py y 
+    # ./metrosim_files/arg_files/simulation_x_run_y.txt
+    # && python3 ./metro_app/build_results.py y
     # 2>&1 | tee ./website_files/script_logs/run_y.txt
     #
     # 2>&1 | tee is used to redirect output and errors to file.
@@ -201,6 +209,7 @@ def run_simulation(run):
                              argfile=arg_file,
                              second_script=build_results_file)
     subprocess.Popen(command, shell=True)
+
 
 def object_import_function(encoded_file, simulation, object_name):
     """Function to import a file representing the input of a simulation.
@@ -372,7 +381,7 @@ def object_import_function(encoded_file, simulation, object_name):
             for key, row in df.iterrows():
                 new_objects.append(
                     Link(user_id=row['id'], name=row['name'],
-                         origin=row['id_origin'], 
+                         origin=row['id_origin'],
                          destination=row['id_destination'],
                          vdf=row['instance'], length=row['length'],
                          lanes=row['lanes'], speed=row['speed'],
@@ -385,7 +394,7 @@ def object_import_function(encoded_file, simulation, object_name):
             query.model.objects.bulk_create(chunk, chunk_size)
         # Retrieve new ids.
         last_id = query.model.objects.last().id
-        new_ids = np.arange(last_id-len(new_objects)+1, last_id+1)
+        new_ids = np.arange(last_id - len(new_objects) + 1, last_id + 1)
         # Add the many-to-many relation to Network or FunctionSet.
         relations = list()
         if object_name == 'function':
@@ -413,9 +422,10 @@ def object_import_function(encoded_file, simulation, object_name):
     simulation.has_changed = True
     simulation.save()
 
+
 def matrix_import_function(encoded_file, simulation, demandsegment):
     """Function to import a file representing the OD matrix of a usertype.
-    
+
     Parameters
     ----------
     encoded_file: File object.
@@ -523,6 +533,7 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     simulation.has_changed = True
     simulation.save()
 
+
 def pricing_import_function(encoded_file, simulation):
     """Function to import a file as tolls in the database.
 
@@ -628,6 +639,7 @@ def pricing_import_function(encoded_file, simulation):
                 toll.timeVector = v
         toll.save()
 
+
 def public_transit_import_function(encoded_file, simulation):
     """Function to import a file as a public transit matrix in the database.
 
@@ -717,6 +729,7 @@ def public_transit_import_function(encoded_file, simulation):
     for chunk in chunks:
         Matrix.objects.bulk_create(chunk, chunk_size)
 
+
 def usertype_import_function(encoded_file, simulation):
     """Function to import a file as a new usertype in the database.
 
@@ -748,9 +761,8 @@ def usertype_import_function(encoded_file, simulation):
         alphaTI_mean = row['alphaTI_mean']
         alphaTI_std = row['alphaTI_std']
         alphaTI_type = row['alphaTI_type']
-        alphaTI = Distribution(mean=alphaTI_mean,
-                                             std=alphaTI_std,
-                                             type=alphaTI_type)
+        alphaTI = Distribution(
+            mean=alphaTI_mean, std=alphaTI_std, type=alphaTI_type)
         alphaTI.save()
 
         alphaTP_mean = row['alphaTP_mean']
@@ -762,65 +774,53 @@ def usertype_import_function(encoded_file, simulation):
         beta_mean = row['beta_mean']
         beta_std = row['beta_std']
         beta_type = row['beta_type']
-        beta = Distribution(mean=beta_mean,
-                                             std=beta_std,
-                                             type=beta_type)
+        beta = Distribution(mean=beta_mean, std=beta_std, type=beta_type)
         beta.save()
 
         delta_mean = row['delta_mean']
         delta_std = row['delta_std']
         delta_type = row['delta_type']
-        delta = Distribution(mean=delta_mean,
-                                             std=delta_std,
-                                             type=delta_type)
+        delta = Distribution(mean=delta_mean, std=delta_std, type=delta_type)
         delta.save()
 
         departureMu_mean = row['departureMu_mean']
         departureMu_std = row['departureMu_std']
         departureMu_type = row['departureMu_type']
-        departureMu = Distribution(mean=departureMu_mean,
-                                             std=departureMu_std,
-                                             type=departureMu_type)
+        departureMu = Distribution(
+            mean=departureMu_mean, std=departureMu_std, type=departureMu_type)
         departureMu.save()
 
         gamma_mean = row['gamma_mean']
         gamma_std = row['gamma_std']
         gamma_type = row['gamma_type']
-        gamma = Distribution(mean=gamma_mean,
-                                             std=gamma_std,
-                                             type=gamma_type)
+        gamma = Distribution(mean=gamma_mean, std=gamma_std, type=gamma_type)
         gamma.save()
 
         modeMu_mean = row['modeMu_mean']
         modeMu_std = row['modeMu_std']
         modeMu_type = row['modeMu_type']
-        modeMu = Distribution(mean=modeMu_mean,
-                                             std=modeMu_std,
-                                             type=modeMu_type)
+        modeMu = Distribution(
+            mean=modeMu_mean, std=modeMu_std, type=modeMu_type)
         modeMu.save()
 
         penaltyTP_mean = row['penaltyTP_mean']
         penaltyTP_std = row['penaltyTP_std']
         penaltyTP_type = row['penaltyTP_type']
-        penaltyTP = Distribution(mean=penaltyTP_mean,
-                                             std=penaltyTP_std,
-                                             type=penaltyTP_type)
+        penaltyTP = Distribution(
+            mean=penaltyTP_mean, std=penaltyTP_std, type=penaltyTP_type)
         penaltyTP.save()
 
         routeMu_mean = row['routeMu_mean']
         routeMu_std = row['routeMu_std']
         routeMu_type = row['routeMu_type']
-        routeMu = Distribution(mean=routeMu_mean,
-                                            std=routeMu_std,
-                                            type=routeMu_type)
+        routeMu = Distribution(
+            mean=routeMu_mean, std=routeMu_std, type=routeMu_type)
         routeMu.save()
 
         tstar_mean = row['tstar_mean']
         tstar_std = row['tstar_std']
         tstar_type = row['tstar_type']
-        tstar = Distribution(mean=tstar_mean,
-                                            std=tstar_std,
-                                            type=tstar_type)
+        tstar = Distribution(mean=tstar_mean, std=tstar_std, type=tstar_type)
         tstar.save()
 
         typeOfRouteChoice = row['typeOfRouteChoice']
@@ -838,7 +838,6 @@ def usertype_import_function(encoded_file, simulation):
         else:
             user_id = 1
 
-        #usertype = UserType(name=name, comment=comment, alphaTI=alphaTI, alphaTP=alphaTP, beta=beta, delta=delta, departureMu=departureMu, gamma=gamma, modeMu=modeMu, penaltyTP=penaltyTP, routeMu=routeMu, tstar=tstar, typeOfRouteChoice=typeOfRouteChoice, localATIS=localATIS, modeChoice=modeChoice, modeShortRun=modeShortRun, commuteType=commuteType, user_id=user_id)
         usertype = UserType()
         usertype.alphaTI = alphaTI
         usertype.alphaTP = alphaTP
