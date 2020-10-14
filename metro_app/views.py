@@ -17,9 +17,10 @@ import json
 import codecs
 from math import sqrt
 import numpy as np
+from functools import wraps, partial
 
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, HttpResponseRedirect, FileResponse
+from django.http import HttpResponse, HttpResponseRedirect, FileResponse, HttpResponseForbidden
 from django.http import Http404
 from django.urls import reverse, reverse_lazy
 from django.views.generic import TemplateView
@@ -38,6 +39,15 @@ from django.db import connection
 from django_filters.views import FilterView
 from django_tables2.views import SingleTableMixin
 
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.reverse import reverse as rest_reverse
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
+from rest_framework.parsers import FileUploadParser, MultiPartParser
+from rest_framework_csv.renderers import CSVRenderer
+
 import metro_app
 
 from metro_app.models import *
@@ -46,6 +56,7 @@ from metro_app.plots import *
 from metro_app.tables import *
 from metro_app.filters import *
 from metro_app.functions import *
+from metro_app.serializers import *
 
 import logging
 
@@ -72,7 +83,7 @@ OBJECT_THRESHOLD = 80
 # Decorators
 # ====================
 
-def public_required(view):
+def public_required(func=None, *, api=False):
     """Decorator to execute a function only if the requesting user has view
     access to the simulation.
 
@@ -80,19 +91,28 @@ def public_required(view):
     object.
     """
 
-    def wrap(*args, **kwargs):
-        user = args[0].user  # The first arg is the request object.
+    if func is None:
+        # A Keyword argument has been sent to the decorator, returns the
+        # decorator with the correct keyword arguments.
+        return partial(public_required, api=api)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if api:
+            request = args[1] # The second arg is the request object.
+        else:
+            request = args[0] # The first arg is the request object.
         simulation_id = kwargs.pop('simulation_id')
         simulation = get_object_or_404(Simulation, pk=simulation_id)
-        if can_view(user, simulation):
-            return view(*args, simulation=simulation, **kwargs)
+        if can_view(request.user, simulation):
+            return func(*args, simulation=simulation, **kwargs)
         else:
-            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+            return HttpResponseForbidden()
 
-    return wrap
+    return wrapper
 
 
-def owner_required(view):
+def owner_required(func=None, *, api=False):
     """Decorator to execute a function only if the requesting user has edit
     access to the simulation.
 
@@ -100,16 +120,25 @@ def owner_required(view):
     object.
     """
 
-    def wrap(*args, **kwargs):
-        user = args[0].user  # The first arg is the request object.
+    if func is None:
+        # A Keyword argument has been sent to the decorator, returns the
+        # decorator with the correct keyword arguments.
+        return partial(owner_required, api=api)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if api:
+            request = args[1] # The second arg is the request object.
+        else:
+            request = args[0] # The first arg is the request object.
         simulation_id = kwargs.pop('simulation_id')
         simulation = get_object_or_404(Simulation, pk=simulation_id)
-        if can_edit(user, simulation):
-            return view(*args, simulation=simulation, **kwargs)
+        if can_edit(request.user, simulation):
+            return func(*args, simulation=simulation, **kwargs)
         else:
-            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+            return HttpResponseForbidden()
 
-    return wrap
+    return wrapper
 
 
 def check_demand_relation(view):
@@ -133,7 +162,7 @@ def check_demand_relation(view):
                         demandsegment=demandsegment)
         else:
             # The demand segment id not related to the simulation.
-            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+            return Http404()
 
     return wrap
 
@@ -175,7 +204,7 @@ def check_run_relation(view):
                         run=run)
         else:
             # The run id not related to the simulation.
-            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+            return Http404()
 
     return wrap
 
@@ -191,7 +220,7 @@ def environment_owner_required(view):
         if can_edit_environment(user, environment):
             return view(*args, environment=environment_id, **kwargs)
         else:
-            return HttpResponseRedirect(reverse('metro:environments_view'))
+            return HttpResponseForbidden()
 
     return wrap
 
@@ -205,7 +234,7 @@ def environment_can_create(view):
         if user.has_perm('metro_app.add_environment'):
             return view(*args, **kwargs)
         else:
-            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+            return HttpResponseForbidden()
 
     return wrap
 
@@ -904,13 +933,7 @@ def simulation_delete(request, simulation):
     
     The view deletes the Simulation object and all objects associated with it.
     """
-    SimulationMOEs.objects.filter(simulation=simulation.id).delete()
-    network = simulation.scenario.supply.network
-    functionset = simulation.scenario.supply.functionset
-    demand = simulation.scenario.demand
-    network.delete()
-    functionset.delete()
-    demand.delete()
+    delete_simulation(simulation)
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 
@@ -2093,56 +2116,7 @@ def object_export_save(simulation, object_name, dir):
 @check_object_name
 def object_delete(request, simulation, object_name):
     """View to delete all instances of a network objects."""
-    query = get_query(object_name, simulation)
-    if object_name in ('centroid', 'crossing'):
-        # Django cannot manage well delete for these objects.
-        name = 'Centroid' if object_name == 'centroid' else 'Crossing'
-        ids = query.values_list('id', flat=True)
-        str_ids = ','.join([str(x) for x in ids])
-        with connection.cursor() as cursor:
-            if object_name == 'centroid':
-                cursor.execute(
-                    "DELETE FROM Matrix WHERE p IN ({});".format(str_ids)
-                )
-                cursor.execute(
-                    "DELETE FROM Matrix WHERE q IN ({});".format(str_ids)
-                )
-            cursor.execute(
-                "DELETE FROM Network_{} "
-                "WHERE {}_id IN ({});".format(name, object_name, str_ids)
-            )
-            cursor.execute(
-                "DELETE Network_Link "
-                "FROM Network_Link JOIN Link "
-                "ON Network_Link.link_id = Link.id "
-                "WHERE Link.origin IN ({});".format(str_ids)
-            )
-            cursor.execute(
-                "DELETE Network_Link "
-                "FROM Network_Link JOIN Link "
-                "ON Network_Link.link_id = Link.id "
-                "WHERE Link.destination IN ({});".format(str_ids)
-            )
-            cursor.execute(
-                "DELETE FROM {} WHERE id IN ({});".format(name, str_ids)
-            )
-            cursor.execute(
-                "DELETE FROM Link WHERE origin IN ({});".format(str_ids)
-            )
-            cursor.execute(
-                "DELETE FROM Link WHERE destination IN ({});".format(str_ids)
-            )
-        if object_name == 'centroid':
-            # Reset the number of travelers.
-            matrices = get_query('matrices', simulation)
-            for matrix in matrices:
-                matrix.total = 0
-                matrix.save()
-    else:
-        # Let Django do the job.
-        query.delete()
-    simulation.has_changed = True
-    simulation.save()
+    object_delete_function(simulation, object_name)
     return HttpResponseRedirect(reverse(
         'metro:object_view', args=(simulation.id, object_name,)
     ))
@@ -2861,6 +2835,7 @@ def environment_delete(request, environment):
 # Receivers
 # ====================
 
+
 @receiver(pre_delete, sender=FunctionSet)
 def pre_delete_function_set(sender, instance, **kwargs):
     """Delete all objects related to a functionset before deleting the
@@ -2899,6 +2874,238 @@ def pre_delete_demand(sender, instance, **kwargs):
         tstar.delete()
         # Delete the matrix (the demand segment should be already deleted).
         matrix.delete()
+
+
+# ====================
+# API endpoints
+# ====================
+
+
+@api_view(['GET'])
+def metropolis_api(request, format=None):
+    """
+    Welcome to the Metropolis API.
+
+    # How to use the API.
+
+    The Metropolis API can be used with any API client.
+    Below, we provide instructions for the `curl` command-line tool and the
+    `requests` Python package.
+
+    ## curl
+
+    `curl` is a command-line tool which can be used to perform requests.
+
+    - Example of GET request:
+
+            curl -X GET https://BASE_URL/api/simulation
+
+    - Example of GET request (with authentication and file saving):
+
+            curl -X GET -u username:password https://BASE_URL/api/simulation/ID/zones.csv > my_file.csv
+
+    - Example of PUT request:
+
+            curl -X PUT -u username:password --data "@path/to/links.csv" https://BASE_URL/api/simulation/ID/links 
+
+    - Example of DELETE request:
+
+            curl -X DELETE -u username:password https://BASE_URL/api/simulation/ID/zones 
+
+    ## requests
+
+    [requests](https://requests.readthedocs.io/en/master/) is a Python package
+    to make HTTP requests.
+
+    The package can be imported in Python with `import requests`.
+
+    - Example of GET request:
+
+            r = requests.get('https://BASE_URL/api/simulation')
+            print(r.json())
+
+    - Example of GET request (with authentication and file saving):
+
+            auth = ('username', 'password')
+            r = requests.get('https://BASE_URL/api/simulation/ID/zones.csv', auth=auth)
+            with open('my_file.csv', 'wb') as f:
+                f.write(r.content)
+
+    - Example of PUT request:
+
+            files = {'file': ('links.csv', open('path/to/links.csv', 'rb'))}
+            r = requests.put('https://BASE_URL/api/simulation/ID/links', auth=auth, files=files)
+            print(r.status_code) # Code 204 = Success.
+
+    - Example of DELETE request:
+
+            r = requests.delete('https://BASE_URL/api/simulation/ID/zones, auth=auth)
+            print(r.status_code) # Code 204 = Success.
+
+    # Discover the API.
+
+    With the API web interface, you can navigate to the different API urls.
+    The API has multiple levels.
+    At each level, the root url will list all the existing request urls.
+    For example, the current url is the first-level root, which lists all
+    first-level urls.
+    The second-level root `https://BASE_URL/api/simulation/ID` lists all
+    second-level urls.
+
+    """
+    return Response({
+        'simulations': rest_reverse('metro:simulation-list', request=request,
+                                    format=format),
+    })
+
+
+class SimulationList(APIView):
+    """
+    # GET
+
+    List all the public simulations and the simulations owned by the
+    authenticated user.
+
+    For each simulation, the response returns the following data:
+    
+    - _id_
+    - _name_
+    - _comment_
+    - _user_ (owner of the simulation)
+    - _public_ (_true_ if the simulation is public)
+    - _pinned_ (_true_ if the simulation is pinned)
+    - _environment_ (name of the environment the simulation belongs to, if any)
+    - _api_endpoint_ (url of the API endpoint for this simulation)
+
+    # POST
+
+    Create a new simulation.
+
+    Accessible only for authenticated users.
+
+    The request accepts the following parameters:
+
+    - _name_
+    - _comment_ (optional)
+    - _public_ (optional, default is _true_)
+    - _environment_ (optional, id of the environment in which the simulation
+      must be created)
+    - _file_ (optional, zipfile containing data that will be imported)
+    """
+    def get(self, request, format=None):
+        """
+        List all the owned and public simulations.
+        """
+        simulations = get_readable_simulations(request.user)
+        serializer_context = {
+            'request': request,
+        }
+        serializer = SimulationSerializer(simulations, many=True,
+                                          context=serializer_context)
+        return Response(serializer.data)
+
+
+class SimulationAPI(APIView):
+    """
+    # GET
+
+    Returns a list of all API endpoints for a simulation.
+
+    # DELETE
+
+    Delete a simulation.
+
+    Accessible only to the owner of the simulation.
+    """
+    @public_required(api=True)
+    def get(self, request, simulation, format=None):
+        return Response({
+            'zones': rest_reverse('metro:centroid-list', request=request,
+                                  kwargs={'simulation_id': simulation.id},
+                                  format=format),
+        })
+
+    @owner_required(api=True)
+    def delete(self, request, simulation, format=None):
+        delete_simulation(simulation)
+        return Response(status=204)
+
+
+class CentroidList(APIView):
+    """
+    # GET
+
+    List all the zones of the simulation.
+
+    For each zone, the response returns the following data:
+
+    - _id_
+    - _name_
+    - _x_
+    - _y_
+    - _db_id_ (id of the zone in the server database)
+
+    # PUT
+
+    Import new zones for the simulation from a CSV or a TSV file.
+
+    Accessible only to the owner of the simulation.
+
+    The import file must contains the following columns:
+
+    - _id_ (id of the zone, must be unique among all zones and intersections of
+      the simulation)
+    - _name_ (optional)
+    - _x_ (x coordinate used to draw the network)
+    - _y_ (y coordinate used to draw the network)
+
+    When importing a file, the newly imported zones are appended to the
+    existing zones (to replace the existing zones with the new one, use the
+    DELETE request before the PUT request).
+    If a newly imported zone has the same id as an existing zone, the data of
+    the new zone replaces the old data.
+
+    # DELETE
+
+    Delete all zones of the simulation.
+
+    Accessible only to the owner of the simulation.
+    """
+
+    renderer_classes = [CSVRenderer, JSONRenderer, BrowsableAPIRenderer]
+    parser_classes = [MultiPartParser]
+
+    @public_required(api=True)
+    def get(self, request, simulation, format=None):
+        """
+        Retrieve all the zones of the simulation.
+        """
+        centroids = get_query('centroid', simulation)
+        serializer = CentroidSerializer(centroids, many=True)
+        return Response(serializer.data)
+
+    @owner_required(api=True)
+    def put(self, request, simulation, format=None):
+        """
+        Update all the zones of the simulation from a CSV or TSV file.
+        """
+        try:
+            file_obj = request.data['file']
+            object_import_function(file_obj, simulation, 'centroid')
+        except:
+            # Probably a missing file or invalid file.
+            return Response(status=400)
+        else:
+            # OK.
+            return Response(status=204)
+
+    @owner_required(api=True)
+    def delete(self, request, simulation, format=None):
+        """
+        Delete all the zones of the simulation.
+        """
+        object_delete_function(simulation, 'centroid')
+        return Response(status=204)
 
 
 # ====================

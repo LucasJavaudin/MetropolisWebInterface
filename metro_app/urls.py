@@ -1,5 +1,7 @@
 from django.urls import path
 
+from rest_framework.urlpatterns import format_suffix_patterns
+
 from . import views
 
 app_name = 'metro'
@@ -171,5 +173,14 @@ urlpatterns = [
          name='environment_user_delete'),
     path(r'environments/delete/<environment>', views.environment_delete,
          name='environments_delete'),
-
+    # API endpoints.
+    path(r'api/', views.metropolis_api),
+    path(r'api/simulation/', views.SimulationList.as_view(),
+         name='simulation-list'),
+    path(r'api/simulation/<int:simulation_id>',
+         views.SimulationAPI.as_view(), name='simulation_api_root'),
+    path(r'api/simulation/<int:simulation_id>/zones/',
+         views.CentroidList.as_view(), name='centroid-list'),
 ]
+
+urlpatterns = format_suffix_patterns(urlpatterns)

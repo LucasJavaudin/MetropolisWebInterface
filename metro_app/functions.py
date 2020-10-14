@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.db import connection
 
 from .models import *
@@ -63,6 +63,20 @@ def get_query(object_name, simulation):
     elif object_name == 'policy':
         query = Policy.objects.filter(scenario=simulation.scenario)
     return query
+
+
+def get_readable_simulations(request_user):
+    """Function used to return all simulations which are readable by a given
+    user.
+    """
+    simulations = Simulation.objects.all()
+    if not request_user.is_authenticated:
+        simulations = simulations.filter(public=True)
+    elif not request_user.is_superuser:
+        env_list = Environment.objects.filter(users=request_user)
+        simulations = simulations.filter(Q(public=True) | Q(user=request_user)
+                                         | Q(environment__in=env_list))
+    return simulations
 
 
 def can_view(user, simulation):
@@ -419,6 +433,69 @@ def object_import_function(encoded_file, simulation, object_name):
             query.model.network.through.objects.bulk_create(
                 relations, batch_size=chunk_size
             )
+    simulation.has_changed = True
+    simulation.save()
+
+
+def object_delete_function(simulation, object_name):
+    """Function to delete all instances of an object of a simulation.
+
+    Parameters
+    ----------
+    simulation: Simulation object.
+    object_name: String.
+        Name of the objects to delete: 'centroid', 'crossing', 'link' or
+        'function'.
+    """
+    # Retrieve the objects.
+    query = get_query(object_name, simulation)
+    if object_name in ('centroid', 'crossing'):
+        # Django cannot manage well delete for these objects.
+        name = 'Centroid' if object_name == 'centroid' else 'Crossing'
+        ids = query.values_list('id', flat=True)
+        str_ids = ','.join([str(x) for x in ids])
+        with connection.cursor() as cursor:
+            if object_name == 'centroid':
+                cursor.execute(
+                    "DELETE FROM Matrix WHERE p IN ({});".format(str_ids)
+                )
+                cursor.execute(
+                    "DELETE FROM Matrix WHERE q IN ({});".format(str_ids)
+                )
+            cursor.execute(
+                "DELETE FROM Network_{} "
+                "WHERE {}_id IN ({});".format(name, object_name, str_ids)
+            )
+            cursor.execute(
+                "DELETE Network_Link "
+                "FROM Network_Link JOIN Link "
+                "ON Network_Link.link_id = Link.id "
+                "WHERE Link.origin IN ({});".format(str_ids)
+            )
+            cursor.execute(
+                "DELETE Network_Link "
+                "FROM Network_Link JOIN Link "
+                "ON Network_Link.link_id = Link.id "
+                "WHERE Link.destination IN ({});".format(str_ids)
+            )
+            cursor.execute(
+                "DELETE FROM {} WHERE id IN ({});".format(name, str_ids)
+            )
+            cursor.execute(
+                "DELETE FROM Link WHERE origin IN ({});".format(str_ids)
+            )
+            cursor.execute(
+                "DELETE FROM Link WHERE destination IN ({});".format(str_ids)
+            )
+        if object_name == 'centroid':
+            # Reset the number of travelers.
+            matrices = get_query('matrices', simulation)
+            for matrix in matrices:
+                matrix.total = 0
+                matrix.save()
+    else:
+        # Let Django do the job.
+        query.delete()
     simulation.has_changed = True
     simulation.save()
 
@@ -867,3 +944,16 @@ def usertype_import_function(encoded_file, simulation):
         demandsegment.matrix = matrix
         demandsegment.save()
         demandsegment.demand.add(simulation.scenario.demand)
+
+
+def delete_simulation(simulation):
+    """Delete a simulation."""
+    SimulationMOEs.objects.filter(simulation=simulation.id).delete()
+    network = simulation.scenario.supply.network
+    functionset = simulation.scenario.supply.functionset
+    demand = simulation.scenario.demand
+    network.delete()
+    functionset.delete()
+    demand.delete()
+    # At this point, the simulation object should be deleted from CASCADE
+    # deletes.
