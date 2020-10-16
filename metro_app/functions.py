@@ -916,6 +916,8 @@ def usertype_import_function(encoded_file, simulation):
             user_id = 1
 
         usertype = UserType()
+        usertype.name = name
+        usertype.comment = comment
         usertype.alphaTI = alphaTI
         usertype.alphaTP = alphaTP
         usertype.beta = beta
