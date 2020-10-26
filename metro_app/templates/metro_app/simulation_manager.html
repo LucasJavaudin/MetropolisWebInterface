@@ -1,5 +1,7 @@
 {% extends 'metro_app/base.html' %}
 {% load bootstrap4 %}
+{% load humanize %}
+{% load widget_tweaks %}
 
 {% block title %}
 Metropolis
@@ -11,6 +13,11 @@ Metropolis
 <center>
 <button type="button" class="btn btn-primary btn-lg" title="Create a new simulation from scratch" data-toggle="modal" data-target="#newSimulationForm">
 	<i class="fas fa-plus-circle"></i> New Simulation
+</button>
+
+	    <!-- Added a New Import Simulation which will import the new Simulation in the zip file (Added By Shubham)-->
+<button type="button" class="btn btn-primary btn-lg" title="Create a new simulation from scratch" data-toggle="modal" data-target="#newImportSimulation">
+	<i class="fas fa-plus-circle"></i> Import Simulation
 </button>
 </center>
 
@@ -36,6 +43,33 @@ Metropolis
 		</div>
 	</div>
 </div>
+
+    <!-- Added a New Import Simulation which will import the new Simulation in the zip file (Added By Shubham)-->
+<div class="modal fade" id="newImportSimulation" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
+	<div class="modal-dialog modal-dialog-centered" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="modalTitle">Import a new Simulation</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+            <form action="{% url 'metro:simulation_import_action' %}" method="post" enctype="multipart/form-data" >
+				<div class="modal-body">
+                    {% csrf_token %}
+                    {% bootstrap_form import_form show_help=False %}
+
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Import</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
 
 <br>
 {% endif %}
@@ -65,6 +99,7 @@ Metropolis
 				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_view' simulation.id %}"><i class="far fa-edit"></i> Edit</a>
 				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#copyModal" onclick="updateCopyInput('{{ simulation.name }}', {{ simulation.id }});"><i class="far fa-clone"></i> Copy</button>
 				<a role="button" class="btn btn-outline-primary btn-block" href="{% url 'metro:simulation_export' simulation.id %}"><i class="fas fa-download"></i>Export</a>
+                <!-- <a role="button" class="btn btn-outline-primary btn-block" data-target="importUsertypeModal" href="{% url 'metro:simulation_export' simulation.id %}"><i class="fas fa-plus-circle"></i>Import</a> -->
 				<button type="button" class="btn btn-outline-primary btn-block" data-toggle="modal" data-target="#deleteModal_{{ simulation.id }}"><i class="far fa-trash-alt"></i> Delete</button>
 			</td>
 		</tr>
@@ -72,6 +107,52 @@ Metropolis
 	</tbody>
 </table>
 {% endif %}
+
+
+
+    <div class="modal fade" id="importUsertypeModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Import usertype</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action method="post" enctype="multipart/form-data">
+				{% csrf_token %}
+				<div class="modal-body form-group">
+					The import file must be a tsv file with 40 columns:  <i>
+					name</i>, <i>comment</i>, <i>alphaTI_mean</i>,  <i>
+					alphaTI_std</i>, <i>alphaTI_type</i>, <i>alphaTP_mean
+				</i>, <i>alphaTP_std</i>, <i>alphaTP_type</i>,  <i>beta_mean
+				</i>, <i>beta_std</i>, <i>beta_type</i>, <i>delta_mean</i>,
+					<i>delta_std</i>, <i>delta_type</i>,  <i>departureMu_mean
+				</i>, <i>departureMu_std</i>, <i>departureMu_type</i>,  <i>
+					gamma_mean</i>, <i>gamma_std</i>, <i>gamma_type</i>,  <i>
+					modeMu_mean</i>, <i>modeMu_std</i>, <i>modeMu_type</i>,
+					<i>penaltyTP_mean</i>, <i>penaltyTP_std</i>,  <i>
+					penaltyTP_type</i>, <i>routeMu_mean</i>,  <i>routeMu_std
+				</i>, <i>routeMu_type</i>, <i>tstar_mean</i>, <i>tstar_std
+				</i>, <i>tstar_type</i>, <i>typeOfRouteChoice</i>, <i>
+					typeOfDepartureMu</i>, <i>typeOfRouteMu</i>,  <i>
+					typeOfModeMu</i>, <i>localATIS</i>, <i>modeChoice</i>,
+					<i>modeShortRun</i> and <i>commuteType</i>.
+
+
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Import</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+
+
+
 
 {% for sim in simulation_env_list %}
 <h3>{{ sim.0 }}</h3>
