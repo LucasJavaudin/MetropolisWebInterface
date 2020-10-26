@@ -1,15 +1,16 @@
 """This file defines the views of the website.
 test
-
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 import time
+import pdb;
 import urllib
 import re
 import os
 import shutil
 import csv
+from encodings.punycode import selective_find
 from io import BytesIO
 import zipfile
 from shutil import copyfile
@@ -17,10 +18,13 @@ import json
 import codecs
 from math import sqrt
 import numpy as np
+import re
 
+from django.forms import ModelForm
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, HttpResponseRedirect, FileResponse
+from django.http import HttpResponse, HttpResponseRedirect, FileResponse, HttpResponseServerError
 from django.http import Http404
+from django.template.context_processors import request
 from django.urls import reverse, reverse_lazy
 from django.views.generic import TemplateView
 from django.views.decorators.http import require_POST
@@ -34,11 +38,13 @@ from django.dispatch import receiver
 from django.db.models.signals import pre_delete
 from django.utils import timezone
 from django.db import connection
+from django.core.exceptions import ObjectDoesNotExist
 
 from django_filters.views import FilterView
 from django_tables2.views import SingleTableMixin
 
 import metro_app
+
 
 from metro_app.models import *
 from metro_app.forms import *
@@ -75,7 +81,6 @@ OBJECT_THRESHOLD = 80
 def public_required(view):
     """Decorator to execute a function only if the requesting user has view
     access to the simulation.
-
     The decorator also converts the simulation id parameter to a Simulation
     object.
     """
@@ -95,7 +100,6 @@ def public_required(view):
 def owner_required(view):
     """Decorator to execute a function only if the requesting user has edit
     access to the simulation.
-
     The decorator also converts the simulation id parameter to a Simulation
     object.
     """
@@ -115,7 +119,6 @@ def owner_required(view):
 def check_demand_relation(view):
     """Decorator used in the demand views to ensure that the demand segment and
     the simulation are related.
-
     Without this decorator, we could view, delete or edit the user type of an
     other simulation (even private) by modifying the id in the url address.
     The decorator also converts the demand segment id to a DemandSegment
@@ -160,7 +163,6 @@ def check_object_name(view):
 def check_run_relation(view):
     """Decorator used in the run views to ensure that the run and the
     simulation are related.
-
     The decorator also converts the run id to a SimulationRun object.
     """
 
@@ -178,6 +180,7 @@ def check_run_relation(view):
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
     return wrap
+
 
 def environment_owner_required(view):
     """Decorator to execute a function only if the requesting user has edit
@@ -209,13 +212,13 @@ def environment_can_create(view):
 
     return wrap
 
+
 # ====================
 # Views
 # ====================
 
 def simulation_manager(request):
     """Home page of Metropolis.
-
     This view shows lists of simulations and proposes a form to create a new
     simulation.
     """
@@ -240,7 +243,10 @@ def simulation_manager(request):
         simulation_private_list = \
             Simulation.objects.filter(public=False).exclude(user=request.user)
     # Create a form for new simulations.
+
+    import_form = SimulationImportForm(request.user)
     simulation_form = BaseSimulationForm(request.user)
+
     # Create a form for copied simulations (the form has the same fields as the
     # form for new simulations, we add the prefix copy to differentiate the
     # two).
@@ -252,9 +258,13 @@ def simulation_manager(request):
         'simulation_pinned_list': simulation_pinned_list,
         'simulation_private_list': simulation_private_list,
         'simulation_form': simulation_form,
+        'import_form': import_form,
         'copy_form': copy_form,
     }
     return render(request, 'metro_app/simulation_manager.html', context)
+
+
+
 
 
 def register(request):
@@ -392,7 +402,6 @@ def disqus(request):
 @login_required
 def simulation_add_action(request):
     """This view is used when a user creates a new simulation.
-
     The request should contain data for the new simulation (name, comment and
     public).
     """
@@ -471,11 +480,12 @@ def simulation_add_action(request):
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 
+
+
 @require_POST
 @login_required
 def copy_simulation(request):
     """View used to create a copy of another simulation.
-
     Django ORM is too slow for bulk operations on the database so we use mainly
     raw SQL query.
     To copy an object using Django, we set its primary key to None and we save
@@ -898,10 +908,11 @@ def copy_simulation(request):
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 
+
 @owner_required
 def simulation_delete(request, simulation):
     """View used to delete a simulation.
-    
+
     The view deletes the Simulation object and all objects associated with it.
     """
     SimulationMOEs.objects.filter(simulation=simulation.id).delete()
@@ -926,6 +937,8 @@ def simulation_view(request, simulation):
     # Create the form to edit the parameters.
     simulation_form = ParametersSimulationForm(owner=owner,
                                                instance=simulation)
+
+    import_form = SimulationImportForm(request.user, instance=simulation)
     # Count the number of each elements in the network.
     network = dict()
     network['centroids'] = get_query('centroid', simulation).count()
@@ -991,6 +1004,7 @@ def simulation_view(request, simulation):
         'copy_form': copy_form,
         'edit_form': edit_form,
         'simulation_form': simulation_form,
+        'import_form': import_form,
         'network': network,
         'travelers': travelers,
         'policy': policy,
@@ -1009,8 +1023,14 @@ def simulation_view_save(request, simulation):
     """View to save the changes to the simulation parameters."""
     simulation_form = ParametersSimulationForm(owner=True, data=request.POST,
                                                instance=simulation)
+
+    import_form = ParametersSimulationForm(owner=True, data=request.POST,
+                                               instance=simulation)
     if simulation_form.is_valid():
         simulation_form.save()
+
+        if import_form.is_valid():
+            import_form.save()
         # Variables stac_check and iterations_check are not used by Metropolis
         # so if the variable is not checked, we must put the associated
         # variable to 0.
@@ -1029,6 +1049,7 @@ def simulation_view_save(request, simulation):
         context = {
             'simulation': simulation,
             'form': simulation_form,
+            'import_form': import_form,
         }
         return render(request, 'metro_app/errors.html', context)
 
@@ -1267,11 +1288,11 @@ def matrix_view(request, simulation, demandsegment):
         matrix = demandsegment.matrix
         matrix_points = Matrix.objects.filter(matrices=matrix)
         od_matrix = []
-        # For each row, we build an array which will be appended to the 
+        # For each row, we build an array which will be appended to the
         # od_matrix array.
         # The row array has the origin centroid as first value.
         # The subsequent values are the population value of the od pairs.
-        # For od pair with identical origin and destination, we append -1 to 
+        # For od pair with identical origin and destination, we append -1 to
         # the row array.
         for row_centroid in centroids:
             row = [row_centroid]
@@ -1406,13 +1427,14 @@ def matrix_export(request, simulation, demandsegment):
     os.remove(filename)
     return response
 
+
 def matrix_export_save(simulation, demandsegment, dir):
     """View to send a file with the OD Matrix to the user."""
     matrix = demandsegment.matrix
     matrix_couples = Matrix.objects.filter(matrices=matrix)
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
-    filename = dir + '/matrix(' + demandsegment.usertype.name + ')(' + str(demandsegment.usertype.user_id) + ').tsv'
+    filename = '{0}/matrix_{1}.tsv'.format(dir, demandsegment.id)
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
@@ -1493,55 +1515,55 @@ def pricing_view(request, simulation):
     return TollListView.as_view()(request, simulation=simulation, )
 
 
-# @owner_required
-# def pricing_edit(request, simulation):
-    # # Get all pricing policies for this usertype.
-    # policies = get_query('policy', simulation)
-    # policies = policies.filter(usertype=demandsegment.usertype)
-    # tolls = policies.filter(type='PRICING')
-    # # Get all links of the network.
-    # links = get_query('link', simulation)
-    # # Get all LinkSelection of the network.
-    # locations = LinkSelection.objects.filter(
-        # network=simulation.scenario.supply.network
-    # )
-    # """View to edit the tolls."""
-    # # Create a formset to edit the objects.
-    # formset = PolicyFormSet
-    # context = {
-        # 'simulation': simulation,
-        # 'demandsegment': demandsegment,
-        # 'tolls': tolls,
-        # 'links': links,
-        # 'locations': locations,
-        # 'formset': formset,
-    # }
-    # return render(request, 'metro_app/pricing_edit.html', context)
+@owner_required
+def pricing_edit(request, simulation):
+    # Get all pricing policies for this usertype.
+    policies = get_query('policy', simulation)
+    policies = policies.filter(usertype=demandsegment.usertype)
+    tolls = policies.filter(type='PRICING')
+    # Get all links of the network.
+    links = get_query('link', simulation)
+    # Get all LinkSelection of the network.
+    locations = LinkSelection.objects.filter(
+        network=simulation.scenario.supply.network
+    )
+    """View to edit the tolls."""
+    # Create a formset to edit the objects.
+    formset = PolicyFormSet
+    context = {
+        'simulation': simulation,
+        'demandsegment': demandsegment,
+        'tolls': tolls,
+        'links': links,
+        'locations': locations,
+        'formset': formset,
+    }
+    return render(request, 'metro_app/pricing_edit.html', context)
 
 
-# @require_POST
-# @owner_required
-# def pricing_save(request, simulation):
-    # """View to save the tolls of an user type."""
-    # # Retrieve the formset from the POST data.
-    # formset = PolicyFormSet(request.POST)
-    # if formset.is_valid():
-        # # Save the formset (updated values and newly created objects).
-        # formset.save()
-        # simulation.has_changed = True
-        # simulation.save()
-    # else:
-        # # Redirect to a page with the errors.
-        # context = {
-            # 'simulation': simulation,
-            # 'demandsegment': demandsegment,
-            # 'form': formset,
-        # }
-        # return render(request, 'metro_app/errors.html', context)
+@require_POST
+@owner_required
+def pricing_save(request, simulation):
+    """View to save the tolls of an user type."""
+    # Retrieve the formset from the POST data.
+    formset = PolicyFormSet(request.POST)
+    if formset.is_valid():
+        # Save the formset (updated values and newly created objects).
+        formset.save()
+        simulation.has_changed = True
+        simulation.save()
+    else:
+        # Redirect to a page with the errors.
+        context = {
+            'simulation': simulation,
+            'demandsegment': demandsegment,
+            'form': formset,
+        }
+        return render(request, 'metro_app/errors.html', context)
 
-    # return HttpResponseRedirect(reverse(
-        # 'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
-    # ))
+    return HttpResponseRedirect(reverse(
+        'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
+    ))
 
 
 @public_required
@@ -1579,6 +1601,7 @@ def pricing_export(request, simulation):
     os.remove(filename)
     return response
 
+
 def pricing_export_save(simulation, dir):
     """View to send a file with the tolls of an user type."""
     # Get all tolls.
@@ -1604,6 +1627,7 @@ def pricing_export_save(simulation, dir):
         writer.writerows(values)
 
     return filename
+
 
 @require_POST
 @owner_required
@@ -1682,11 +1706,11 @@ def public_transit_list(request, simulation):
         # Small matrix, return it.
         matrix_points = get_query('public_transit', simulation)
         od_matrix = []
-        # For each row, we build an array which will be appended to the 
+        # For each row, we build an array which will be appended to the
         # od_matrix array.
         # The row array has the origin centroid as first value.
         # The subsequent values are the population value of the od pairs.
-        # For od pair with identical origin and destination, we append -1 to 
+        # For od pair with identical origin and destination, we append -1 to
         # the row array.
         for row_centroid in centroids:
             row = [row_centroid]
@@ -1787,8 +1811,7 @@ def public_transit_edit_save(request, simulation):
 
 @owner_required
 def public_transit_delete(request, simulation):
-    """Delete all OD pairs of the public transit OD matrix.
-
+    """Delete all OD pairs of the public transit OD matrix.
     The Matrices object is not deleted so that the user can add OD pairs again.
     """
     od_pairs = get_query('public_transit', simulation)
@@ -1844,7 +1867,8 @@ def public_transit_export(request, simulation):
     os.remove(filename)
     return response
 
-def public_transit_export_save(simulation,dir):
+
+def public_transit_export_save(simulation, dir):
     """View to send a file with the public transit OD Matrix to the user."""
     matrix_couples = get_query('public_transit', simulation)
     # To avoid conflict if two users export a file at the same time, we
@@ -1861,6 +1885,7 @@ def public_transit_export_save(simulation,dir):
 
     return filename
 
+
 @public_required
 @check_object_name
 def object_view(request, simulation, object_name):
@@ -1876,7 +1901,7 @@ def object_view(request, simulation, object_name):
         nb_crossings = get_query('crossing', simulation).count()
         nb_functions = get_query('function', simulation).count()
         network_empty = not (nb_centroids >= 2 and nb_crossings >= 1
-                             and nb_functions >= 1)
+                             and nb_functobject_viewions >= 1)
     import_form = ImportForm()
     context = {
         'simulation': simulation,
@@ -1982,6 +2007,7 @@ def object_import(request, simulation, object_name):
             reverse('metro:object_list', args=(simulation.id, object_name,))
         )
 
+
 @public_required
 @check_object_name
 def object_export(request, simulation, object_name):
@@ -2040,6 +2066,7 @@ def object_export(request, simulation, object_name):
     os.remove(filename)
     return response
 
+
 def object_export_save(simulation, object_name, dir):
     """View to export all instances of a network object."""
     query = get_query(object_name, simulation)
@@ -2088,6 +2115,7 @@ def object_export_save(simulation, object_name, dir):
         writer.writerows(values)
 
     return filename
+
 
 @owner_required
 @check_object_name
@@ -2373,7 +2401,6 @@ def network_view_run(request, simulation, run):
 
 class MatrixListView(SingleTableMixin, FilterView):
     """Class-based view to show an OD Matrix as a table.
-
     The class must be initiated with one positional argument, the request, and
     two keyword arguments, simulation and demandsegment.
     """
@@ -2402,7 +2429,6 @@ class MatrixListView(SingleTableMixin, FilterView):
 
 class PTMatrixListView(SingleTableMixin, FilterView):
     """Class-based view to show the public-transit OD matrix as a table.
-
     This class is almost identical to MatrixListView.
     Two differences: table and filter used rename Population to Travel time;
     public_transit is True (allow changes in the template).
@@ -2539,6 +2565,7 @@ def show_events(request):
     context = {'events': event_list, 'form': event_form}
     return render(request, 'metro_app/events_view.html', context)
 
+
 @user_passes_test(lambda u: u.is_superuser)
 def create_event(request):
     # Could be changed to a wrapper but can't figure out how to access user from wrapper
@@ -2617,6 +2644,7 @@ def show_articles(request):
     context = {'articles': articles, 'form': article_form}
     return render(request, 'metro_app/articles_view.html', context)
 
+
 @login_required
 def download_article_file(request, path):
     try:
@@ -2635,6 +2663,7 @@ def download_article_file(request, path):
         # Should notify an admin that the file is missing.
         raise Http404()
 
+
 @user_passes_test(lambda u: u.is_superuser)
 def create_article(request):
     # Could be changed to a wrapper but can't figure out how to access user from wrapper
@@ -2650,7 +2679,7 @@ def create_article(request):
         article_author = request.user
 
         article = Article.objects.create(title=article_title,
-                                         description = article_description,
+                                         description=article_description,
                                          creator=article_author)
 
         for f in files:
@@ -2681,7 +2710,7 @@ def simulation_export(request, simulation):
     """View to make a zip file of all simulation parameters."""
 
     seed = np.random.randint(10000)
-    dir = '{0}/website_files/exports/{1}'.format(settings.BASE_DIR, seed)
+    dir = '{0}/website_files/exports_traveler/{1}'.format(settings.BASE_DIR, seed)
     os.makedirs(dir)
 
     files_names = []
@@ -2697,10 +2726,9 @@ def simulation_export(request, simulation):
     demandsegments = get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
         files_names.append(matrix_export_save(simulation, demandsegment, dir))
+        files_names.append(travel_usertype_save(simulation, demandsegment, dir))
 
-
-
-    #Need to add parameters file here
+    # Need to add parameters file here
 
     zipname = '{0}'.format(str(simulation))
 
@@ -2728,6 +2756,51 @@ def simulation_export(request, simulation):
 
     return response
 
+
+@public_required
+def traveler_simulation_export(request, simulation):
+    """View to make a zip file of all simulation parameters."""
+
+    seed = np.random.randint(10000)
+    dir = '{0}/website_files/exports_traveler/{1}'.format(settings.BASE_DIR, seed)
+    os.makedirs(dir)
+
+    files_names = []
+
+    demandsegments = get_query('demandsegment', simulation)
+    for demandsegment in demandsegments:
+        files_names.append(matrix_export_save(simulation, demandsegment, dir))
+        files_names.append(travel_usertype_save(simulation, demandsegment, dir))
+
+    # Need to add parameters file here
+
+    zipname = '{0}'.format(str(simulation))
+
+    s = BytesIO()
+
+    file = zipfile.ZipFile(s, 'w')
+
+    for f in files_names:
+        # Calculate path for file in zip
+        fdir, fname = os.path.split(f)
+        zip_path = os.path.join(zipname, fname)
+
+        # Add file, at correct path
+        file.write(f, zip_path)
+
+    file.close()
+
+    # Grab ZIP file from in-memory, make response with correct MIME-type
+    response = HttpResponse(s.getvalue())
+    response['content_type'] = 'application/x-zip-compressed'
+    # ..and correct content-disposition
+    response['Content-Disposition'] = 'attachment; filename={0}.zip'.format(str(simulation))
+
+    shutil.rmtree(dir, ignore_errors=True)
+
+    return response
+
+
 @require_POST
 @owner_required
 def usertype_import(request, simulation):
@@ -2749,25 +2822,66 @@ def usertype_import(request, simulation):
             'metro:demand_view', args=(simulation.id,)
         ))
 
+
+@require_POST
+@owner_required
+def traveler_zipimport(request, simulation):
+    """View to convert the imported file to usertype in the database."""
+    try:
+        encoded_file = request.FILES['zipfile']
+        import_function_zip(encoded_file, simulation)
+    except Exception as e:
+        # Catch any exception while importing the file and return an error page
+        # if there is any.
+        print(e)
+        context = {
+            'simulation': simulation,
+            'object': 'pricing',
+        }
+        #return HttpResponseServerError("Bad Request")
+        return render(request, "metro_app/importzip_error.html", context)
+    else:
+        return HttpResponseRedirect(reverse(
+            'metro:demand_view', args=(simulation.id,)
+        ))
+
 @public_required
 @check_demand_relation
-def usertype_export(request, simulation, demandsegment):
+def usertype_export(request,simulation,demandsegment):
     usertype = demandsegment.usertype
-
-
     """View to send a file with the OD Matrix to the user."""
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
     seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
+    filename ='{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
                                                           seed)
     with codecs.open(filename, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
         # Get a dictionary with all the values to export.
-        values = UserType.objects.filter(id=usertype.id).values_list('name', 'comment', 'alphaTI__mean', 'alphaTI__std', 'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type', 'beta__mean', 'beta__std', 'beta__type', 'delta__mean', 'delta__std', 'delta__type', 'departureMu__mean', 'departureMu__std', 'departureMu__type', 'gamma__mean', 'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std', 'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std', 'penaltyTP__type', 'routeMu__mean', 'routeMu__std', 'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type', 'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun', 'commuteType')
+        values = UserType.objects.filter(id=usertype.id).values_list('name', 'comment', 'alphaTI__mean', 'alphaTI__std',
+                                                                     'alphaTI__type', 'alphaTP__mean', 'alphaTP__std',
+                                                                     'alphaTP__type', 'beta__mean', 'beta__std',
+                                                                     'beta__type', 'delta__mean', 'delta__std',
+                                                                     'delta__type', 'departureMu__mean',
+                                                                     'departureMu__std', 'departureMu__type',
+                                                                     'gamma__mean', 'gamma__std', 'gamma__type',
+                                                                     'modeMu__mean', 'modeMu__std', 'modeMu__type',
+                                                                     'penaltyTP__mean', 'penaltyTP__std',
+                                                                     'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
+                                                                     'routeMu__type', 'tstar__mean', 'tstar__std',
+                                                                     'tstar__type', 'typeOfRouteChoice',
+                                                                     'typeOfDepartureMu', 'typeOfRouteMu',
+                                                                     'typeOfModeMu', 'localATIS', 'modeChoice',
+                                                                     'modeShortRun', 'commuteType')
+        writer.writerow(
+            ['name', 'comment', 'alphaTI_mean', 'alphaTI_std', 'alphaTI_type', 'alphaTP_mean', 'alphaTP_std',
+             'alphaTP_type', 'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std', 'delta_type',
+             'departureMu_mean', 'departureMu_std', 'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
+             'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean', 'penaltyTP_std', 'penaltyTP_type',
+             'routeMu_mean', 'routeMu_std', 'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
+             'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice',
+             'modeShortRun', 'commuteType'])
 
-        # Write a custom header.
-        writer.writerow(['name', 'comment', 'alphaTI_mean', 'alphaTI_std', 'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type', 'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std', 'delta_type', 'departureMu_mean', 'departureMu_std', 'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type', 'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean', 'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std', 'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type', 'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun', 'commuteType'])
         writer.writerows(values)
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.'beta_mean',
@@ -2777,6 +2891,7 @@ def usertype_export(request, simulation, demandsegment):
     # We delete the export file to save disk space.
     os.remove(filename)
     return response
+
 
 @login_required
 def environments_view(request):
@@ -2791,6 +2906,7 @@ def environments_view(request):
     context = {'environments': auth_environments, 'form': form, 'permission': permission}
     return render(request, 'metro_app/environments_view.html', context)
 
+
 @login_required
 @environment_can_create
 def environment_create(request):
@@ -2802,9 +2918,10 @@ def environment_create(request):
         environment = Environment.objects.create(name=env_name, creator=env_user)
         environment.users.set(env_user)
 
-
-
         my_form = EnvironmentForm()
+
+    return HttpResponseRedirect(reverse('environments_view'))
+
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
@@ -2818,18 +2935,17 @@ def environment_add_view(request, environment):
 
     return render(request, 'metro_app/environments_edit.html', context)
 
+
 @login_required
 @environment_owner_required
 def environment_add(request, environment):
     env = get_object_or_404(Environment, id=environment)
     my_form = EnvironmentUserAddForm(request.POST or None)
     if my_form.is_valid():
-
         username = my_form.cleaned_data['username']
         user = User.objects.get(username=username)
 
         env.users.add(user)
-
 
         my_form = EnvironmentUserAddForm()
         return HttpResponseRedirect(reverse('metro:environments_view'))
@@ -2837,6 +2953,7 @@ def environment_add(request, environment):
 
     context = {'environment': env, 'form': my_form, 'error': True}
     return render(request, 'metro_app/environments_edit.html', context)
+
 
 @login_required
 @environment_owner_required
@@ -2908,7 +3025,6 @@ def pre_delete_demand(sender, instance, **kwargs):
 def gen_formset(object_name, simulation, request=None):
     """Function to generate a formset either from a simulation object or from a
     request object.
-
     If there is no existing instance of the object, create a formset with an
     empty form (it is impossible to add the first form otherwise).
     """
@@ -3027,3 +3143,211 @@ def gen_formset(object_name, simulation, request=None):
                     simulation=simulation,
                 )
     return formset
+
+# View to add a usertype in a zip file on Traveler's page 
+def travel_usertype_save(simulation, demandsegment, dir):
+    """View to send a file with the OD Matrix to the user."""
+    usertype = demandsegment.usertype
+    # To avoid conflict if two users export a file at the same time, we
+    # generate a random name for the export file.
+    filename = '{0}/usertype_{1}.tsv'.format(dir, demandsegment.id)
+
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+
+        # Get a dictionary with all the values to export.
+
+        values = UserType.objects.filter(id=usertype.id).values_list('name', 'comment', 'alphaTI__mean', 'alphaTI__std',
+                                       'alphaTI__type', 'alphaTP__mean', 'alphaTP__std',
+                                       'alphaTP__type', 'beta__mean', 'beta__std',
+                                       'beta__type', 'delta__mean', 'delta__std',
+                                       'delta__type', 'departureMu__mean',
+                                       'departureMu__std', 'departureMu__type',
+                                       'gamma__mean', 'gamma__std', 'gamma__type',
+                                       'modeMu__mean', 'modeMu__std', 'modeMu__type',
+                                       'penaltyTP__mean', 'penaltyTP__std',
+                                       'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
+                                       'routeMu__type', 'tstar__mean', 'tstar__std',
+                                       'tstar__type', 'typeOfRouteChoice',
+                                       'typeOfDepartureMu', 'typeOfRouteMu',
+                                       'typeOfModeMu', 'localATIS', 'modeChoice',
+                                       'modeShortRun', 'commuteType')
+
+    # Write a custom header.
+        writer.writerow(
+        ['name', 'comment', 'alphaTI_mean', 'alphaTI_std', 'alphaTI_type', 'alphaTP_mean', 'alphaTP_std',
+         'alphaTP_type', 'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std', 'delta_type',
+         'departureMu_mean', 'departureMu_std', 'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
+         'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean', 'penaltyTP_std', 'penaltyTP_type',
+         'routeMu_mean', 'routeMu_std', 'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
+         'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice',
+         'modeShortRun', 'commuteType'])
+
+        writer.writerows(values)
+    return filename
+
+# Created a View for the Import Simulation on the Homepage which will import the Simulation
+@require_POST
+@login_required
+def simulation_import_action(request):
+    """This view is used when a user creates a new simulation.
+    The request should contain data for the new simulation (name, comment and
+    public).
+    """
+    # Create a form with the data send and check if it is valid.
+
+    form = SimulationImportForm(request.user, request.POST, request.FILES)
+    if form.is_valid():
+        # Create a new simulation with the attributes sent.
+        simulation = Simulation()
+        simulation.user = request.user
+        simulation.name = form.cleaned_data['name']
+        simulation.comment = form.cleaned_data['comment']
+        simulation.public = form.cleaned_data['public']
+        simulation.environment = form.cleaned_data['environment']
+        simulation.contact = form.cleaned_data['contact']
+        # Create models associated with the new simulation.
+        network = Network()
+        network.name = simulation.name
+        network.save()
+        function_set = FunctionSet()
+        function_set.name = simulation.name
+        function_set.save()
+        # Add defaults functions.
+        function = Function(name='Free flow', user_id=1,
+                            expression='3600*(length/speed)')
+        function.save()
+        function.vdf_id = function.id
+        function.save()
+        function.functionset.add(function_set)
+        function = Function(name='Bottleneck function', user_id=2,
+                            expression=('3600*((dynVol<=(lanes*capacity*length'
+                                        + '/speed))*(length/speed)+(dynVol>'
+                                        + '(lanes*capacity*length/speed))*'
+                                        + '(dynVol/(capacity*lanes)))'))
+        function.save()
+        function.vdf_id = function.id
+        function.save()
+        function.functionset.add(function_set)
+        # Log density is not working somehow.
+        # function = Function(name='Log density', user_id=3,
+        # expression=('3600*(length/speed)'
+        # '*((dynVol<=8.0*lanes*length)'
+        # '+(dynVol>8.0*lanes*length)'
+        # '*((dynVol<0.9*130.0*lanes*length)'
+        # '*ln(130.0/8.0)'
+        # '/ln(130.0*lanes*length/(dynVol+0.01))'
+        # '+(dynVol>=0.9*130.0*lanes*length)'
+        # '*ln(130.0/8.0)/ln(1/0.9)))'))
+        # function.save()
+        # function.vdf_id = function.id
+        # function.save()
+        # function.functionset.add(function_set)
+        pttimes = Matrices()
+        pttimes.save()
+        supply = Supply()
+        supply.name = simulation.name
+        supply.network = network
+        supply.functionset = function_set
+        supply.pttimes = pttimes
+        supply.save()
+        demand = Demand()
+        demand.name = simulation.name
+        demand.save()
+        scenario = Scenario()
+        scenario.name = simulation.name
+        scenario.supply = supply
+        scenario.demand = demand
+        scenario.save()
+        # Save the simulation and return its view.
+        simulation.scenario = scenario
+        simulation.save()
+        encoded_file = form.cleaned_data['zipfile']        
+        file = zipfile.ZipFile(encoded_file)
+        name = file.namelist()
+        for n in name:
+            if n.endswith("zones.tsv") or n.endswith("zones.csv"):
+                object_import_function(file.open(n), simulation, 'centroid')
+                break
+
+        for c in name:
+            if c.endswith("intersections.tsv") or c.endswith("intersections.csv"):
+                object_import_function(file.open(c), simulation, 'crossing')
+                break
+
+        for l in name:
+            if l.endswith("links.tsv") or l.endswith("links.csv"):
+                object_import_function(file.open(l), simulation, 'link')
+                break
+
+        for f in name:
+            if f.endswith("congestion functions.tsv") or f.endswith("congestion functions.csv"):
+                object_import_function(file.open(f), simulation, 'function')
+                break
+
+        for public in name:
+            if public.endswith("public_transit.tsv") or public.endswith("public_transit.csv"):
+                public_transit_import_function(file.open(public), simulation)
+                break
+
+        for price in name:
+            if price.endswith("pricings.tsv") or price.endswith("pricings.csv"):
+                pricing_import_function(file.open(price), simulation)
+                break
+
+        for user in name:
+            d = re.search('usertype_([0-9])+.tsv$', user)
+            if (d):
+                usertype_import_function(file.open(user), simulation)
+                for m in name:
+                    if m.endswith('matrix_{}.tsv'.format(d.group(1))):
+                        demandsegment = get_query('demandsegment', simulation).last()
+                        matrix_import_function(file.open(m), simulation, demandsegment)
+        return HttpResponseRedirect(
+            reverse('metro:simulation_view', args=(simulation.id,))
+        )
+    else:
+        return HttpResponseRedirect(
+            reverse('metro:simulation_manager')
+        )
+
+# Created a view which will import the traveler types in the zip file.
+@require_POST
+@owner_required
+def traveler_import_action(request, simulation):
+    """This view is used when a user creates a new simulation.
+    The request should contain data for the new simulation (name, comment and
+    public).
+    """
+    # Create a form with the data send and check if it is valid.
+    try:
+
+        form = ImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            encoded_file = form.cleaned_data['import_file']            
+            file = zipfile.ZipFile(encoded_file)
+            name = file.namelist()
+            for user in name:
+                d = re.search('usertype_([0-9])+.tsv$', user)
+                if (d):
+                    usertype_import_function(file.open(user), simulation)
+                    for m in name:
+                        if m.endswith('matrix_{}.tsv'.format(d.group(1))):
+                            demandsegment = get_query('demandsegment', simulation).last()
+                            matrix_import_function(file.open(m), simulation, demandsegment)
+    except Exception as e:
+        # Catch any exception while importing the file and return an error page
+        # if there is any.
+        print(e)
+        context = {
+            'simulation': simulation,
+            'object': 'pricing',
+        }        
+        return render(request, "metro_app/importzip_error.html", context)
+
+    else:
+
+        return HttpResponseRedirect(reverse(
+            'metro:demand_view', args=(simulation.id,)
+        ))
