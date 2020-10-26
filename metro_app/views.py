@@ -243,7 +243,7 @@ def simulation_manager(request):
         simulation_private_list = \
             Simulation.objects.filter(public=False).exclude(user=request.user)
     # Create a form for new simulations.
-
+    #Added one more form for the Import Simulation Button By Shubham
     import_form = SimulationImportForm(request.user)
     simulation_form = BaseSimulationForm(request.user)
 
@@ -1838,7 +1838,7 @@ def public_transit_import(request, simulation):
         return render(request, 'metro_app/import_error.html', context)
     else:
         return HttpResponseRedirect(reverse(
-            'metro:public_transit_view', args=(simulation.id,)
+            'public_transit_view', args=(simulation.id,)
         ))
 
 
@@ -2004,7 +2004,7 @@ def object_import(request, simulation, object_name):
         return render(request, 'metro_app/import_error.html', context)
     else:
         return HttpResponseRedirect(
-            reverse('metro:object_list', args=(simulation.id, object_name,))
+            reverse('object_list', args=(simulation.id, object_name,))
         )
 
 
@@ -2392,7 +2392,7 @@ def network_view_run(request, simulation, run):
         return render(request, 'metro_app/network.html', context)
     else:
         # The network file for the run does not exist.
-        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+        return HttpResponseRedirect(reverse('simulation_manager'))
 
 
 # ====================
@@ -2756,7 +2756,7 @@ def simulation_export(request, simulation):
 
     return response
 
-
+# Added a Export Button view which will export usertype and matrix in a zip file on Traveler's page
 @public_required
 def traveler_simulation_export(request, simulation):
     """View to make a zip file of all simulation parameters."""
@@ -2800,7 +2800,7 @@ def traveler_simulation_export(request, simulation):
 
     return response
 
-
+# Added a import button on Traveler's Page which will import the tsv file.
 @require_POST
 @owner_required
 def usertype_import(request, simulation):
@@ -2823,28 +2823,7 @@ def usertype_import(request, simulation):
         ))
 
 
-@require_POST
-@owner_required
-def traveler_zipimport(request, simulation):
-    """View to convert the imported file to usertype in the database."""
-    try:
-        encoded_file = request.FILES['zipfile']
-        import_function_zip(encoded_file, simulation)
-    except Exception as e:
-        # Catch any exception while importing the file and return an error page
-        # if there is any.
-        print(e)
-        context = {
-            'simulation': simulation,
-            'object': 'pricing',
-        }
-        #return HttpResponseServerError("Bad Request")
-        return render(request, "metro_app/importzip_error.html", context)
-    else:
-        return HttpResponseRedirect(reverse(
-            'metro:demand_view', args=(simulation.id,)
-        ))
-
+# Created a export button which will export the usertype.
 @public_required
 @check_demand_relation
 def usertype_export(request,simulation,demandsegment):
@@ -3144,7 +3123,7 @@ def gen_formset(object_name, simulation, request=None):
                 )
     return formset
 
-# View to add a usertype in a zip file on Traveler's page 
+
 def travel_usertype_save(simulation, demandsegment, dir):
     """View to send a file with the OD Matrix to the user."""
     usertype = demandsegment.usertype
@@ -3230,20 +3209,6 @@ def simulation_import_action(request):
         function.vdf_id = function.id
         function.save()
         function.functionset.add(function_set)
-        # Log density is not working somehow.
-        # function = Function(name='Log density', user_id=3,
-        # expression=('3600*(length/speed)'
-        # '*((dynVol<=8.0*lanes*length)'
-        # '+(dynVol>8.0*lanes*length)'
-        # '*((dynVol<0.9*130.0*lanes*length)'
-        # '*ln(130.0/8.0)'
-        # '/ln(130.0*lanes*length/(dynVol+0.01))'
-        # '+(dynVol>=0.9*130.0*lanes*length)'
-        # '*ln(130.0/8.0)/ln(1/0.9)))'))
-        # function.save()
-        # function.vdf_id = function.id
-        # function.save()
-        # function.functionset.add(function_set)
         pttimes = Matrices()
         pttimes.save()
         supply = Supply()
@@ -3263,7 +3228,7 @@ def simulation_import_action(request):
         # Save the simulation and return its view.
         simulation.scenario = scenario
         simulation.save()
-        encoded_file = form.cleaned_data['zipfile']        
+        encoded_file = form.cleaned_data['zipfile']
         file = zipfile.ZipFile(encoded_file)
         name = file.namelist()
         for n in name:
@@ -3325,7 +3290,7 @@ def traveler_import_action(request, simulation):
 
         form = ImportForm(request.POST, request.FILES)
         if form.is_valid():
-            encoded_file = form.cleaned_data['import_file']            
+            encoded_file = form.cleaned_data['import_file']
             file = zipfile.ZipFile(encoded_file)
             name = file.namelist()
             for user in name:
@@ -3343,7 +3308,7 @@ def traveler_import_action(request, simulation):
         context = {
             'simulation': simulation,
             'object': 'pricing',
-        }        
+        }
         return render(request, "metro_app/importzip_error.html", context)
 
     else:
