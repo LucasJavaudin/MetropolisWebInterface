@@ -1,10 +1,9 @@
-from django.urls import path, re_path
-
-from . import views
-
+from django.urls import path, re_path, include
+from metro_app import views
 app_name = 'metro'
 urlpatterns = [
     #Lucas Hornung
+    #path('', include(('metro.metro.urls', 'metro'), namespace= 'metro')),
     path(r'events_view', views.show_events, name='events_view'),
     path(r'events_view/add_event', views.create_event, name='events_add'),
     re_path(r'delete_event/(?P<pk>[0-9]+)/', views.delete_event,
@@ -44,6 +43,8 @@ urlpatterns = [
         views.simulation_view, name='simulation_view'),
     path(r'<simulation_id>/export',
         views.simulation_export, name='simulation_export'),
+    path(r'<simulation_id>/traveler_export',
+        views.traveler_simulation_export, name='traveler_simulation_export'),
     path(r'<simulation_id>/save',
         views.simulation_view_save, name='simulation_view_save'),
     path(r'<simulation_id>/edit',
@@ -94,8 +95,8 @@ urlpatterns = [
         views.pricing_view, name='pricing_view'),
     # path(r'<simulation_id>/pricing/edit/',
         # views.pricing_edit, name='pricing_edit'),
-    # path(r'<simulation_id>/pricing/save/',
-        # views.pricing_save, name='pricing_save'),
+    path(r'<simulation_id>/pricing/save/',
+        views.pricing_save, name='pricing_save'),
     path(r'<simulation_id>/pricing/export/',
         views.pricing_export, name='pricing_export'),
     path(r'<simulation_id>/pricing/import/',
@@ -106,6 +107,8 @@ urlpatterns = [
         views.copy_simulation, name='copy_simulation'),
     path(r'add/action',
         views.simulation_add_action, name='simulation_add_action'),
+    path(r'add/import_action',
+        views.simulation_import_action, name='simulation_import_action'),
     path(r'<simulation_id>/delete',
         views.simulation_delete, name='simulation_delete'),
     path(r'<simulation_id>/run/action',
@@ -163,11 +166,13 @@ urlpatterns = [
         views.object_edit_save, name='object_edit_save'),
     path(r'<simulation_id>/object/<object_name>/edit/',
         views.object_edit, name='object_edit'),
-    path(r'<simulation_id>/object/<object_name>/delete/',
+    path(r'<simulation_id>/object/<obtraveler_import_actionject_name>/delete/',
         views.object_delete, name='object_delete'),
     path(r'<simulation_id>/object/<object_name>/import/',
         views.object_import, name='object_import'),
     path(r'<simulation_id>/object/<object_name>/export/',
         views.object_export, name='object_export'),
-    path(r'<simulation_id>/demand/import', views.usertype_import, name='usertype_import'),
+    path(r'<simulation_id>/demand/import/', views.usertype_import, name='usertype_import'),
+    path(r'<simulation_id>/demand/importzip/', views.traveler_import_action, name='traveler_import_action'),
+
 ]
