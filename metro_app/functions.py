@@ -233,6 +233,16 @@ def object_import_function(encoded_file, simulation, object_name):
     the instance needs to be updated.
     Python built-in set are used to perform comparison of arrays quickly.
     """
+    # Convert imported file to a csv DictReader.
+    tsv_file = StringIO(encoded_file.read().decode())
+    if encoded_file.name.split(".")[-1] == 'tsv':
+        df = pd.read_csv(tsv_file, delimiter='\t')
+    else:
+        df = pd.read_csv(tsv_file, delimiter=',')
+    # Do not do anything if the file is empty.
+    num_lines = len(list(reader))
+    if num_lines == 0:
+        return
     if object_name == 'function':
         parent = simulation.scenario.supply.functionset
     else:
@@ -256,17 +266,11 @@ def object_import_function(encoded_file, simulation, object_name):
             'id': list(functions.values_list('id', flat=True)),
             'instance': list(functions),
         })
-    # Convert imported file to a csv DictReader.
-    tsv_file = StringIO(encoded_file.read().decode())
-    if encoded_file.name.split(".")[-1] == 'tsv':
-        df = pd.read_csv(tsv_file, delimiter='\t')
-    else:
-        df = pd.read_csv(tsv_file, delimiter=',')
+    # Name column is optionnal.
+    # Create the column if it does not exist.
     if 'name' in df.columns:
         df['name'] = df['name'].astype(str)
     else:
-        # Name column is optionnal.
-        # Create the column if it does not exist.
         df['name'] = ''
     if object_name in ('centroid', 'crossing'):
         if object_name == 'centroid':
@@ -444,6 +448,16 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     to be updated. To update values, we simply delete the previous entries in
     the database and insert the new ones.
     """
+    # Convert the imported file to a csv DictReader.
+    tsv_file = StringIO(encoded_file.read().decode())
+    if encoded_file.name.split(".")[-1] == 'tsv':
+        reader = csv.DictReader(tsv_file, delimiter='\t')
+    else:
+        reader = csv.DictReader(tsv_file, delimiter=',')
+    # Do not do anything if the file is empty.
+    num_lines = len(list(reader))
+    if num_lines == 0:
+        return
     # Create a set with all existing OD pairs in the OD matrix.
     matrix = demandsegment.matrix
     pairs = Matrix.objects.filter(matrices=matrix)
@@ -456,12 +470,6 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     for centroid in centroids:
         centroid_mapping[centroid.user_id] = centroid
         centroid_id_mapping[centroid.user_id] = centroid.id
-    # Convert the imported file to a csv DictReader.
-    tsv_file = StringIO(encoded_file.read().decode())
-    if encoded_file.name.split(".")[-1] == 'tsv':
-        reader = csv.DictReader(tsv_file, delimiter='\t')
-    else:
-        reader = csv.DictReader(tsv_file, delimiter=',')
     # For each imported OD pair, if the pair already exists in t
     # For each imported OD pair, if the pair already exists in the OD Matrix,
     # it is stored to be updated, else it is stored to be created.
@@ -544,6 +552,16 @@ def pricing_import_function(encoded_file, simulation):
     simulation: Simulation object.
         Simulation to modify.
     """
+    # Convert the imported file to a csv DictReader.
+    tsv_file = StringIO(encoded_file.read().decode())
+    if encoded_file.name.split(".")[-1] == 'tsv':
+        reader = csv.DictReader(tsv_file, delimiter='\t')
+    else:
+        reader = csv.DictReader(tsv_file, delimiter=',')
+    # Do not do anything if the file is empty.
+    num_lines = len(list(reader))
+    if num_lines == 0:
+        return
     # Get all pricing policies for this usertype.
     policies = get_query('policy', simulation)
     tolls = policies.filter(type='PRICING')
@@ -561,13 +579,6 @@ def pricing_import_function(encoded_file, simulation):
     else:
         empty_vector = Vector(data='')
         empty_vector.save()
-    # Convert the imported file to a csv DictReader.
-    tsv_file = StringIO(encoded_file.read().decode())
-    if encoded_file.name.split(".")[-1] == 'tsv':
-        reader = csv.DictReader(tsv_file, delimiter='\t')
-    else:
-        reader = csv.DictReader(tsv_file, delimiter=',')
-    # For each imported OD pair, if the pair already exists in t
     if 'traveler_type' in reader.fieldnames:
         has_type = True
     else:
@@ -650,6 +661,16 @@ def public_transit_import_function(encoded_file, simulation):
     simulation: Simulation object.
         Simulation to modify.
     """
+    # Convert the imported file to a csv DictReader.
+    tsv_file = StringIO(encoded_file.read().decode())
+    if encoded_file.name.split(".")[-1] == 'tsv':
+        reader = csv.DictReader(tsv_file, delimiter='\t')
+    else:
+        reader = csv.DictReader(tsv_file, delimiter=',')
+    # Do not do anything if the file is empty.
+    num_lines = len(list(reader))
+    if num_lines == 0:
+        return
     # Create a set with all existing OD pairs in the OD matrix.
     matrix = simulation.scenario.supply.pttimes
     pairs = get_query('public_transit', simulation)
@@ -662,12 +683,6 @@ def public_transit_import_function(encoded_file, simulation):
     for centroid in centroids:
         centroid_mapping[centroid.user_id] = centroid
         centroid_id_mapping[centroid.user_id] = centroid.id
-    # Convert the imported file to a csv DictReader.
-    tsv_file = StringIO(encoded_file.read().decode())
-    if encoded_file.name.split(".")[-1] == 'tsv':
-        reader = csv.DictReader(tsv_file, delimiter='\t')
-    else:
-        reader = csv.DictReader(tsv_file, delimiter=',')
     # For each imported OD pair, if the pair already exists in the OD Matrix,
     # it is stored to be updated, else it is stored to be created.
     to_be_updated = set()
@@ -740,18 +755,22 @@ def usertype_import_function(encoded_file, simulation):
     simulation: Simulation object.
         Simulation to modify.
     """
-    # Get an empty Vector or create one if there is none.
-    if Vector.objects.filter(data='').exists():
-        empty_vector = Vector.objects.filter(data='')[0]
-    else:
-        empty_vector = Vector(data='')
-        empty_vector.save()
     # Convert the imported file to a csv DictReader.
     tsv_file = StringIO(encoded_file.read().decode())
     if encoded_file.name.split(".")[-1] == 'tsv':
         reader = csv.DictReader(tsv_file, delimiter='\t')
     else:
         reader = csv.DictReader(tsv_file, delimiter=',')
+    # Do not do anything if the file is empty.
+    num_lines = len(list(reader))
+    if num_lines == 0:
+        return
+    # Get an empty Vector or create one if there is none.
+    if Vector.objects.filter(data='').exists():
+        empty_vector = Vector.objects.filter(data='')[0]
+    else:
+        empty_vector = Vector(data='')
+        empty_vector.save()
 
     for row in reader:
 
