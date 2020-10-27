@@ -11,9 +11,11 @@
 	<div class="alert alert-danger">
 		The import file could not be processed.
 		<br>
+		{% if object == 'zipfile' %}
+                Please, make sure that you are importing a zip file with valid tsv and csv files.
+                {% else %}
 		Please, make sure that the headers are correctly specified and that all rows are filled.
 		<br>
-		{% if object %}
 		The import file must have the following headers: 
 		{% if object == 'pricing' %}
 		link, toll.
@@ -27,8 +29,7 @@
 		id, name, expression.
 		{% elif object == 'link' %}
 		id, name, origin, destination, function, lanes, length, speed, capacity.
-		{% endif %}
-		{% if usertype %}
+                {% elif object == 'usertype' %}
 		name, comment, alphaTI_mean, alphaTI_std alphaTI_type, alphaTP_mean,
 		alphaTP_std, alphaTP_type, beta_mean, beta_std, beta_type, delta_mean,
 		delta_std, delta_type, departureMu_mean, departureMu_std,

@@ -81,8 +81,6 @@ class BaseSimulationForm(forms.ModelForm):
     """
 
     # environment = forms.ModelChoiceField(queryset=Environment.objects.none())
-    #zipfile = forms.FileField()
-    #zipfile = forms.FileField()
 
     def __init__(self, user, *args, **kwargs):
         super(BaseSimulationForm, self).__init__(*args, **kwargs)
@@ -98,8 +96,6 @@ class BaseSimulationForm(forms.ModelForm):
         # Add tooltips.
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
-
-        # if self.fields.widget.att
 
     class Meta:
         model = Simulation
@@ -131,8 +127,6 @@ class SimulationImportForm(forms.ModelForm):
         # Add tooltips.
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
-
-        # if self.fields.widget.att
 
     class Meta:
         model = Simulation
@@ -259,8 +253,8 @@ class UserTypeForm(forms.ModelForm):
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
         self.fields['scale'].widget.attrs['title'] = (
-                'All values in the O-D matrix of the traveler type are multiplied '
-                + 'by the scale value'
+            'All values in the O-D matrix of the traveler type are multiplied '
+            + 'by the scale value'
         )
         # Add initial scale value.
         self.fields['scale'].initial = \
@@ -385,7 +379,8 @@ class PolicyForm(forms.ModelForm):
 
     class Meta:
         model = Policy
-        fields = ['usertype', 'location', 'baseValue', 'timeVector', 'valueVector']
+        fields = ['usertype', 'location', 'baseValue', 'timeVector',
+                  'valueVector']
 
 
 class CentroidForm(forms.ModelForm):
