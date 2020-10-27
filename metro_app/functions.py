@@ -542,7 +542,7 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     simulation.save()
 
 
-def pricing_import_function(encoded_file, simulation):
+def pricing_import_function(encoded_file, simulation, id_map=None):
     """Function to import a file as tolls in the database.
 
     Parameters
@@ -551,6 +551,9 @@ def pricing_import_function(encoded_file, simulation):
         Input file, as given by request.FILES.
     simulation: Simulation object.
         Simulation to modify.
+    id_map: Dictionary, optional.
+        Dictionary mapping usertypes' user_id from the file to usertypes'
+        user_id in the simulation.
     """
     # Convert the imported file to a csv DictReader.
     tsv_file = StringIO(encoded_file.read().decode())
@@ -621,9 +624,17 @@ def pricing_import_function(encoded_file, simulation):
         # Update affected traveler type.
         toll.usertype = None
         if has_type:
+            if id_map is None:
+                user_id = int(row['traveler_type'])
+            else:
+                try:
+                    user_id = id_map[row['traveler_type']]
+                except KeyError:
+                    user_id = None
             try:
                 toll.usertype = usertypes.get(user_id=row['traveler_type'])
             except (UserType.DoesNotExist, ValueError):
+                # Usertype has not been found, set the toll as a global policy.
                 pass
         # Update values.
         values = row['values'].split(',')

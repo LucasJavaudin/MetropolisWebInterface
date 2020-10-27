@@ -1418,8 +1418,8 @@ def matrix_export_save(simulation, demandsegment, dir):
     """View to send a file with the OD Matrix to the user."""
     matrix = demandsegment.matrix
     matrix_couples = Matrix.objects.filter(matrices=matrix)
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
+    if not matrix_couples.exists():
+        return
     filename = '{0}/matrix_{1}.tsv'.format(dir, demandsegment.usertype.user_id)
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
@@ -1593,6 +1593,8 @@ def pricing_export_save(simulation, dir):
     # Get all tolls.
     policies = get_query('policy', simulation)
     tolls = policies.filter(type='PRICING')
+    if not tolls.exists():
+        return
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
     filename = dir + '/pricings.tsv'
@@ -1857,6 +1859,8 @@ def public_transit_export(request, simulation):
 def public_transit_export_save(simulation, dir):
     """View to send a file with the public transit OD Matrix to the user."""
     matrix_couples = get_query('public_transit', simulation)
+    if not matrix_couples.exists():
+        return
     # To avoid conflict if two users export a file at the same time, we
     # generate a random name for the export file.
     filename = dir + '/public_transit.tsv'
@@ -2057,6 +2061,8 @@ def object_export(request, simulation, object_name):
 def object_export_save(simulation, object_name, dir):
     """View to export all instances of a network object."""
     query = get_query(object_name, simulation)
+    if not query.exists():
+        return
     name = metro_to_user(object_name).replace(' ', '_')
     filename = '{}/{}s.tsv'.format(dir, name)
 
@@ -2721,6 +2727,8 @@ def simulation_export(request, simulation):
     file = zipfile.ZipFile(s, 'w')
 
     for f in files_names:
+        if f is None:
+            continue
         # Calculate path for file in zip
         fdir, fname = os.path.split(f)
         zip_path = os.path.join(zipname, fname)
@@ -2762,6 +2770,8 @@ def traveler_simulation_export(request, simulation):
     file = zipfile.ZipFile(s, 'w')
 
     for f in files_names:
+        if f is None:
+            continue
         # Calculate path for file in zip
         fdir, fname = os.path.split(f)
         zip_path = os.path.join(zipname, fname)
@@ -3205,43 +3215,54 @@ def simulation_import_action(request):
         file = zipfile.ZipFile(encoded_file)
         name = file.namelist()
         for n in name:
-            if n.endswith("zones.tsv") or n.endswith("zones.csv"):
+            if re.search('zones.[tc]sv$', n):
                 object_import_function(file.open(n), simulation, 'centroid')
                 break
 
         for c in name:
-            if c.endswith("intersections.tsv") or c.endswith("intersections.csv"):
+            if re.search('intersections.[tc]sv$', n):
                 object_import_function(file.open(c), simulation, 'crossing')
                 break
 
         for l in name:
-            if l.endswith("links.tsv") or l.endswith("links.csv"):
+            if re.search('links.[tc]sv$', n):
                 object_import_function(file.open(l), simulation, 'link')
                 break
 
         for f in name:
-            if f.endswith("congestion functions.tsv") or f.endswith("congestion functions.csv"):
+            if re.search('congestion_functions.[tc]sv$', n):
                 object_import_function(file.open(f), simulation, 'function')
                 break
 
         for public in name:
-            if public.endswith("public_transit.tsv") or public.endswith("public_transit.csv"):
+            if re.search('public_transit.[tc]sv$', n):
                 public_transit_import_function(file.open(public), simulation)
                 break
 
+        old_to_new_id = dict()
+        for user in name:
+            d = re.search('usertype_([0-9]+).[tc]sv$', user)
+            if d:
+                old_id = d.group(1)
+                # Import the new usertype.
+                usertype_import_function(file.open(user), simulation)
+                # The last demandsegment of the simulation corresponds to the
+                # new usertype.
+                demandsegment = get_query('demandsegment', simulation).last()
+                old_to_new_id[old_id] = demandsegment.usertype.user_id
+                for m in name:
+                    if re.search('matrix_{}.[tc]sv$'.format(old_id), m):
+                        # Import the matrix file in the new demandsegment.
+                        matrix_import_function(file.open(m), simulation,
+                                               demandsegment)
+                        break
+
         for price in name:
-            if price.endswith("pricings.tsv") or price.endswith("pricings.csv"):
-                pricing_import_function(file.open(price), simulation)
+            if re.search('pricings.[tc]sv$', n):
+                pricing_import_function(file.open(price), simulation,
+                                        id_map=old_to_new_id)
                 break
 
-        for user in name:
-            d = re.search('usertype_([0-9])+.tsv$', user)
-            if (d):
-                usertype_import_function(file.open(user), simulation)
-                for m in name:
-                    if m.endswith('matrix_{}.tsv'.format(d.group(1))):
-                        demandsegment = get_query('demandsegment', simulation).last()
-                        matrix_import_function(file.open(m), simulation, demandsegment)
         return HttpResponseRedirect(
             reverse('metro:simulation_view', args=(simulation.id,))
         )
@@ -3262,13 +3283,20 @@ def traveler_import_action(request, simulation):
             file = zipfile.ZipFile(encoded_file)
             name = file.namelist()
             for user in name:
-                d = re.search('usertype_([0-9])+.tsv$', user)
-                if (d):
+                d = re.search('usertype_([0-9]+).[tc]sv$', user)
+                if d:
+                    old_id = d.group(1)
+                    # Import the new usertype.
                     usertype_import_function(file.open(user), simulation)
+                    # The last demandsegment of the simulation corresponds to the
+                    # new usertype.
+                    demandsegment = get_query('demandsegment', simulation).last()
                     for m in name:
-                        if m.endswith('matrix_{}.tsv'.format(d.group(1))):
-                            demandsegment = get_query('demandsegment', simulation).last()
-                            matrix_import_function(file.open(m), simulation, demandsegment)
+                        if re.search('matrix_{}.[tc]sv$'.format(old_id), m):
+                            # Import the matrix file in the new demandsegment.
+                            matrix_import_function(file.open(m), simulation,
+                                                   demandsegment)
+                            break
     except Exception as e:
         # Catch any exception while importing the file and return an error page
         # if there is any.
