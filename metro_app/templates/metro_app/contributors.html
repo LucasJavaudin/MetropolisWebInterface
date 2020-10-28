@@ -8,21 +8,36 @@ Metropolis
 {% block main %}
 
 <div class="container">
-	<div class="alert alert-primary">
-		Scientific team
-		<ul>
-			<li>de Palma, André</li>
-			<li>Lindsey, Robin</li>
-			<li>Nesterov, Yurii</li>
-		</ul>
-		Development team
-		<ul>
-			<li>Hornung, Lucas</li>
-			<li>Javaudin, Lucas</li>
-			<li>Marchal, Fabrice</li>
-			<li>Srikandan, Sri</li>
-		</ul>
-	</div>
+    <div class="row">
+        <div class="col">
+            <h1>Scientific team</h1>
+            <h2>Main</h2>
+            <ul class="list-group list-group-primary">
+                <li class="list-group-item list-group-item-primary">André de Palma (CY Cergy Paris University)</li>
+                <li class="list-group-item list-group-item-primary">Fabrice Marchal (Université de Cergy-Pontoise)</li>
+                <li class="list-group-item list-group-item-primary">Yurii Nesterov (UC Louvain)</li>
+            </ul>
+            <h2>Additional</h2>
+            <ul class="list-group list-group-primary">
+                <li class="list-group-item list-group-item-secondary">Robin Lindsey (University of British Columbia)</li>
+                <li class="list-group-item list-group-item-secondary">Lucas Javaudin (CY Cergy Paris University)</li>
+            </ul>
+        </div>
+        <div class="col">
+            <h1>Development team</h1>
+            <h2>Main</h2>
+            <ul class="list-group">
+                <li class="list-group-item list-group-item-primary">Fabrice Marchal (metrosim developer)</li>
+                <li class="list-group-item list-group-item-primary">Lucas Javaudin (web developer)</li>
+            </ul>
+            <h2>Additional</h2>
+            <ul class="list-group">
+                <li class="list-group-item list-group-item-secondary">Lucas Hornung (web developer)</li>
+                <li class="list-group-item list-group-item-secondary">Shubham Dhingra (web developer)</li>
+                <li class="list-group-item list-group-item-secondary">Sri Srikandan (system administrator)</li>
+            </ul>
+        </div>
+    </div>
 </div>
 
 {% endblock %}
