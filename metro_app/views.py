@@ -16,7 +16,6 @@ import json
 import codecs
 from math import sqrt
 import numpy as np
-import re
 
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect, FileResponse
@@ -404,77 +403,13 @@ def simulation_add_action(request):
     form = BaseSimulationForm(request.user, request.POST)
     if form.is_valid():
         # Create a new simulation with the attributes sent.
-        simulation = Simulation()
-        simulation.user = request.user
-        simulation.name = form.cleaned_data['name']
-        simulation.comment = form.cleaned_data['comment']
-        simulation.public = form.cleaned_data['public']
-        simulation.environment = form.cleaned_data['environment']
-        simulation.contact = form.cleaned_data['contact']
-        # Create models associated with the new simulation.
-        network = Network()
-        network.name = simulation.name
-        network.save()
-        function_set = FunctionSet()
-        function_set.name = simulation.name
-        function_set.save()
-        # Add defaults functions.
-        function = Function(name='Free flow', user_id=1,
-                            expression='3600*(length/speed)')
-        function.save()
-        function.vdf_id = function.id
-        function.save()
-        function.functionset.add(function_set)
-        function = Function(name='Bottleneck function', user_id=2,
-                            expression=('3600*((dynVol<=(lanes*capacity*length'
-                                        + '/speed))*(length/speed)+(dynVol>'
-                                        + '(lanes*capacity*length/speed))*'
-                                        + '(dynVol/(capacity*lanes)))'))
-        function.save()
-        function.vdf_id = function.id
-        function.save()
-        function.functionset.add(function_set)
-        # Log density is not working somehow.
-        # function = Function(name='Log density', user_id=3,
-        # expression=('3600*(length/speed)'
-        # '*((dynVol<=8.0*lanes*length)'
-        # '+(dynVol>8.0*lanes*length)'
-        # '*((dynVol<0.9*130.0*lanes*length)'
-        # '*ln(130.0/8.0)'
-        # '/ln(130.0*lanes*length/(dynVol+0.01))'
-        # '+(dynVol>=0.9*130.0*lanes*length)'
-        # '*ln(130.0/8.0)/ln(1/0.9)))'))
-        # function.save()
-        # function.vdf_id = function.id
-        # function.save()
-        # function.functionset.add(function_set)
-        pttimes = Matrices()
-        pttimes.save()
-        supply = Supply()
-        supply.name = simulation.name
-        supply.network = network
-        supply.functionset = function_set
-        supply.pttimes = pttimes
-        supply.save()
-        demand = Demand()
-        demand.name = simulation.name
-        demand.save()
-        scenario = Scenario()
-        scenario.name = simulation.name
-        scenario.supply = supply
-        scenario.demand = demand
-        scenario.save()
-        # Save the simulation and return its view.
-        simulation.scenario = scenario
-        simulation.save()
+        simulation = create_simulation(request.user, form)
         return HttpResponseRedirect(
             reverse('metro:simulation_view', args=(simulation.id,))
         )
     else:
         # I do not see how errors could happen.
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
-
-
 
 
 @require_POST
@@ -901,7 +836,6 @@ def copy_simulation(request):
             reverse('metro:simulation_view', args=(simulation.id,))
         )
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
-
 
 
 @owner_required
@@ -3157,60 +3091,12 @@ def simulation_import_action(request):
     The request should contain data for the new simulation (name, comment and
     public) and a zipfile with the simulation data.
     """
-    # Create a form with the data send and check if it is valid.
-
+    # Create a form with the data sent and check if it is valid.
     form = SimulationImportForm(request.user, request.POST, request.FILES)
     if form.is_valid():
         # Create a new simulation with the attributes sent.
-        simulation = Simulation()
-        simulation.user = request.user
-        simulation.name = form.cleaned_data['name']
-        simulation.comment = form.cleaned_data['comment']
-        simulation.public = form.cleaned_data['public']
-        simulation.environment = form.cleaned_data['environment']
-        simulation.contact = form.cleaned_data['contact']
-        # Create models associated with the new simulation.
-        network = Network()
-        network.name = simulation.name
-        network.save()
-        function_set = FunctionSet()
-        function_set.name = simulation.name
-        function_set.save()
-        # Add defaults functions.
-        function = Function(name='Free flow', user_id=1,
-                            expression='3600*(length/speed)')
-        function.save()
-        function.vdf_id = function.id
-        function.save()
-        function.functionset.add(function_set)
-        function = Function(name='Bottleneck function', user_id=2,
-                            expression=('3600*((dynVol<=(lanes*capacity*length'
-                                        + '/speed))*(length/speed)+(dynVol>'
-                                        + '(lanes*capacity*length/speed))*'
-                                        + '(dynVol/(capacity*lanes)))'))
-        function.save()
-        function.vdf_id = function.id
-        function.save()
-        function.functionset.add(function_set)
-        pttimes = Matrices()
-        pttimes.save()
-        supply = Supply()
-        supply.name = simulation.name
-        supply.network = network
-        supply.functionset = function_set
-        supply.pttimes = pttimes
-        supply.save()
-        demand = Demand()
-        demand.name = simulation.name
-        demand.save()
-        scenario = Scenario()
-        scenario.name = simulation.name
-        scenario.supply = supply
-        scenario.demand = demand
-        scenario.save()
-        # Save the simulation and return its view.
-        simulation.scenario = scenario
-        simulation.save()
+        simulation = create_simulation(request.user, form)
+        # Import the zipfile data in the simulation.
         encoded_file = form.cleaned_data['zipfile']
         file = zipfile.ZipFile(encoded_file)
         name = file.namelist()

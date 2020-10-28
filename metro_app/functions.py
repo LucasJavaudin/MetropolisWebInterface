@@ -897,3 +897,66 @@ def usertype_import_function(encoded_file, simulation):
         demandsegment.matrix = matrix
         demandsegment.save()
         demandsegment.demand.add(simulation.scenario.demand)
+
+
+def create_simulation(user, form):
+    """Function to create a new simulation (with all its associated objects)
+    from a form.
+
+    Parameters
+    ----------
+    user: User object.
+        Owner of the simulation.
+    form: BaseSimulationForm or SimulationImportForm.
+        Form containing basic data for the simulation (name, comment, etc.).
+    """
+    simulation = Simulation()
+    simulation.user = user
+    simulation.name = form.cleaned_data['name']
+    simulation.comment = form.cleaned_data['comment']
+    simulation.public = form.cleaned_data['public']
+    simulation.environment = form.cleaned_data['environment']
+    simulation.contact = form.cleaned_data['contact']
+    # Create models associated with the new simulation.
+    network = Network()
+    network.name = simulation.name
+    network.save()
+    function_set = FunctionSet()
+    function_set.name = simulation.name
+    function_set.save()
+    # Add defaults functions.
+    function = Function(name='Free flow', user_id=1,
+                        expression='3600*(length/speed)')
+    function.save()
+    function.vdf_id = function.id
+    function.save()
+    function.functionset.add(function_set)
+    function = Function(name='Bottleneck function', user_id=2,
+                        expression=('3600*((dynVol<=(lanes*capacity*length'
+                                    + '/speed))*(length/speed)+(dynVol>'
+                                    + '(lanes*capacity*length/speed))*'
+                                    + '(dynVol/(capacity*lanes)))'))
+    function.save()
+    function.vdf_id = function.id
+    function.save()
+    function.functionset.add(function_set)
+    pttimes = Matrices()
+    pttimes.save()
+    supply = Supply()
+    supply.name = simulation.name
+    supply.network = network
+    supply.functionset = function_set
+    supply.pttimes = pttimes
+    supply.save()
+    demand = Demand()
+    demand.name = simulation.name
+    demand.save()
+    scenario = Scenario()
+    scenario.name = simulation.name
+    scenario.supply = supply
+    scenario.demand = demand
+    scenario.save()
+    simulation.scenario = scenario
+    # Save the simulation and return it.
+    simulation.save()
+    return simulation
