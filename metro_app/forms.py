@@ -112,7 +112,7 @@ class SimulationImportForm(forms.ModelForm):
 
     # environment = forms.ModelChoiceField(queryset=Environment.objects.none())
 
-    zipfile = forms.FileField()
+    zipfile = forms.FileField(label='ZIP file')
     def __init__(self, user, *args, **kwargs):
         super(SimulationImportForm, self).__init__(*args, **kwargs)
         if user.is_authenticated:
