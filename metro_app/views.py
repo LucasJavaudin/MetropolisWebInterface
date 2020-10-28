@@ -2638,12 +2638,11 @@ def simulation_export(request, simulation):
     files_names.append(object_export_save(simulation, 'function', dir))
     files_names.append(public_transit_export_save(simulation, dir))
     files_names.append(pricing_export_save(simulation, dir))
-
+    files_names.append(usertype_export_save(simulation, dir=dir))
 
     demandsegments = get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
         files_names.append(matrix_export_save(simulation, demandsegment, dir))
-        files_names.append(travel_usertype_save(simulation, demandsegment, dir))
 
     zipname = str(simulation).replace(' ', '_')
 
@@ -2683,10 +2682,11 @@ def traveler_simulation_export(request, simulation):
 
     files_names = []
 
+    files_names.append(usertype_export_save(simulation, dir=dir))
+
     demandsegments = get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
         files_names.append(matrix_export_save(simulation, demandsegment, dir))
-        files_names.append(travel_usertype_save(simulation, demandsegment, dir))
 
     zipname = str(simulation).replace(' ', '_')
 
@@ -2751,35 +2751,39 @@ def usertype_export(request, simulation, demandsegment):
     with codecs.open(filename, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
         # Get a dictionary with all the values to export.
-        values = UserType.objects.filter(id=usertype.id).values_list('name', 'comment', 'alphaTI__mean', 'alphaTI__std',
-                                                                     'alphaTI__type', 'alphaTP__mean', 'alphaTP__std',
-                                                                     'alphaTP__type', 'beta__mean', 'beta__std',
-                                                                     'beta__type', 'delta__mean', 'delta__std',
-                                                                     'delta__type', 'departureMu__mean',
-                                                                     'departureMu__std', 'departureMu__type',
-                                                                     'gamma__mean', 'gamma__std', 'gamma__type',
-                                                                     'modeMu__mean', 'modeMu__std', 'modeMu__type',
-                                                                     'penaltyTP__mean', 'penaltyTP__std',
-                                                                     'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
-                                                                     'routeMu__type', 'tstar__mean', 'tstar__std',
-                                                                     'tstar__type', 'typeOfRouteChoice',
-                                                                     'typeOfDepartureMu', 'typeOfRouteMu',
-                                                                     'typeOfModeMu', 'localATIS', 'modeChoice',
-                                                                     'modeShortRun', 'commuteType')
-        writer.writerow(
-            ['name', 'comment', 'alphaTI_mean', 'alphaTI_std', 'alphaTI_type', 'alphaTP_mean', 'alphaTP_std',
-             'alphaTP_type', 'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std', 'delta_type',
-             'departureMu_mean', 'departureMu_std', 'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
-             'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean', 'penaltyTP_std', 'penaltyTP_type',
-             'routeMu_mean', 'routeMu_std', 'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
-             'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice',
-             'modeShortRun', 'commuteType'])
+        values = UserType.objects.filter(pk=usertype.id).values_list(
+            'user_id', 'name', 'comment', 'alphaTI__mean', 'alphaTI__std',
+            'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type',
+            'beta__mean', 'beta__std', 'beta__type', 'delta__mean',
+            'delta__std', 'delta__type', 'departureMu__mean',
+            'departureMu__std', 'departureMu__type', 'gamma__mean',
+            'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std',
+            'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std',
+            'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
+            'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type',
+            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
+            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
+            'commuteType'
+        )
+        writer.writerow([
+            'id', 'name', 'comment', 'alphaTI_mean', 'alphaTI_std',
+            'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type',
+            'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std',
+            'delta_type', 'departureMu_mean', 'departureMu_std',
+            'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
+            'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean',
+            'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std',
+            'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
+            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
+            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
+            'commuteType'
+        ])
         writer.writerows(values)
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.'beta_mean',
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
-        name = 'usertype_{}.tsv'.format(usertype.user_id)
+        name = '{}.tsv'.format(usertype).replace(' ', '_')
         response['Content-Disposition'] = 'attachement; filename={}'.format(name)
     # We delete the export file to save disk space.
     os.remove(filename)
@@ -3034,43 +3038,50 @@ def gen_formset(object_name, simulation, request=None):
     return formset
 
 
-def travel_usertype_save(simulation, demandsegment, dir):
-    """Function to save the usertype parameters as a tsv."""
-    usertype = demandsegment.usertype
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    filename = '{0}/usertype_{1}.tsv'.format(dir, demandsegment.usertype.user_id)
+def usertype_export_save(simulation, demandsegment=None, dir=''):
+    """Function to save the parameters of the usertypes as a tsv."""
+    filename = '{0}/traveler_types.tsv'.format(dir)
 
     with codecs.open(filename, 'w', encoding='utf8') as f:
         writer = csv.writer(f, delimiter='\t')
 
         # Get a dictionary with all the values to export.
+        if demandsegment is None:
+            # Export all usertypes of the simulation.
+            usertypes = get_query('usertype', simulation)
+        else:
+            # Export only the usertype for the given demandsegment.
+            usertype = demandsegment.usertype
+            usertypes = UserType.objects.filter(pk=usertype.id)
+        values = usertypes.values_list(
+            'user_id', 'name', 'comment', 'alphaTI__mean', 'alphaTI__std',
+            'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type',
+            'beta__mean', 'beta__std', 'beta__type', 'delta__mean',
+            'delta__std', 'delta__type', 'departureMu__mean',
+            'departureMu__std', 'departureMu__type', 'gamma__mean',
+            'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std',
+            'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std',
+            'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
+            'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type',
+            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
+            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
+            'commuteType'
+        )
 
-        values = UserType.objects.filter(id=usertype.id).values_list('name', 'comment', 'alphaTI__mean', 'alphaTI__std',
-                                       'alphaTI__type', 'alphaTP__mean', 'alphaTP__std',
-                                       'alphaTP__type', 'beta__mean', 'beta__std',
-                                       'beta__type', 'delta__mean', 'delta__std',
-                                       'delta__type', 'departureMu__mean',
-                                       'departureMu__std', 'departureMu__type',
-                                       'gamma__mean', 'gamma__std', 'gamma__type',
-                                       'modeMu__mean', 'modeMu__std', 'modeMu__type',
-                                       'penaltyTP__mean', 'penaltyTP__std',
-                                       'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
-                                       'routeMu__type', 'tstar__mean', 'tstar__std',
-                                       'tstar__type', 'typeOfRouteChoice',
-                                       'typeOfDepartureMu', 'typeOfRouteMu',
-                                       'typeOfModeMu', 'localATIS', 'modeChoice',
-                                       'modeShortRun', 'commuteType')
-
-    # Write a custom header.
-        writer.writerow(
-        ['name', 'comment', 'alphaTI_mean', 'alphaTI_std', 'alphaTI_type', 'alphaTP_mean', 'alphaTP_std',
-         'alphaTP_type', 'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std', 'delta_type',
-         'departureMu_mean', 'departureMu_std', 'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
-         'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean', 'penaltyTP_std', 'penaltyTP_type',
-         'routeMu_mean', 'routeMu_std', 'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
-         'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu', 'typeOfModeMu', 'localATIS', 'modeChoice',
-         'modeShortRun', 'commuteType'])
+        # Write a custom header.
+        writer.writerow([
+            'id', 'name', 'comment', 'alphaTI_mean', 'alphaTI_std',
+            'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type',
+            'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std',
+            'delta_type', 'departureMu_mean', 'departureMu_std',
+            'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
+            'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean',
+            'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std',
+            'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
+            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
+            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
+            'commuteType'
+        ])
 
         writer.writerows(values)
     return filename
@@ -3121,28 +3132,30 @@ def simulation_import_action(request):
                     file.open(filename), simulation)
                 break
 
-        old_to_new_id = dict()
         for filename in namelist:
-            d = re.search('/usertype_([0-9]+).[tc]sv$', filename)
-            if d:
-                old_id = d.group(1)
-                # Import the new usertype.
+            if re.search('/traveler_types.[tc]sv$', filename):
                 usertype_import_function(file.open(filename), simulation)
-                # The last demandsegment of the simulation corresponds to the
-                # new usertype.
-                demandsegment = get_query('demandsegment', simulation).last()
-                old_to_new_id[old_id] = demandsegment.usertype.user_id
-                for filename in namelist:
-                    if re.search('/matrix_{}.[tc]sv$'.format(old_id), filename):
-                        # Import the matrix file in the new demandsegment.
-                        matrix_import_function(
-                            file.open(filename), simulation, demandsegment)
-                        break
+                break
+
+        demandsegments = get_query('demandsegment', simulation)
+        for filename in namelist:
+            d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+            if d:
+                # Get the demandsegment associated with this OD matrix.
+                user_id = d.group(1)
+                try:
+                    demandsegment = demandsegments.get(
+                        usertype__user_id=user_id)
+                except DemandSegment.objects.DoesNotExist:
+                    # Matrix file with an invalid id, ignore it.
+                    continue
+                # Import the matrix file in the new demandsegment.
+                matrix_import_function(
+                    file.open(filename), simulation, demandsegment)
 
         for filename in namelist:
             if re.search('/pricings.[tc]sv$', filename):
-                pricing_import_function(file.open(filename), simulation,
-                                        id_map=old_to_new_id)
+                pricing_import_function(file.open(filename), simulation)
                 break
 
         return HttpResponseRedirect(
@@ -3152,6 +3165,7 @@ def simulation_import_action(request):
         return HttpResponseRedirect(
             reverse('metro:simulation_manager')
         )
+
 
 @require_POST
 @owner_required
@@ -3163,22 +3177,29 @@ def traveler_import_action(request, simulation):
         if form.is_valid():
             encoded_file = form.cleaned_data['import_file']
             file = zipfile.ZipFile(encoded_file)
-            name = file.namelist()
-            for user in name:
-                d = re.search('usertype_([0-9]+).[tc]sv$', user)
+            namelist = file.namelist()
+
+            for filename in namelist:
+                if re.search('/traveler_types.[tc]sv$', filename):
+                    usertype_import_function(file.open(filename), simulation)
+                    break
+
+            demandsegments = get_query('demandsegment', simulation)
+            for filename in namelist:
+                d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
                 if d:
-                    old_id = d.group(1)
-                    # Import the new usertype.
-                    usertype_import_function(file.open(user), simulation)
-                    # The last demandsegment of the simulation corresponds to the
-                    # new usertype.
-                    demandsegment = get_query('demandsegment', simulation).last()
-                    for m in name:
-                        if re.search('matrix_{}.[tc]sv$'.format(old_id), m):
-                            # Import the matrix file in the new demandsegment.
-                            matrix_import_function(file.open(m), simulation,
-                                                   demandsegment)
-                            break
+                    # Get the demandsegment associated with this OD matrix.
+                    user_id = d.group(1)
+                    try:
+                        demandsegment = demandsegments.get(
+                            usertype__user_id=user_id)
+                    except DemandSegment.DoesNotExist:
+                        # Matrix file with an invalid id, ignore it.
+                        continue
+                    # Import the matrix file in the new demandsegment.
+                    matrix_import_function(
+                        file.open(filename), simulation, demandsegment)
+
     except Exception as e:
         # Catch any exception while importing the file and return an error page
         # if there is any.

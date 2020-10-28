@@ -42,7 +42,7 @@ def get_query(object_name, simulation):
     elif object_name == 'usertype':
         query = UserType.objects.filter(
             demandsegment__demand__scenario__simulation=simulation
-        )
+        ).order_by('user_id')
     elif object_name == 'demandsegment':
         query = DemandSegment.objects.filter(
             demand__scenario__simulation=simulation
@@ -550,7 +550,7 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     simulation.save()
 
 
-def pricing_import_function(encoded_file, simulation, id_map=None):
+def pricing_import_function(encoded_file, simulation):
     """Function to import a file as tolls in the database.
 
     Parameters
@@ -559,9 +559,6 @@ def pricing_import_function(encoded_file, simulation, id_map=None):
         Input file, as given by request.FILES.
     simulation: Simulation object.
         Simulation to modify.
-    id_map: Dictionary, optional.
-        Dictionary mapping usertypes' user_id from the file to usertypes'
-        user_id in the simulation.
     """
     tsv_file = StringIO(encoded_file.read().decode())
     # Do not do anything if the file is empty.
@@ -633,13 +630,6 @@ def pricing_import_function(encoded_file, simulation, id_map=None):
         # Update affected traveler type.
         toll.usertype = None
         if has_type:
-            if id_map is None:
-                user_id = int(row['traveler_type'])
-            else:
-                try:
-                    user_id = id_map[row['traveler_type']]
-                except KeyError:
-                    user_id = None
             try:
                 toll.usertype = usertypes.get(user_id=row['traveler_type'])
             except (UserType.DoesNotExist, ValueError):
@@ -796,6 +786,7 @@ def usertype_import_function(encoded_file, simulation):
 
     for row in reader:
 
+        user_id = row['id']
         name = row['name']
         comment = row['comment']
 
@@ -869,12 +860,23 @@ def usertype_import_function(encoded_file, simulation):
         commuteType = row['commuteType']
 
         usertypes = get_query('usertype', simulation)
-        if usertypes.exists():
-            user_id = usertypes.last().user_id + 1
-        else:
-            user_id = 1
+        # If there is already an usertype with the same user_id, we delete it
+        # and replace it with the new usertype.
+        try:
+            existing_usertype = usertypes.get(user_id=user_id)
+            demandsegment = existing_usertype.demandsegment_set.first()
+        except UserType.DoesNotExist:
+            demandsegment = None
+
+        if not user_id:
+            # Set the user_id of the new usertype to the next available id.
+            if usertypes.exists():
+                user_id = usertypes.last().user_id + 1
+            else:
+                user_id = 1
 
         usertype = UserType()
+        usertype.user_id = user_id
         usertype.name = name
         usertype.comment = comment
         usertype.alphaTI = alphaTI
@@ -887,7 +889,6 @@ def usertype_import_function(encoded_file, simulation):
         usertype.penaltyTP = penaltyTP
         usertype.routeMu = routeMu
         usertype.tstar = tstar
-        usertype.user_id = user_id
         usertype.typeOfRouteChoice = typeOfRouteChoice
         usertype.typeOfDepartureMu = typeOfDepartureMu
         usertype.typeOfRouteMu = typeOfRouteMu
@@ -898,13 +899,19 @@ def usertype_import_function(encoded_file, simulation):
         usertype.commuteType = commuteType
         usertype.save()
 
-        matrix = Matrices()
-        matrix.save()
-        demandsegment = DemandSegment()
-        demandsegment.usertype = usertype
-        demandsegment.matrix = matrix
-        demandsegment.save()
-        demandsegment.demand.add(simulation.scenario.demand)
+        if demandsegment is None:
+            # Create a new demand segment and OD matrix for the usertype.
+            matrix = Matrices()
+            matrix.save()
+            demandsegment = DemandSegment()
+            demandsegment.usertype = usertype
+            demandsegment.matrix = matrix
+            demandsegment.save()
+            demandsegment.demand.add(simulation.scenario.demand)
+        else:
+            demandsegment.usertype = usertype
+            demandsegment.save()
+            existing_usertype.delete()
 
 
 def create_simulation(user, form):
