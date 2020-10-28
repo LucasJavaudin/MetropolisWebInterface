@@ -5,9 +5,11 @@ Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 
+import os
 import subprocess
 import csv
 from io import StringIO
+import codecs
 import numpy as np
 import pandas as pd
 
@@ -209,6 +211,90 @@ def run_simulation(run):
                              argfile=arg_file,
                              second_script=build_results_file)
     subprocess.Popen(command, shell=True)
+
+
+def get_export_directory():
+    """Function to create a new directory used to export files."""
+    # To avoid conflict if two users export a file at the same time, we put
+    # the export file in a directory with a random name.
+    while True:
+        seed = np.random.randint(100)
+        dir_name = \
+            '{0}/website_files/exports/{1}'.format(settings.BASE_DIR, seed)
+        try:
+            os.makedirs(dir_name)
+        except FileExistsError:
+            pass
+        else:
+            return dir_name
+
+
+def create_simulation(user, form):
+    """Function to create a new simulation (with all its associated objects)
+    from a form.
+
+    Parameters
+    ----------
+    user: User object.
+        Owner of the simulation.
+    form: BaseSimulationForm or SimulationImportForm.
+        Form containing basic data for the simulation (name, comment, etc.).
+    """
+    simulation = Simulation()
+    simulation.user = user
+    simulation.name = form.cleaned_data['name']
+    simulation.comment = form.cleaned_data['comment']
+    simulation.public = form.cleaned_data['public']
+    simulation.environment = form.cleaned_data['environment']
+    simulation.contact = form.cleaned_data['contact']
+    # Create models associated with the new simulation.
+    network = Network()
+    network.name = simulation.name
+    network.save()
+    function_set = FunctionSet()
+    function_set.name = simulation.name
+    function_set.save()
+    # Add defaults functions.
+    function = Function(name='Free flow', user_id=1,
+                        expression='3600*(length/speed)')
+    function.save()
+    function.vdf_id = function.id
+    function.save()
+    function.functionset.add(function_set)
+    function = Function(name='Bottleneck function', user_id=2,
+                        expression=('3600*((dynVol<=(lanes*capacity*length'
+                                    + '/speed))*(length/speed)+(dynVol>'
+                                    + '(lanes*capacity*length/speed))*'
+                                    + '(dynVol/(capacity*lanes)))'))
+    function.save()
+    function.vdf_id = function.id
+    function.save()
+    function.functionset.add(function_set)
+    pttimes = Matrices()
+    pttimes.save()
+    supply = Supply()
+    supply.name = simulation.name
+    supply.network = network
+    supply.functionset = function_set
+    supply.pttimes = pttimes
+    supply.save()
+    demand = Demand()
+    demand.name = simulation.name
+    demand.save()
+    scenario = Scenario()
+    scenario.name = simulation.name
+    scenario.supply = supply
+    scenario.demand = demand
+    scenario.save()
+    simulation.scenario = scenario
+    # Save the simulation and return it.
+    simulation.save()
+    return simulation
+
+
+######################
+#  Import functions  #
+######################
 
 
 def object_import_function(encoded_file, simulation, object_name):
@@ -911,67 +997,173 @@ def usertype_import_function(encoded_file, simulation):
         else:
             demandsegment.usertype = usertype
             demandsegment.save()
+            # We also need to update the usertype of policies.
+            policies = Policy.objects.filter(usertype=existing_usertype)
+            policies.update(usertype=usertype)
+            # We can now safely delete the old usertype.
             existing_usertype.delete()
 
 
-def create_simulation(user, form):
-    """Function to create a new simulation (with all its associated objects)
-    from a form.
+######################
+#  Export functions  #
+######################
 
-    Parameters
-    ----------
-    user: User object.
-        Owner of the simulation.
-    form: BaseSimulationForm or SimulationImportForm.
-        Form containing basic data for the simulation (name, comment, etc.).
-    """
-    simulation = Simulation()
-    simulation.user = user
-    simulation.name = form.cleaned_data['name']
-    simulation.comment = form.cleaned_data['comment']
-    simulation.public = form.cleaned_data['public']
-    simulation.environment = form.cleaned_data['environment']
-    simulation.contact = form.cleaned_data['contact']
-    # Create models associated with the new simulation.
-    network = Network()
-    network.name = simulation.name
-    network.save()
-    function_set = FunctionSet()
-    function_set.name = simulation.name
-    function_set.save()
-    # Add defaults functions.
-    function = Function(name='Free flow', user_id=1,
-                        expression='3600*(length/speed)')
-    function.save()
-    function.vdf_id = function.id
-    function.save()
-    function.functionset.add(function_set)
-    function = Function(name='Bottleneck function', user_id=2,
-                        expression=('3600*((dynVol<=(lanes*capacity*length'
-                                    + '/speed))*(length/speed)+(dynVol>'
-                                    + '(lanes*capacity*length/speed))*'
-                                    + '(dynVol/(capacity*lanes)))'))
-    function.save()
-    function.vdf_id = function.id
-    function.save()
-    function.functionset.add(function_set)
-    pttimes = Matrices()
-    pttimes.save()
-    supply = Supply()
-    supply.name = simulation.name
-    supply.network = network
-    supply.functionset = function_set
-    supply.pttimes = pttimes
-    supply.save()
-    demand = Demand()
-    demand.name = simulation.name
-    demand.save()
-    scenario = Scenario()
-    scenario.name = simulation.name
-    scenario.supply = supply
-    scenario.demand = demand
-    scenario.save()
-    simulation.scenario = scenario
-    # Save the simulation and return it.
-    simulation.save()
-    return simulation
+
+def matrix_export_function(simulation, demandsegment, dir_name):
+    """Function to save the OD matrix as a tsv file."""
+    matrix = demandsegment.matrix
+    matrix_couples = Matrix.objects.filter(matrices=matrix)
+    if not matrix_couples.exists():
+        return
+    filename = os.path.join(
+        dir_name,
+        'matrix_{}.tsv'.format(demandsegment.usertype.user_id)
+    )
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
+        # Write a custom header.
+        writer.writerow(['origin', 'destination', 'population'])
+        writer.writerows(values)
+
+    return filename
+
+
+def pricing_export_function(simulation, dir_name):
+    """Function to save the tolls of an user type as a tsv file."""
+    # Get all tolls.
+    policies = get_query('policy', simulation)
+    tolls = policies.filter(type='PRICING')
+    if not tolls.exists():
+        return
+    filename = os.path.join(dir_name, 'pricings.tsv')
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = list()
+        for toll in tolls:
+            if toll.usertype:
+                usertype_id = toll.usertype.user_id
+            else:
+                usertype_id = ''
+            values.append([toll.location.user_id, toll.get_value_vector(),
+                           toll.get_time_vector(), usertype_id])
+        # Write a custom header.
+        writer.writerow(['link', 'values', 'times', 'traveler_type'])
+        writer.writerows(values)
+
+    return filename
+
+
+def public_transit_export_function(simulation, dir_name):
+    """Function to save the public transit OD Matrix as a tsv file."""
+    matrix_couples = get_query('public_transit', simulation)
+    if not matrix_couples.exists():
+        return
+    filename = os.path.join(dir_name, 'public_transit.tsv')
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        # Get a dictionary with all the values to export.
+        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
+        # Write a custom header.
+        writer.writerow(['origin', 'destination', 'travel time'])
+        writer.writerows(values)
+
+    return filename
+
+
+def object_export_function(simulation, object_name, dir_name):
+    """Function to save all instances of a network object as a tsv file."""
+    query = get_query(object_name, simulation)
+    if not query.exists():
+        return
+    name = metro_to_user(object_name).replace(' ', '_')
+    filename = os.path.join(dir_name, '{}s.tsv'.format(name))
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        if object_name in ('centroid', 'crossing'):
+            writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
+            values = query.values_list('user_id', 'name', 'x', 'y', 'id')
+        elif object_name == 'function':
+            writer.writerow(['id', 'name', 'expression'])
+            values = query.values_list('user_id', 'name', 'expression')
+        elif object_name == 'link':
+            writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
+                             'capacity', 'function', 'origin', 'destination'])
+            values = query.values_list('user_id', 'name', 'lanes', 'length',
+                                       'speed', 'capacity', 'vdf__user_id')
+            # Origin and destination id must be converted to user_id.
+            centroids = get_query('centroid', simulation)
+            crossings = get_query('crossing', simulation)
+            ids = list(centroids.values_list('id', 'user_id'))
+            ids += list(crossings.values_list('id', 'user_id'))
+            # Map id of nodes to their user_id.
+            id_mapping = dict(ids)
+            origins = query.values_list('origin', flat=True)
+            origins = np.array([id_mapping[n] for n in origins])
+            destinations = query.values_list('destination', flat=True)
+            destinations = np.array([id_mapping[n] for n in destinations])
+            # Add origin and destination user ids to the values array.
+            origins = np.transpose([origins])
+            destinations = np.transpose([destinations])
+            if values:
+                values = np.hstack([values, origins, destinations])
+        writer.writerows(values)
+
+    return filename
+
+
+def usertype_export_function(simulation, demandsegment=None, dir_name=''):
+    """Function to save the parameters of the usertypes as a tsv file."""
+    filename = os.path.join(dir_name, 'traveler_types.tsv')
+    # Get a dictionary with all the values to export.
+    if demandsegment is None:
+        # Export all usertypes of the simulation.
+        usertypes = get_query('usertype', simulation)
+    else:
+        # Export only the usertype for the given demandsegment.
+        usertype = demandsegment.usertype
+        usertypes = UserType.objects.filter(pk=usertype.id)
+    if not usertypes.exists():
+        return
+
+    with codecs.open(filename, 'w', encoding='utf8') as f:
+        writer = csv.writer(f, delimiter='\t')
+
+        values = usertypes.values_list(
+            'user_id', 'name', 'comment', 'alphaTI__mean', 'alphaTI__std',
+            'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type',
+            'beta__mean', 'beta__std', 'beta__type', 'delta__mean',
+            'delta__std', 'delta__type', 'departureMu__mean',
+            'departureMu__std', 'departureMu__type', 'gamma__mean',
+            'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std',
+            'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std',
+            'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
+            'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type',
+            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
+            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
+            'commuteType'
+        )
+
+        # Write a custom header.
+        writer.writerow([
+            'id', 'name', 'comment', 'alphaTI_mean', 'alphaTI_std',
+            'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type',
+            'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std',
+            'delta_type', 'departureMu_mean', 'departureMu_std',
+            'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
+            'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean',
+            'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std',
+            'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
+            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
+            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
+            'commuteType'
+        ])
+
+        writer.writerows(values)
+    return filename

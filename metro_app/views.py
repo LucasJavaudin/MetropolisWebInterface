@@ -1314,48 +1314,20 @@ def matrix_save(request, simulation, demandsegment):
 @check_demand_relation
 def matrix_export(request, simulation, demandsegment):
     """View to send a file with the OD Matrix to the user."""
-    matrix = demandsegment.matrix
-    matrix_couples = Matrix.objects.filter(matrices=matrix)
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
-        # Write a custom header.
-        writer.writerow(['origin', 'destination', 'population'])
-        writer.writerows(values)
+    dir_name = get_export_directory()
+    filename = matrix_export_function(simulation, demandsegment, dir_name)
+    if filename is None:
+        return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
         name = 'matrix_{}.tsv'.format(demandsegment.usertype.user_id)
-        response['Content-Disposition'] = 'attachement; filename={}'.format(name)
-    # We delete the export file to save disk space.
-    os.remove(filename)
+        response['Content-Disposition'] = \
+            'attachement; filename={}'.format(name)
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
     return response
-
-
-def matrix_export_save(simulation, demandsegment, dir):
-    """View to send a file with the OD Matrix to the user."""
-    matrix = demandsegment.matrix
-    matrix_couples = Matrix.objects.filter(matrices=matrix)
-    if not matrix_couples.exists():
-        return
-    filename = '{0}/matrix_{1}.tsv'.format(dir, demandsegment.usertype.user_id)
-
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
-        # Write a custom header.
-        writer.writerow(['origin', 'destination', 'population'])
-        writer.writerows(values)
-
-    return filename
 
 
 @require_POST
@@ -1480,66 +1452,18 @@ def pricing_view(request, simulation):
 @public_required
 def pricing_export(request, simulation):
     """View to send a file with the tolls of an user type."""
-    # Get all tolls.
-    policies = get_query('policy', simulation)
-    tolls = policies.filter(type='PRICING')
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = list()
-        for toll in tolls:
-            if toll.usertype:
-                usertype_id = toll.usertype.user_id
-            else:
-                usertype_id = ''
-            values.append([toll.location.user_id, toll.get_value_vector(),
-                           toll.get_time_vector(), usertype_id])
-        # Write a custom header.
-        writer.writerow(['link', 'values', 'times', 'traveler_type'])
-        writer.writerows(values)
-
+    dir_name = get_export_directory()
+    filename = pricing_export_function(simulation, dir_name)
+    if filename is None:
+        return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
         response['Content-Disposition'] = 'attachement; filename=pricings.tsv'
-    # We delete the export file to save disk space.
-    os.remove(filename)
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
     return response
-
-
-def pricing_export_save(simulation, dir):
-    """View to send a file with the tolls of an user type."""
-    # Get all tolls.
-    policies = get_query('policy', simulation)
-    tolls = policies.filter(type='PRICING')
-    if not tolls.exists():
-        return
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    filename = dir + '/pricings.tsv'
-
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = list()
-        for toll in tolls:
-            if toll.usertype:
-                usertype_id = toll.usertype.user_id
-            else:
-                usertype_id = ''
-            values.append([toll.location.user_id, toll.get_value_vector(),
-                           toll.get_time_vector(), usertype_id])
-        # Write a custom header.
-        writer.writerow(['link', 'values', 'times', 'traveler_type'])
-        writer.writerows(values)
-
-    return filename
 
 
 @require_POST
@@ -1758,47 +1682,19 @@ def public_transit_import(request, simulation):
 @public_required
 def public_transit_export(request, simulation):
     """View to send a file with the public transit OD Matrix to the user."""
-    matrix_couples = get_query('public_transit', simulation)
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
-        # Write a custom header.
-        writer.writerow(['origin', 'destination', 'travel time'])
-        writer.writerows(values)
+    dir_name = get_export_directory()
+    filename = public_transit_export_function(simulation, dir_name)
+    if filename is None:
+        return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
-        response['Content-Disposition'] = 'attachement; filename=public_transit.tsv'
-    # We delete the export file to save disk space.
-    os.remove(filename)
+        response['Content-Disposition'] = \
+            'attachement; filename=public_transit.tsv'
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
     return response
-
-
-def public_transit_export_save(simulation, dir):
-    """View to send a file with the public transit OD Matrix to the user."""
-    matrix_couples = get_query('public_transit', simulation)
-    if not matrix_couples.exists():
-        return
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    filename = dir + '/public_transit.tsv'
-
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = matrix_couples.values_list('p__user_id', 'q__user_id', 'r')
-        # Write a custom header.
-        writer.writerow(['origin', 'destination', 'travel time'])
-        writer.writerows(values)
-
-    return filename
 
 
 @public_required
@@ -1927,50 +1823,10 @@ def object_import(request, simulation, object_name):
 @check_object_name
 def object_export(request, simulation, object_name):
     """View to export all instances of a network object."""
-    query = get_query(object_name, simulation)
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        if object_name == 'centroid':
-            fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object_name == 'crossing':
-            fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object_name == 'link':
-            fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
-                      'speed', 'capacity', 'vdf']
-        elif object_name == 'function':
-            fields = ['id', 'expression']
-        writer = csv.writer(f, delimiter='\t')
-        if object_name in ('centroid', 'crossing'):
-            writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
-            values = query.values_list('user_id', 'name', 'x', 'y', 'id')
-        elif object_name == 'function':
-            writer.writerow(['id', 'name', 'expression'])
-            values = query.values_list('user_id', 'name', 'expression')
-        elif object_name == 'link':
-            writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
-                             'capacity', 'function', 'origin', 'destination'])
-            values = query.values_list('user_id', 'name', 'lanes', 'length',
-                                       'speed', 'capacity', 'vdf__user_id')
-            # Origin and destination id must be converted to user_id.
-            centroids = get_query('centroid', simulation)
-            crossings = get_query('crossing', simulation)
-            ids = list(centroids.values_list('id', 'user_id'))
-            ids += list(crossings.values_list('id', 'user_id'))
-            # Map id of nodes to their user_id.
-            id_mapping = dict(ids)
-            origins = query.values_list('origin', flat=True)
-            origins = np.array([id_mapping[n] for n in origins])
-            destinations = query.values_list('destination', flat=True)
-            destinations = np.array([id_mapping[n] for n in destinations])
-            # Add origin and destination user ids to the values array.
-            origins = np.transpose([origins])
-            destinations = np.transpose([destinations])
-            values = np.hstack([values, origins, destinations])
-        writer.writerows(values)
+    dir_name = get_export_directory()
+    filename = object_export_function(simulation, object_name, dir_name)
+    if filename is None:
+        return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
@@ -1978,60 +1834,9 @@ def object_export(request, simulation, object_name):
         name = metro_to_user(object_name).replace(' ', '_')
         response['Content-Disposition'] = \
             'attachement; filename={}s.tsv'.format(name)
-    # We delete the export file to save disk space.
-    os.remove(filename)
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
     return response
-
-
-def object_export_save(simulation, object_name, dir):
-    """View to export all instances of a network object."""
-    query = get_query(object_name, simulation)
-    if not query.exists():
-        return
-    name = metro_to_user(object_name).replace(' ', '_')
-    filename = '{}/{}s.tsv'.format(dir, name)
-
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        if object_name == 'centroid':
-            fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object_name == 'crossing':
-            fields = ['id', 'name', 'x', 'y', 'db_id']
-        elif object_name == 'link':
-            fields = ['id', 'name', 'origin', 'destination', 'lanes', 'length',
-                      'speed', 'capacity', 'vdf']
-        elif object_name == 'function':
-            fields = ['id', 'expression']
-        writer = csv.writer(f, delimiter='\t')
-        if object_name in ('centroid', 'crossing'):
-            writer.writerow(['id', 'name', 'x', 'y', 'db_id'])
-            values = query.values_list('user_id', 'name', 'x', 'y', 'id')
-        elif object_name == 'function':
-            writer.writerow(['id', 'name', 'expression'])
-            values = query.values_list('user_id', 'name', 'expression')
-        elif object_name == 'link':
-            writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
-                             'capacity', 'function', 'origin', 'destination'])
-            values = query.values_list('user_id', 'name', 'lanes', 'length',
-                                       'speed', 'capacity', 'vdf__user_id')
-            # Origin and destination id must be converted to user_id.
-            centroids = get_query('centroid', simulation)
-            crossings = get_query('crossing', simulation)
-            ids = list(centroids.values_list('id', 'user_id'))
-            ids += list(crossings.values_list('id', 'user_id'))
-            # Map id of nodes to their user_id.
-            id_mapping = dict(ids)
-            origins = query.values_list('origin', flat=True)
-            origins = np.array([id_mapping[n] for n in origins])
-            destinations = query.values_list('destination', flat=True)
-            destinations = np.array([id_mapping[n] for n in destinations])
-            # Add origin and destination user ids to the values array.
-            origins = np.transpose([origins])
-            destinations = np.transpose([destinations])
-            if values:
-                values = np.hstack([values, origins, destinations])
-        writer.writerows(values)
-
-    return filename
 
 
 @owner_required
@@ -2609,6 +2414,7 @@ def create_article(request):
 
     return HttpResponseRedirect(reverse('metro:articles_view'))
 
+
 @user_passes_test(lambda u: u.is_superuser)
 def delete_article(request, pk):
     # Could be changed to a wrapper but can't figure out how to access user from wrapper
@@ -2622,27 +2428,34 @@ def delete_article(request, pk):
 
     return HttpResponseRedirect(reverse('metro:articles_view'))
 
+
 @public_required
 def simulation_export(request, simulation):
     """View to make a zip file of all simulation parameters."""
 
-    seed = np.random.randint(10000)
-    dir = '{0}/website_files/exports/{1}'.format(settings.BASE_DIR, seed)
-    os.makedirs(dir)
+    dir_name = get_export_directory()
 
     files_names = []
 
-    files_names.append(object_export_save(simulation, 'centroid', dir))
-    files_names.append(object_export_save(simulation, 'crossing', dir))
-    files_names.append(object_export_save(simulation, 'link', dir))
-    files_names.append(object_export_save(simulation, 'function', dir))
-    files_names.append(public_transit_export_save(simulation, dir))
-    files_names.append(pricing_export_save(simulation, dir))
-    files_names.append(usertype_export_save(simulation, dir=dir))
+    files_names.append(
+        object_export_function(simulation, 'centroid', dir_name))
+    files_names.append(
+        object_export_function(simulation, 'crossing', dir_name))
+    files_names.append(
+        object_export_function(simulation, 'link', dir_name))
+    files_names.append(
+        object_export_function(simulation, 'function', dir_name))
+    files_names.append(
+        public_transit_export_function(simulation, dir_name))
+    files_names.append(
+        pricing_export_function(simulation, dir_name))
+    files_names.append(
+        usertype_export_function(simulation, dir_name=dir_name))
 
     demandsegments = get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
-        files_names.append(matrix_export_save(simulation, demandsegment, dir))
+        files_names.append(
+            matrix_export_function(simulation, demandsegment, dir_name))
 
     zipname = str(simulation).replace(' ', '_')
 
@@ -2666,27 +2479,29 @@ def simulation_export(request, simulation):
     response = HttpResponse(s.getvalue())
     response['content_type'] = 'application/x-zip-compressed'
     # ..and correct content-disposition
-    response['Content-Disposition'] = 'attachment; filename={0}.zip'.format(zipname)
+    response['Content-Disposition'] = \
+        'attachment; filename={0}.zip'.format(zipname)
 
-    shutil.rmtree(dir, ignore_errors=True)
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
 
     return response
+
 
 @public_required
 def traveler_simulation_export(request, simulation):
     """View to export usertypes and matrices in a zipfile."""
 
-    seed = np.random.randint(10000)
-    dir = '{0}/website_files/exports/{1}'.format(settings.BASE_DIR, seed)
-    os.makedirs(dir)
+    dir_name = get_export_directory()
 
     files_names = []
 
-    files_names.append(usertype_export_save(simulation, dir=dir))
+    files_names.append(usertype_export_function(simulation, dir_name=dir_name))
 
     demandsegments = get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
-        files_names.append(matrix_export_save(simulation, demandsegment, dir))
+        files_names.append(
+            matrix_export_function(simulation, demandsegment, dir_name))
 
     zipname = str(simulation).replace(' ', '_')
 
@@ -2712,9 +2527,142 @@ def traveler_simulation_export(request, simulation):
     # ..and correct content-disposition
     response['Content-Disposition'] = 'attachment; filename={0}.zip'.format(zipname)
 
-    shutil.rmtree(dir, ignore_errors=True)
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
 
     return response
+
+
+@require_POST
+@login_required
+def simulation_import_action(request):
+    """This view is used when a user imports a new simulation.
+    The request should contain data for the new simulation (name, comment and
+    public) and a zipfile with the simulation data.
+    """
+    # Create a form with the data sent and check if it is valid.
+    form = SimulationImportForm(request.user, request.POST, request.FILES)
+    if form.is_valid():
+        # Create a new simulation with the attributes sent.
+        simulation = create_simulation(request.user, form)
+        # Import the zipfile data in the simulation.
+        encoded_file = form.cleaned_data['zipfile']
+        file = zipfile.ZipFile(encoded_file)
+        namelist = file.namelist()
+        for filename in namelist:
+            if re.search('/zones.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'centroid')
+                break
+
+        for filename in namelist:
+            if re.search('/intersections.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'crossing')
+                break
+
+        for filename in namelist:
+            if re.search('/links.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'link')
+                break
+
+        for filename in namelist:
+            if re.search('/congestion_functions.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'function')
+                break
+
+        for filename in namelist:
+            if re.search('/public_transit.[tc]sv$', filename):
+                public_transit_import_function(
+                    file.open(filename), simulation)
+                break
+
+        for filename in namelist:
+            if re.search('/traveler_types.[tc]sv$', filename):
+                usertype_import_function(file.open(filename), simulation)
+                break
+
+        demandsegments = get_query('demandsegment', simulation)
+        for filename in namelist:
+            d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+            if d:
+                # Get the demandsegment associated with this OD matrix.
+                user_id = d.group(1)
+                try:
+                    demandsegment = demandsegments.get(
+                        usertype__user_id=user_id)
+                except DemandSegment.objects.DoesNotExist:
+                    # Matrix file with an invalid id, ignore it.
+                    continue
+                # Import the matrix file in the new demandsegment.
+                matrix_import_function(
+                    file.open(filename), simulation, demandsegment)
+
+        for filename in namelist:
+            if re.search('/pricings.[tc]sv$', filename):
+                pricing_import_function(file.open(filename), simulation)
+                break
+
+        return HttpResponseRedirect(
+            reverse('metro:simulation_view', args=(simulation.id,))
+        )
+    else:
+        return HttpResponseRedirect(
+            reverse('metro:simulation_manager')
+        )
+
+
+@require_POST
+@owner_required
+def traveler_import_action(request, simulation):
+    """View to import usertypes and matrices from a zipfile."""
+    # Create a form with the data send and check if it is valid.
+    try:
+        form = ImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            encoded_file = form.cleaned_data['import_file']
+            file = zipfile.ZipFile(encoded_file)
+            namelist = file.namelist()
+
+            for filename in namelist:
+                if re.search('/traveler_types.[tc]sv$', filename):
+                    usertype_import_function(file.open(filename), simulation)
+                    break
+
+            demandsegments = get_query('demandsegment', simulation)
+            for filename in namelist:
+                d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+                if d:
+                    # Get the demandsegment associated with this OD matrix.
+                    user_id = d.group(1)
+                    try:
+                        demandsegment = demandsegments.get(
+                            usertype__user_id=user_id)
+                    except DemandSegment.DoesNotExist:
+                        # Matrix file with an invalid id, ignore it.
+                        continue
+                    # Import the matrix file in the new demandsegment.
+                    matrix_import_function(
+                        file.open(filename), simulation, demandsegment)
+
+    except Exception as e:
+        # Catch any exception while importing the file and return an error page
+        # if there is any.
+        print(e)
+        context = {
+            'simulation': simulation,
+            'object': 'zipfile',
+        }
+        return render(request, "metro_app/import_error.html", context)
+
+    else:
+
+        return HttpResponseRedirect(reverse(
+            'metro:demand_view', args=(simulation.id,)
+        ))
+
 
 @require_POST
 @owner_required
@@ -2742,51 +2690,19 @@ def usertype_import(request, simulation):
 @check_demand_relation
 def usertype_export(request, simulation, demandsegment):
     """View to send a file with the usertype parameters."""
-    usertype = demandsegment.usertype
-    # To avoid conflict if two users export a file at the same time, we
-    # generate a random name for the export file.
-    seed = np.random.randint(10000)
-    filename = '{0}/website_files/exports/{1}.tsv'.format(settings.BASE_DIR,
-                                                          seed)
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        # Get a dictionary with all the values to export.
-        values = UserType.objects.filter(pk=usertype.id).values_list(
-            'user_id', 'name', 'comment', 'alphaTI__mean', 'alphaTI__std',
-            'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type',
-            'beta__mean', 'beta__std', 'beta__type', 'delta__mean',
-            'delta__std', 'delta__type', 'departureMu__mean',
-            'departureMu__std', 'departureMu__type', 'gamma__mean',
-            'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std',
-            'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std',
-            'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
-            'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type',
-            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
-            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
-            'commuteType'
-        )
-        writer.writerow([
-            'id', 'name', 'comment', 'alphaTI_mean', 'alphaTI_std',
-            'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type',
-            'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std',
-            'delta_type', 'departureMu_mean', 'departureMu_std',
-            'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
-            'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean',
-            'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std',
-            'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
-            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
-            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
-            'commuteType'
-        ])
-        writer.writerows(values)
+    dir_name = get_export_directory()
+    filename = usertype_export_function(simulation, demandsegment, dir_name)
+    if filename is None:
+        return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.'beta_mean',
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
-        name = '{}.tsv'.format(usertype).replace(' ', '_')
-        response['Content-Disposition'] = 'attachement; filename={}'.format(name)
-    # We delete the export file to save disk space.
-    os.remove(filename)
+        name = '{}.tsv'.format(demandsegment.usertype).replace(' ', '_')
+        response['Content-Disposition'] = \
+            'attachement; filename={}'.format(name)
+    # We delete the export directory to save disk space.
+    shutil.rmtree(dir_name, ignore_errors=True)
     return response
 
 
@@ -3036,182 +2952,3 @@ def gen_formset(object_name, simulation, request=None):
                     simulation=simulation,
                 )
     return formset
-
-
-def usertype_export_save(simulation, demandsegment=None, dir=''):
-    """Function to save the parameters of the usertypes as a tsv."""
-    filename = '{0}/traveler_types.tsv'.format(dir)
-
-    with codecs.open(filename, 'w', encoding='utf8') as f:
-        writer = csv.writer(f, delimiter='\t')
-
-        # Get a dictionary with all the values to export.
-        if demandsegment is None:
-            # Export all usertypes of the simulation.
-            usertypes = get_query('usertype', simulation)
-        else:
-            # Export only the usertype for the given demandsegment.
-            usertype = demandsegment.usertype
-            usertypes = UserType.objects.filter(pk=usertype.id)
-        values = usertypes.values_list(
-            'user_id', 'name', 'comment', 'alphaTI__mean', 'alphaTI__std',
-            'alphaTI__type', 'alphaTP__mean', 'alphaTP__std', 'alphaTP__type',
-            'beta__mean', 'beta__std', 'beta__type', 'delta__mean',
-            'delta__std', 'delta__type', 'departureMu__mean',
-            'departureMu__std', 'departureMu__type', 'gamma__mean',
-            'gamma__std', 'gamma__type', 'modeMu__mean', 'modeMu__std',
-            'modeMu__type', 'penaltyTP__mean', 'penaltyTP__std',
-            'penaltyTP__type', 'routeMu__mean', 'routeMu__std',
-            'routeMu__type', 'tstar__mean', 'tstar__std', 'tstar__type',
-            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
-            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
-            'commuteType'
-        )
-
-        # Write a custom header.
-        writer.writerow([
-            'id', 'name', 'comment', 'alphaTI_mean', 'alphaTI_std',
-            'alphaTI_type', 'alphaTP_mean', 'alphaTP_std', 'alphaTP_type',
-            'beta_mean', 'beta_std', 'beta_type', 'delta_mean', 'delta_std',
-            'delta_type', 'departureMu_mean', 'departureMu_std',
-            'departureMu_type', 'gamma_mean', 'gamma_std', 'gamma_type',
-            'modeMu_mean', 'modeMu_std', 'modeMu_type', 'penaltyTP_mean',
-            'penaltyTP_std', 'penaltyTP_type', 'routeMu_mean', 'routeMu_std',
-            'routeMu_type', 'tstar_mean', 'tstar_std', 'tstar_type',
-            'typeOfRouteChoice', 'typeOfDepartureMu', 'typeOfRouteMu',
-            'typeOfModeMu', 'localATIS', 'modeChoice', 'modeShortRun',
-            'commuteType'
-        ])
-
-        writer.writerows(values)
-    return filename
-
-@require_POST
-@login_required
-def simulation_import_action(request):
-    """This view is used when a user imports a new simulation.
-    The request should contain data for the new simulation (name, comment and
-    public) and a zipfile with the simulation data.
-    """
-    # Create a form with the data sent and check if it is valid.
-    form = SimulationImportForm(request.user, request.POST, request.FILES)
-    if form.is_valid():
-        # Create a new simulation with the attributes sent.
-        simulation = create_simulation(request.user, form)
-        # Import the zipfile data in the simulation.
-        encoded_file = form.cleaned_data['zipfile']
-        file = zipfile.ZipFile(encoded_file)
-        namelist = file.namelist()
-        for filename in namelist:
-            if re.search('/zones.[tc]sv$', filename):
-                object_import_function(
-                    file.open(filename), simulation, 'centroid')
-                break
-
-        for filename in namelist:
-            if re.search('/intersections.[tc]sv$', filename):
-                object_import_function(
-                    file.open(filename), simulation, 'crossing')
-                break
-
-        for filename in namelist:
-            if re.search('/links.[tc]sv$', filename):
-                object_import_function(
-                    file.open(filename), simulation, 'link')
-                break
-
-        for filename in namelist:
-            if re.search('/congestion_functions.[tc]sv$', filename):
-                object_import_function(
-                    file.open(filename), simulation, 'function')
-                break
-
-        for filename in namelist:
-            if re.search('/public_transit.[tc]sv$', filename):
-                public_transit_import_function(
-                    file.open(filename), simulation)
-                break
-
-        for filename in namelist:
-            if re.search('/traveler_types.[tc]sv$', filename):
-                usertype_import_function(file.open(filename), simulation)
-                break
-
-        demandsegments = get_query('demandsegment', simulation)
-        for filename in namelist:
-            d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
-            if d:
-                # Get the demandsegment associated with this OD matrix.
-                user_id = d.group(1)
-                try:
-                    demandsegment = demandsegments.get(
-                        usertype__user_id=user_id)
-                except DemandSegment.objects.DoesNotExist:
-                    # Matrix file with an invalid id, ignore it.
-                    continue
-                # Import the matrix file in the new demandsegment.
-                matrix_import_function(
-                    file.open(filename), simulation, demandsegment)
-
-        for filename in namelist:
-            if re.search('/pricings.[tc]sv$', filename):
-                pricing_import_function(file.open(filename), simulation)
-                break
-
-        return HttpResponseRedirect(
-            reverse('metro:simulation_view', args=(simulation.id,))
-        )
-    else:
-        return HttpResponseRedirect(
-            reverse('metro:simulation_manager')
-        )
-
-
-@require_POST
-@owner_required
-def traveler_import_action(request, simulation):
-    """View to import usertypes and matrices from a zipfile."""
-    # Create a form with the data send and check if it is valid.
-    try:
-        form = ImportForm(request.POST, request.FILES)
-        if form.is_valid():
-            encoded_file = form.cleaned_data['import_file']
-            file = zipfile.ZipFile(encoded_file)
-            namelist = file.namelist()
-
-            for filename in namelist:
-                if re.search('/traveler_types.[tc]sv$', filename):
-                    usertype_import_function(file.open(filename), simulation)
-                    break
-
-            demandsegments = get_query('demandsegment', simulation)
-            for filename in namelist:
-                d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
-                if d:
-                    # Get the demandsegment associated with this OD matrix.
-                    user_id = d.group(1)
-                    try:
-                        demandsegment = demandsegments.get(
-                            usertype__user_id=user_id)
-                    except DemandSegment.DoesNotExist:
-                        # Matrix file with an invalid id, ignore it.
-                        continue
-                    # Import the matrix file in the new demandsegment.
-                    matrix_import_function(
-                        file.open(filename), simulation, demandsegment)
-
-    except Exception as e:
-        # Catch any exception while importing the file and return an error page
-        # if there is any.
-        print(e)
-        context = {
-            'simulation': simulation,
-            'object': 'zipfile',
-        }
-        return render(request, "metro_app/import_error.html", context)
-
-    else:
-
-        return HttpResponseRedirect(reverse(
-            'metro:demand_view', args=(simulation.id,)
-        ))
