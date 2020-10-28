@@ -1,6 +1,7 @@
 {% extends 'metro_app/base.html' %}
 {% load humanize %}
 {% load widget_tweaks %}
+{% load bootstrap4 %}
 
 {% block title %}
 {{ simulation.name }} - Metropolis
@@ -46,7 +47,7 @@
 				{% endif %}
 				<div class="btn-group my-1" role="group">
 					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:usertype_export' simulation.id demandsegment.id %}">
-						Export usertype
+						Export traveler type
 					</a>
 				</div>
 				<br>
@@ -80,9 +81,26 @@ The simulation has no traveler type.
 </a>
 
 <br>
-<button type="button" class="btn btn-primary my-3" data-toggle="modal" data-target="#importUsertypeModal" title="Import a new traveler type">
-	<i class="fas fa-plus-circle"></i> Import a traveler type
+<button type="button" class="btn btn-primary my-3" data-toggle="modal" data-target="#importUsertypeModal" title="Import traveler types from a tsv or csv file">
+    <i class="fas fa-plus-circle"></i> Import traveler types (TSV/CSV file)
 </button>
+
+<br>
+
+<!-- Added a Import Button traverler page to import the zip file -->
+<button type="button" class="btn btn-primary my-3" data-toggle="modal" data-target="#newImportSimulation" title="Import traveler types and O-D matrices from a ZIP file">
+    <i class="fas fa-plus-circle"></i> Import traveler types (ZIP file)
+</button>
+
+<br>
+
+<!-- Code Added by Shubham on 15-09-2020 to add the Export function on Traveler's Page -->
+<a role="button" class="btn btn-primary my-3" href="{% url 'metro:traveler_simulation_export' simulation.id %}" data-target="#exportUsertypeModal" title="Export all traveler types and O-D matrices as a ZIP file">
+    <i class="fas fa-download"></i> Export traveler types (ZIP file)</a>
+</a>
+
+<br>
+
 
 {% endif %}
 
@@ -121,7 +139,7 @@ The simulation has no traveler type.
 	<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title">Import usertype</h5>
+				<h5 class="modal-title">Import traveler types from a TSV/CSV file</h5>
 				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 					<span aria-hidden="true">&times;</span>
 				</button>
@@ -129,7 +147,7 @@ The simulation has no traveler type.
 			<form action="{% url 'metro:usertype_import' simulation.id%}" method="post" enctype="multipart/form-data">
 				{% csrf_token %}
 				<div class="modal-body form-group">
-					The import file must be a tsv file with 40 columns:  <i>
+                                        The import file must be a tsv file with 41 columns:  <i>id</i>, <i>
 					name</i>, <i>comment</i>, <i>alphaTI_mean</i>,  <i>
 					alphaTI_std</i>, <i>alphaTI_type</i>, <i>alphaTP_mean
 				</i>, <i>alphaTP_std</i>, <i>alphaTP_type</i>,  <i>beta_mean
@@ -157,4 +175,30 @@ The simulation has no traveler type.
 	</div>
 </div>
 
+<!-- Added a Import Button traverler page to import the zip file -->
+    <div class="modal fade" id="newImportSimulation" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Import traveler types from a ZIP file</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form action="{% url 'metro:traveler_import_action' simulation.id %}" method="post" enctype="multipart/form-data">
+				{% csrf_token %}
+				<div class="modal-body form-group">
+                                        The ZIP file must contains a <i>traveler_types</i> tsv or csv file which contains the parameter values of the new traveler types.
+                                        Optionally, the ZIP file can contain <i>matrix_ID</i> tsv or csv files with the O-D matrix data for the traveler type with the corresponding ID.
+					{% render_field import_form.import_file class="form-control-file my-3" %}
+
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+					<button type="submit" class="btn btn-primary mx-auto">Import</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
 {% endblock %}

@@ -1,5 +1,7 @@
 {% extends 'metro_app/base.html' %}
 {% load bootstrap4 %}
+{% load humanize %}
+{% load widget_tweaks %}
 
 {% block title %}
 Metropolis
@@ -12,13 +14,18 @@ Metropolis
 <button type="button" class="btn btn-primary btn-lg" title="Create a new simulation from scratch" data-toggle="modal" data-target="#newSimulationForm">
 	<i class="fas fa-plus-circle"></i> New Simulation
 </button>
+
+	    <!-- Added a New Import Simulation which will import the new Simulation in the zip file (Added By Shubham)-->
+<button type="button" class="btn btn-primary btn-lg" title="Import a simulation from a ZIP file" data-toggle="modal" data-target="#newImportSimulation">
+	<i class="fas fa-plus-circle"></i> Import Simulation
+</button>
 </center>
 
 <div class="modal fade" id="newSimulationForm" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
 	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title" id="modalTitle">Create a new simulation</h5>
+				<h5 class="modal-title" id="modalTitle">Create a new empty simulation</h5>
 				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 					<span aria-hidden="true">&times;</span>
 				</button>
@@ -36,6 +43,35 @@ Metropolis
 		</div>
 	</div>
 </div>
+
+    <!-- Added a New Import Simulation which will import the new Simulation in the zip file (Added By Shubham)-->
+    <div class="modal fade" id="newImportSimulation" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="modalTitle">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Import a simulation from a ZIP file</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form action="{% url 'metro:simulation_import_action' %}" method="post" enctype="multipart/form-data" >
+                    <div class="modal-body">
+                        {% csrf_token %}
+                        Create an empty simulation and fill it with data from a ZIP file.
+                        The ZIP file can contain the following tsv or csv files: <i>zones</i>, <i>intersections</i>, <i>links</i>, <i>congestion_functions</i>, <i>public_transit</i>, <i>pricings</i>, <i>traveler_types</i> and <i>matrix_ID</i>.
+                        {% bootstrap_form import_form show_help=False %}
+
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary mx-auto">Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 
 <br>
 {% endif %}
@@ -72,6 +108,14 @@ Metropolis
 	</tbody>
 </table>
 {% endif %}
+
+
+
+</div>
+
+
+
+
 
 {% for sim in simulation_env_list %}
 <h3>{{ sim.0 }}</h3>

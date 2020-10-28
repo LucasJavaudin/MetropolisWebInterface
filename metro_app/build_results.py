@@ -10,18 +10,6 @@ This file must be in the directory metro_app.
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
-
-print('Starting script...')
-
-# Execute the script with the virtualenv.
-try:
-    activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
-    with open(activate_this_file) as f:
-        exec(f.read(), {'__file__': activate_this_file})
-except FileNotFoundError:
-    print('Running script without a virtualenv.')
-    pass
-
 import os
 import os.path
 import sys
@@ -30,14 +18,8 @@ import json
 import codecs
 import gzip
 
-# Set matplotlib config directory.
-mplconfigdir = '/home/metropolis/matplotlib'
-if os.path.isdir(mplconfigdir):
-    os.environ['MPLCONFIGDIR'] = mplconfigdir
-
 import django
 from django.utils import timezone
-from django.core.mail import send_mail
 from django.conf import settings
 from django.db import connection
 
@@ -47,13 +29,19 @@ import numpy as np
 # Load the django website.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(PROJECT_ROOT)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE",
-                      "metropolis_web_interface.settings")
+os.environ.setdefault(
+    "DJANGO_SETTINGS_MODULE", "metropolis_web_interface.settings")
 django.setup()
 
-from metro_app.models import *
+from metro_app import models, functions
 from metro_app.views import LINK_THRESHOLD, NETWORK_THRESHOLD
-from metro_app.functions import *
+
+print('Starting script...')
+
+# Set matplotlib config directory.
+mplconfigdir = '/home/metropolis/matplotlib'
+if os.path.isdir(mplconfigdir):
+    os.environ['MPLCONFIGDIR'] = mplconfigdir
 
 
 def import_output(run):
@@ -110,7 +98,7 @@ def import_output(run):
 def export_link_results(output, export_file):
     # Create a dictionary to map the link ids with the link user ids.
     link_mapping = dict()
-    links = get_query('link', SIMULATION.id)
+    links = functions.get_query('link', SIMULATION.id)
     for link in links:
         link_mapping[link.id] = link.user_id
     # Check size of network.
@@ -125,8 +113,8 @@ def export_link_results(output, export_file):
             labels = ['in-flow_H', 'in-flow_S', 'out-flow_H', 'out-flow_S',
                       'ttime_H', 'ttime_S']
         nb_periods = len(output['phi_in_H'][0])
-        headers = ['{}_{}'.format(l, i + 1)
-                   for l in labels
+        headers = ['{}_{}'.format(label, i + 1)
+                   for label in labels
                    for i in range(nb_periods)]
         headers = ['link'] + headers
         writer.writerow(headers)
@@ -215,8 +203,7 @@ def export_network_results(run, results):
     simulation = run.simulation
     output_file = (
         '{0}/website_files/network_output/results_{1}_{2}.json'
-            .format(settings.BASE_DIR, simulation.id, run.id)
-    )
+    ).format(settings.BASE_DIR, simulation.id, run.id)
     with open(output_file, 'w') as f:
         json.dump(results, f)
 
@@ -295,15 +282,14 @@ def value_to_color(val, cmap, min_val, max_val):
 
 def clean_database(simulation):
     """Drop from the database the tables created for the run."""
-    matrices = get_query('matrices', simulation)
+    matrices = functions.get_query('matrices', simulation)
     matrices_id = list(matrices.values_list('id', flat=True))
     matrices_id.append(simulation.scenario.supply.pttimes.id)
     with connection.cursor() as cursor:
         for matrice_id in matrices_id:
             cursor.execute(
                 "DROP TABLE IF EXISTS Matrix_{id};"
-                    .format(id=matrice_id)
-            )
+            ).format(id=matrice_id)
 
 
 print('Reading the script argument')
@@ -319,8 +305,8 @@ print('Finding SimulationRun')
 
 # Get the SimulationRun object of the argument.
 try:
-    RUN = SimulationRun.objects.get(pk=RUN_ID)
-except SimulationRun.DoesNotExist:
+    RUN = models.SimulationRun.objects.get(pk=RUN_ID)
+except models.SimulationRun.DoesNotExist:
     raise SystemExit('MetroDoesNotExist: No SimulationRun object corresponding'
                      + ' to the given id.')
 
@@ -335,8 +321,7 @@ try:
     print('Writing link-specific results file...')
     EXPORT_FILE = (
         '{0}/website_files/network_output/link_results_{1}_{2}.txt'
-            .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
-    )
+    ).format(settings.BASE_DIR, SIMULATION.id, RUN.id)
     export_link_results(OUTPUT, EXPORT_FILE)
     print('Preparing the network view...')
     RESULTS = build_results(OUTPUT)
@@ -355,8 +340,7 @@ except (FileNotFoundError, json.decoder.JSONDecodeError, Exception) as e:
 print('Checking if network results are correctly stored...')
 FILE = (
     '{0}/website_files/network_output/results_{1}_{2}.json'
-        .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
-)
+).format(settings.BASE_DIR, SIMULATION.id, RUN.id)
 if os.path.isfile(FILE):
     RUN.network_output = True
 if os.path.isfile(EXPORT_FILE):
@@ -368,28 +352,28 @@ DB_NAME = settings.DATABASES['default']['NAME']
 print('Writing traveler-specific cost output...')
 FILE = (
     '{0}/metrosim_files/output/metrosim_users_{1}_{2}.txt'
-        .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
-)
+).format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
 if os.path.isfile(FILE):
     try:
         EXPORT_FILE = (
             '{0}/website_files/network_output/user_results_{1}_{2}.txt'
-                .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
-        )
-        # Create a dictionary to map the centroid ids with the centroid user ids.
+        ).format(settings.BASE_DIR, SIMULATION.id, RUN.id)
+        # Create a dictionary to map the centroid ids with the centroid user
+        # ids.
         centroid_mapping = dict()
-        centroids = get_query('centroid', SIMULATION.id)
+        centroids = functions.get_query('centroid', SIMULATION.id)
         for centroid in centroids:
             centroid_mapping[centroid.id] = centroid.user_id
         # Create a dictionary to map the demandsegment ids with the name of the
         # usertype.
         usertype_mapping = dict()
-        demandsegments = DemandSegment.objects.filter(
+        demandsegments = models.DemandSegment.objects.filter(
             demand__scenario__simulation=SIMULATION
         )
         for demandsegment in demandsegments:
-            if demandsegment.usertype.name:
-                usertype_mapping[demandsegment.id] = demandsegment.usertype.name
+            name = demandsegment.usertype.name
+            if name:
+                usertype_mapping[demandsegment.id] = name
             else:
                 usertype_mapping[demandsegment.id] = demandsegment.usertype.id
         with codecs.open(FILE, 'r', encoding='utf8') as f:
@@ -406,11 +390,11 @@ if os.path.isfile(FILE):
                     origin_id = centroid_mapping[int(row[0])]
                     destination_id = centroid_mapping[int(row[1])]
                     traveler_type = usertype_mapping[int(row[2])]
-                    writer.writerow([origin_id, destination_id, traveler_type,
-                                     row[3], row[4], row[5], row[6], row[7],
-                                     row[8],
-                                     row[9], row[10], row[11], row[12], row[13],
-                                     row[14]])
+                    writer.writerow([
+                        origin_id, destination_id, traveler_type, row[3],
+                        row[4], row[5], row[6], row[7], row[8], row[9],
+                        row[10], row[11], row[12], row[13], row[14]
+                    ])
         os.remove(FILE)
         RUN.user_output = True
     except Exception as e:
@@ -421,17 +405,15 @@ if os.path.isfile(FILE):
 print('Writing traveler-specific path output...')
 FILE = (
     '{0}/metrosim_files/output/metrosim_events_{1}_{2}.txt'
-        .format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
-)
+).format(settings.BASE_DIR, DB_NAME, SIMULATION.id)
 if os.path.isfile(FILE):
     try:
         EXPORT_FILE = (
             '{0}/website_files/network_output/user_paths_{1}_{2}.tsv.gz'
-                .format(settings.BASE_DIR, SIMULATION.id, RUN.id)
-        )
+        ).format(settings.BASE_DIR, SIMULATION.id, RUN.id)
         # Create a dictionary to map the link ids with the link user ids.
         link_mapping = dict()
-        links = get_query('link', SIMULATION.id)
+        links = functions.get_query('link', SIMULATION.id)
         for link in links:
             link_mapping[link.id] = link.user_id
         with codecs.open(FILE, 'r', encoding='utf8') as f:
