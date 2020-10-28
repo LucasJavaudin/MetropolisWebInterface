@@ -4,48 +4,34 @@ Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 import time
-import urllib
 import re
 import os
 import shutil
-import csv
 from io import BytesIO
 import zipfile
-from shutil import copyfile
 import json
 import codecs
 from math import sqrt
-import numpy as np
 
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, HttpResponseRedirect, FileResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.http import Http404
 from django.urls import reverse, reverse_lazy
-from django.views.generic import TemplateView
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.contrib.auth import authenticate, logout, login
 from django.contrib.auth import views as auth_views
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.models import Group
 from django.db.models import Sum
 from django.dispatch import receiver
 from django.db.models.signals import pre_delete
-from django.utils import timezone
 from django.db import connection
 
 from django_filters.views import FilterView
 from django_tables2.views import SingleTableMixin
 
-import metro_app
-
-
-from metro_app.models import *
-from metro_app.forms import *
-from metro_app.plots import *
-from metro_app.tables import *
-from metro_app.filters import *
-from metro_app.functions import *
+from metro_app import filters, forms, functions, models, plots, tables
 
 import logging
 
@@ -82,8 +68,8 @@ def public_required(view):
     def wrap(*args, **kwargs):
         user = args[0].user  # The first arg is the request object.
         simulation_id = kwargs.pop('simulation_id')
-        simulation = get_object_or_404(Simulation, pk=simulation_id)
-        if can_view(user, simulation):
+        simulation = get_object_or_404(models.Simulation, pk=simulation_id)
+        if functions.can_view(user, simulation):
             return view(*args, simulation=simulation, **kwargs)
         else:
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
@@ -101,8 +87,8 @@ def owner_required(view):
     def wrap(*args, **kwargs):
         user = args[0].user  # The first arg is the request object.
         simulation_id = kwargs.pop('simulation_id')
-        simulation = get_object_or_404(Simulation, pk=simulation_id)
-        if can_edit(user, simulation):
+        simulation = get_object_or_404(models.Simulation, pk=simulation_id)
+        if functions.can_edit(user, simulation):
             return view(*args, simulation=simulation, **kwargs)
         else:
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
@@ -124,7 +110,8 @@ def check_demand_relation(view):
         # simulation_id has already been converted to a Simulation object.
         simulation = kwargs.pop('simulation')
         demandsegment_id = kwargs.pop('demandsegment_id')
-        demandsegment = get_object_or_404(DemandSegment, pk=demandsegment_id)
+        demandsegment = get_object_or_404(
+            models.DemandSegment, pk=demandsegment_id)
         if simulation.scenario.demand == demandsegment.demand.first():
             return view(*args, simulation=simulation,
                         demandsegment=demandsegment)
@@ -165,7 +152,7 @@ def check_run_relation(view):
         # simulation_id has already been converted to a Simulation object.
         simulation = kwargs.pop('simulation')
         run_id = kwargs.pop('run_id')
-        run = get_object_or_404(SimulationRun, pk=run_id)
+        run = get_object_or_404(models.SimulationRun, pk=run_id)
         if run.simulation == simulation:
             return view(*args, simulation=simulation,
                         run=run)
@@ -184,16 +171,18 @@ def environment_owner_required(view):
     def wrap(*args, **kwargs):
         user = args[0].user  # The first arg is the request object.
         environment_id = kwargs.pop('environment_id')
-        environment = get_object_or_404(Environment, pk=environment_id)
-        if can_edit_environment(user, environment):
+        environment = get_object_or_404(models.Environment, pk=environment_id)
+        if functions.can_edit_environment(user, environment):
             return view(*args, environment=environment_id, **kwargs)
         else:
             return HttpResponseRedirect(reverse('metro:environments_view'))
 
     return wrap
 
+
 def environment_can_create(view):
-    """Decorator to execute a function only if the requesting user can create an environment.
+    """Decorator to execute a function only if the requesting user can create
+    an environment.
     """
 
     def wrap(*args, **kwargs):
@@ -217,40 +206,38 @@ def simulation_manager(request):
     simulation.
     """
     # Create lists of simulations.
-    simulation_user_list = Simulation.objects.filter(user_id=request.user.id)
-    simulation_public_list = \
-        Simulation.objects.filter(public=True).exclude(
-            user_id=request.user.id)
-    simulation_pinned_list = \
-        Simulation.objects.filter(public=True).filter(pinned=True)
-    env_list = Environment.objects.filter(users=request.user.id)
+    sim_user_list = models.Simulation.objects.filter(user_id=request.user.id)
+    sim_public_list = models.Simulation.objects.filter(public=True)
+    sim_public_list = sim_public_list.exclude(user_id=request.user.id)
+    sim_pinned_list = models.Simulation.objects.filter(public=True)
+    sim_pinned_list = sim_pinned_list.filter(pinned=True)
+    env_list = models.Environment.objects.filter(users=request.user.id)
     simulation_env_list = []
 
     for env in env_list:
-        simulation_public_list = simulation_public_list
-        sim = Simulation.objects.filter(environment=env)
+        sim = models.Simulation.objects.filter(environment=env)
         simulation_env_list.append((env, sim))
 
-    simulation_private_list = None
+    sim_private_list = None
     if request.user.is_superuser:
         # Superuser can see private simulations.
-        simulation_private_list = \
-            Simulation.objects.filter(public=False).exclude(user=request.user)
+        sim_private_list = models.Simulation.objects.filter(public=False)
+        sim_private_list = sim_private_list.exclude(user=request.user)
     # Create a form for new simulations.
-    #Added one more form for the Import Simulation Button By Shubham
-    import_form = SimulationImportForm(request.user)
-    simulation_form = BaseSimulationForm(request.user)
+    # Added one more form for the Import Simulation Button By Shubham
+    import_form = forms.SimulationImportForm(request.user)
+    simulation_form = forms.BaseSimulationForm(request.user)
 
     # Create a form for copied simulations (the form has the same fields as the
     # form for new simulations, we add the prefix copy to differentiate the
     # two).
-    copy_form = BaseSimulationForm(request.user, prefix='copy')
+    copy_form = forms.BaseSimulationForm(request.user, prefix='copy')
     context = {
-        'simulation_user_list': simulation_user_list,
+        'simulation_user_list': sim_user_list,
         'simulation_env_list': simulation_env_list,
-        'simulation_public_list': simulation_public_list,
-        'simulation_pinned_list': simulation_pinned_list,
-        'simulation_private_list': simulation_private_list,
+        'simulation_public_list': sim_public_list,
+        'simulation_pinned_list': sim_pinned_list,
+        'simulation_private_list': sim_private_list,
         'simulation_form': simulation_form,
         'import_form': import_form,
         'copy_form': copy_form,
@@ -258,18 +245,15 @@ def simulation_manager(request):
     return render(request, 'metro_app/simulation_manager.html', context)
 
 
-
-
-
 def register(request):
     """View to show the register form."""
-    register_form = UserCreationForm()
+    register_form = forms.UserCreationForm()
     return render(request, 'metro_app/register.html', {'form': register_form})
 
 
 def login_view(request, login_error=False):
     """View to show the login form."""
-    login_form = LoginForm()
+    login_form = forms.LoginForm()
     context = {
         'form': login_form,
         'login_error': login_error,
@@ -280,7 +264,7 @@ def login_view(request, login_error=False):
 def register_action(request):
     """View triggered when an user submit a register form."""
     if request.method == 'POST':
-        register_form = UserCreationForm(request.POST)
+        register_form = forms.UserCreationForm(request.POST)
         if register_form.is_valid():
             # Create a new user account.
             user = register_form.save()
@@ -299,7 +283,7 @@ def register_action(request):
 def login_action(request):
     """View triggered when an user login."""
     if request.method == 'POST':
-        login_form = LoginForm(request.POST)
+        login_form = forms.LoginForm(request.POST)
         if login_form.is_valid():
             username = login_form.cleaned_data['username']
             password = login_form.cleaned_data['password']
@@ -314,7 +298,8 @@ def login_action(request):
                 )
         else:
             error = login_form.errors
-            # If a problem occured, return to the login page and show the errors.
+            # If a problem occured, return to the login page and show the
+            # errors.
             context = {
                 'form': login_form,
                 'error': error
@@ -400,10 +385,10 @@ def simulation_add_action(request):
     public).
     """
     # Create a form with the data send and check if it is valid.
-    form = BaseSimulationForm(request.user, request.POST)
+    form = forms.BaseSimulationForm(request.user, request.POST)
     if form.is_valid():
         # Create a new simulation with the attributes sent.
-        simulation = create_simulation(request.user, form)
+        simulation = functions.create_simulation(request.user, form)
         return HttpResponseRedirect(
             reverse('metro:simulation_view', args=(simulation.id,))
         )
@@ -421,19 +406,22 @@ def copy_simulation(request):
     To copy an object using Django, we set its primary key to None and we save
     it again.  This will generate a new id for the object. We must ensure that
     all relations between the objects remain consistent.
+
+    For now, Policy objects are not copied.
     """
-    copy_form = BaseSimulationForm(request.user, request.POST, prefix='copy')
+    copy_form = forms.BaseSimulationForm(
+        request.user, request.POST, prefix='copy')
     if copy_form.is_valid():
         # The simulation id is hidden in an input of the pop-up (the id is
         # changed by javascript.
         simulation_id = request.POST['copy_id']
-        simulation = get_object_or_404(Simulation, pk=simulation_id)
+        simulation = get_object_or_404(models.Simulation, pk=simulation_id)
         # There are timeouts if the same simulation is copied twice
         # simultaneously so we wait until the simulation is unlocked.
         while simulation.locked:
             # Wait 5 seconds.
             time.sleep(5)
-            simulation = get_object_or_404(Simulation, pk=simulation_id)
+            simulation = get_object_or_404(models.Simulation, pk=simulation_id)
         # Lock the simulation.
         simulation.locked = True
         simulation.save()
@@ -441,17 +429,17 @@ def copy_simulation(request):
         with connection.cursor() as cursor:
             # Copy all the models associated with the new simulation.
             # (1) Supply.
-            functionset = FunctionSet.objects.get(
-                pk=simulation.scenario.supply.functionset.id
-            )
+            functionset = models.FunctionSet.objects.get(
+                pk=simulation.scenario.supply.functionset.id)
             functionset.pk = None
             functionset.save()
-            network = Network.objects.get(pk=simulation.scenario.supply.network.id)
+            network = models.Network.objects.get(
+                pk=simulation.scenario.supply.network.id)
             network.pk = None
             network.save()
             # (1.1) Links.
             # Find last link id right before executing the raw SQL query.
-            link_last_id = Link.objects.last().id
+            link_last_id = models.Link.objects.last().id
             # Copy all links of the old network.
             cursor.execute(
                 "INSERT INTO Link (name, destination, lanes, length, origin, "
@@ -470,7 +458,7 @@ def copy_simulation(request):
             # Find id of last inserted link. It might be better to find the
             # copy of the last link of the old network in case other links
             # where added at the same time.
-            new_link_last_id = Link.objects.last().id
+            new_link_last_id = models.Link.objects.last().id
             # Add the many-to-many relations between links and network.
             cursor.execute(
                 "INSERT INTO Network_Link (network_id, link_id) "
@@ -479,7 +467,7 @@ def copy_simulation(request):
             )
             # (1.2) Functions.
             # Find last function id.
-            last_id = Function.objects.last().id
+            last_id = models.Function.objects.last().id
             # Copy all functions.
             cursor.execute(
                 "INSERT INTO Function (name, expression, user_id, vdf_id) "
@@ -491,7 +479,7 @@ def copy_simulation(request):
                 [simulation.scenario.supply.functionset.id]
             )
             # Find id of last inserted function.
-            new_last_id = Function.objects.last().id
+            new_last_id = models.Function.objects.last().id
             # Add the many-to-many relations betweens functions and
             # functionset.
             cursor.execute(
@@ -551,7 +539,7 @@ def copy_simulation(request):
             )
             # (1.3) Centroids.
             # Find last centroid id.
-            last_id = Centroid.objects.last().id
+            last_id = models.Centroid.objects.last().id
             # Copy all centroids of the old network.
             cursor.execute(
                 "INSERT INTO Centroid (name, x, y, uz1, uz2, uz3, user_id) "
@@ -564,7 +552,7 @@ def copy_simulation(request):
                 [simulation.scenario.supply.network.id]
             )
             # Find id of last inserted centroid.
-            new_last_id = Centroid.objects.last().id
+            new_last_id = models.Centroid.objects.last().id
             # Add the many-to-many relations between centroids and network.
             cursor.execute(
                 "INSERT INTO Network_Centroid (network_id, centroid_id) "
@@ -620,7 +608,7 @@ def copy_simulation(request):
             )
             # (1.4) Crossings.
             # Find last crossing id.
-            last_id = Crossing.objects.last().id
+            last_id = models.Crossing.objects.last().id
             # Copy all crossings of the old network.
             cursor.execute(
                 "INSERT INTO Crossing (name, x, y, un1, un2, un3, user_id) "
@@ -633,7 +621,7 @@ def copy_simulation(request):
                 [simulation.scenario.supply.network.id]
             )
             # Find id of last inserted crossing.
-            new_last_id = Crossing.objects.last().id
+            new_last_id = models.Crossing.objects.last().id
             # Add the many-to-many relations between crossings and network.
             cursor.execute(
                 "INSERT INTO Network_Crossing (network_id, crossing_id) "
@@ -688,7 +676,8 @@ def copy_simulation(request):
                 [link_last_id, new_link_last_id]
             )
             # (1.5) Public transit.
-            pttimes = Matrices.objects.get(pk=simulation.scenario.supply.pttimes.id)
+            pttimes = models.Matrices.objects.get(
+                pk=simulation.scenario.supply.pttimes.id)
             pttimes.pk = None
             pttimes.save()
             cursor.execute(
@@ -714,20 +703,23 @@ def copy_simulation(request):
                 "WHERE Matrix.matrices_id = %s;",
                 [pttimes.id]
             )
-            supply = Supply.objects.get(pk=simulation.scenario.supply.id)
+            supply = models.Supply.objects.get(
+                pk=simulation.scenario.supply.id)
             supply.pk = None
             supply.network = network
             supply.functionset = functionset
             supply.pttimes = pttimes
             supply.save()
             # (2) Demand.
-            demand = Demand.objects.get(pk=simulation.scenario.demand.id)
+            demand = models.Demand.objects.get(
+                pk=simulation.scenario.demand.id)
             demand_segments = demand.demandsegment_set.all()
             demand.pk = None
             demand.save()
             for demand_segment in demand_segments:
                 # (2.1) UserType.
-                usertype = UserType.objects.get(pk=demand_segment.usertype.id)
+                usertype = models.UserType.objects.get(
+                    pk=demand_segment.usertype.id)
                 usertype.pk = None
                 usertype.save()
                 # Copy all distributions.
@@ -773,7 +765,8 @@ def copy_simulation(request):
                 usertype.tstar = tstar
                 usertype.save()
                 # (2.2) OD Matrix.
-                matrix = Matrices.objects.get(pk=demand_segment.matrix.id)
+                matrix = models.Matrices.objects.get(
+                    pk=demand_segment.matrix.id)
                 matrix.pk = None
                 matrix.save()
                 # (2.3) OD Matrix pairs.
@@ -810,7 +803,7 @@ def copy_simulation(request):
                 demand_segment.demand.clear()
                 demand_segment.demand.add(demand)
             # (3) Scenario.
-            scenario = Scenario.objects.get(pk=simulation.scenario.id)
+            scenario = models.Scenario.objects.get(pk=simulation.scenario.id)
             scenario.pk = None
             scenario.supply = supply
             scenario.demand = demand
@@ -827,9 +820,9 @@ def copy_simulation(request):
             simulation.public = copy_form.cleaned_data['public']
             simulation.pinned = False
             # Here, we could copy the json file of the copied simulation if the
-            # copied simulation has not changed. For now, I only put has_changed
-            # to True for the new simulation so that a new json file will be
-            # generated.
+            # copied simulation has not changed. For now, I only put
+            # has_changed to True for the new simulation so that a new json
+            # file will be generated.
             simulation.has_changed = True
             simulation.save()
         return HttpResponseRedirect(
@@ -844,7 +837,7 @@ def simulation_delete(request, simulation):
 
     The view deletes the Simulation object and all objects associated with it.
     """
-    SimulationMOEs.objects.filter(simulation=simulation.id).delete()
+    models.SimulationMOEs.objects.filter(simulation=simulation.id).delete()
     network = simulation.scenario.supply.network
     functionset = simulation.scenario.supply.functionset
     demand = simulation.scenario.demand
@@ -858,32 +851,31 @@ def simulation_delete(request, simulation):
 def simulation_view(request, simulation):
     """Main view of a simulation."""
     # Some elements are only displayed if the user owns the simulation.
-    owner = can_edit(request.user, simulation)
+    owner = functions.can_edit(request.user, simulation)
     # Create the form to copy the simulation.
-    copy_form = BaseSimulationForm(request.user, prefix='copy')
+    copy_form = forms.BaseSimulationForm(request.user, prefix='copy')
     # Create the form to edit name, comment and public.
-    edit_form = BaseSimulationForm(request.user, instance=simulation)
+    edit_form = forms.BaseSimulationForm(request.user, instance=simulation)
     # Create the form to edit the parameters.
-    simulation_form = ParametersSimulationForm(owner=owner,
-                                               instance=simulation)
+    simulation_form = forms.ParametersSimulationForm(
+        owner=owner, instance=simulation)
     # Count the number of each elements in the network.
     network = dict()
-    network['centroids'] = get_query('centroid', simulation).count()
-    network['crossings'] = get_query('crossing', simulation).count()
-    network['links'] = get_query('link', simulation).count()
-    network['functions'] = get_query('function', simulation).count()
+    network['centroids'] = functions.get_query('centroid', simulation).count()
+    network['crossings'] = functions.get_query('crossing', simulation).count()
+    network['links'] = functions.get_query('link', simulation).count()
+    network['functions'] = functions.get_query('function', simulation).count()
     # File where the data for the network are stored.
     output_file = (
         '{0}/website_files/network_output/network_{1!s}.json'
-            .format(settings.BASE_DIR, simulation.id)
-    )
+    ).format(settings.BASE_DIR, simulation.id)
     network['generated'] = (os.path.isfile(output_file)
                             and not simulation.has_changed)
     # Count the number of user types.
     travelers = dict()
-    travelers['type'] = get_query('usertype', simulation).count()
+    travelers['type'] = functions.get_query('usertype', simulation).count()
     # Count the number of travelers
-    matrices = get_query('matrices', simulation)
+    matrices = functions.get_query('matrices', simulation)
     nb_travelers = matrices.aggregate(Sum('total'))['total__sum']
     if nb_travelers is None:
         nb_travelers = 0
@@ -892,9 +884,9 @@ def simulation_view(request, simulation):
     travelers['nb_travelers'] = nb_travelers
     # Count the number of policies.
     policy = dict()
-    policy['count'] = get_query('policy', simulation).count()
+    policy['count'] = functions.get_query('policy', simulation).count()
     # Count the number of runs.
-    simulation_runs = get_query('run', simulation)
+    simulation_runs = functions.get_query('run', simulation)
     runs = dict()
     runs['nb_run'] = simulation_runs.count()
     # Check if a run is in progress.
@@ -913,8 +905,8 @@ def simulation_view(request, simulation):
     # Check if there is a public transit network (in case modal choice is
     # enabled).
     good_pt = True
-    if not get_query('public_transit', simulation).exists():
-        usertypes = get_query('usertype', simulation)
+    if not functions.get_query('public_transit', simulation).exists():
+        usertypes = functions.get_query('usertype', simulation)
         modal_choice = False
         for usertype in usertypes:
             if usertype.modeChoice == 'true':
@@ -924,7 +916,8 @@ def simulation_view(request, simulation):
     # Create a form to run the simulation.
     run_form = None
     if owner and complete_simulation:
-        run_form = RunForm(initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
+        run_form = forms.RunForm(
+            initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -947,8 +940,8 @@ def simulation_view(request, simulation):
 @owner_required
 def simulation_view_save(request, simulation):
     """View to save the changes to the simulation parameters."""
-    simulation_form = ParametersSimulationForm(owner=True, data=request.POST,
-                                               instance=simulation)
+    simulation_form = forms.ParametersSimulationForm(
+        owner=True, data=request.POST, instance=simulation)
     if simulation_form.is_valid():
         simulation_form.save()
         # Variables stac_check and iterations_check are not used by Metropolis
@@ -979,7 +972,8 @@ def simulation_view_edit(request, simulation):
     """View to save the modification to the name, comment and status of the
     simulation.
     """
-    edit_form = BaseSimulationForm(request.user, data=request.POST, instance=simulation)
+    edit_form = forms.BaseSimulationForm(
+        request.user, data=request.POST, instance=simulation)
     if edit_form.is_valid():
         edit_form.save()
         return HttpResponseRedirect(
@@ -998,15 +992,15 @@ def simulation_view_edit(request, simulation):
 @public_required
 def demand_view(request, simulation):
     """Main view to list and edit the user types."""
-    demandsegments = get_query('demandsegment', simulation)
-    owner = can_edit(request.user, simulation)
+    demandsegments = functions.get_query('demandsegment', simulation)
+    owner = functions.can_edit(request.user, simulation)
     # The matrix cannot be edit if the number of centroids is too large.
-    nb_centroids = get_query('centroid', simulation).count()
+    nb_centroids = functions.get_query('centroid', simulation).count()
     large_matrix = nb_centroids > MATRIX_THRESHOLD
     # The matrix is empty if there is no centroid.
     has_centroid = nb_centroids > 0
     # Create a form to import OD matrices.
-    import_form = ImportForm()
+    import_form = forms.ImportForm()
     context = {
         'simulation': simulation,
         'demandsegments': demandsegments,
@@ -1023,20 +1017,21 @@ def usertype_add(request, simulation):
     """Add a new user type and initiate its distributions with default values.
     """
     # Create new distributions with good defaults.
-    alphaTI = Distribution(type='NONE', mean=10)
-    alphaTP = Distribution(type='NONE', mean=15)
-    beta = Distribution(type='NONE', mean=5)
-    delta = Distribution(type='NONE', mean=10)
-    departureMu = Distribution(type='NONE', mean=2)
-    gamma = Distribution(type='NONE', mean=20)
-    modeMu = Distribution(type='NONE', mean=5)
-    penaltyTP = Distribution(type='NONE', mean=2)
-    routeMu = Distribution(type='NONE', mean=10)
+    alphaTI = models.Distribution(type='NONE', mean=10)
+    alphaTP = models.Distribution(type='NONE', mean=15)
+    beta = models.Distribution(type='NONE', mean=5)
+    delta = models.Distribution(type='NONE', mean=10)
+    departureMu = models.Distribution(type='NONE', mean=2)
+    gamma = models.Distribution(type='NONE', mean=20)
+    modeMu = models.Distribution(type='NONE', mean=5)
+    penaltyTP = models.Distribution(type='NONE', mean=2)
+    routeMu = models.Distribution(type='NONE', mean=10)
     # Default value for t star is average arrival at middle of period and
     # uniform distribution over half of the period.
     mid_time = (simulation.startTime + simulation.lastRecord) / 2
     length = simulation.lastRecord - simulation.startTime
-    tstar = Distribution(type='UNIFORM', mean=mid_time, std=length / (4 * sqrt(3)))
+    tstar = models.Distribution(
+        type='UNIFORM', mean=mid_time, std=length / (4 * sqrt(3)))
     # Save the distributions to generate ids.
     alphaTI.save()
     alphaTP.save()
@@ -1049,7 +1044,7 @@ def usertype_add(request, simulation):
     routeMu.save()
     tstar.save()
     # Create the new user type.
-    usertype = UserType()
+    usertype = models.UserType()
     usertype.alphaTI = alphaTI
     usertype.alphaTP = alphaTP
     usertype.beta = beta
@@ -1061,16 +1056,16 @@ def usertype_add(request, simulation):
     usertype.routeMu = routeMu
     usertype.tstar = tstar
     # Set user_id to user_id of previous usertype + 1.
-    usertypes = get_query('usertype', simulation)
+    usertypes = functions.get_query('usertype', simulation)
     if usertypes.exists():
         usertype.user_id = usertypes.last().user_id + 1
     else:
         usertype.user_id = 1
     usertype.save()
     # Create a demand segment and a matrix for the user type.
-    matrix = Matrices()
+    matrix = models.Matrices()
     matrix.save()
-    demandsegment = DemandSegment()
+    demandsegment = models.DemandSegment()
     demandsegment.usertype = usertype
     demandsegment.matrix = matrix
     demandsegment.save()
@@ -1085,7 +1080,7 @@ def usertype_add(request, simulation):
 @check_demand_relation
 def usertype_edit(request, simulation, demandsegment):
     """View to edit the parameters of an user type."""
-    form = UserTypeForm(instance=demandsegment.usertype)
+    form = forms.UserTypeForm(instance=demandsegment.usertype)
     context = {
         'simulation': simulation,
         'demandsegment': demandsegment,
@@ -1100,7 +1095,8 @@ def usertype_edit(request, simulation, demandsegment):
 def usertype_edit_save(request, simulation, demandsegment):
     """Save the parameters of an user type."""
     scale = demandsegment.scale
-    form = UserTypeForm(data=request.POST, instance=demandsegment.usertype)
+    form = forms.UserTypeForm(
+        data=request.POST, instance=demandsegment.usertype)
     if form.is_valid():
         form.save()
         demandsegment.refresh_from_db()
@@ -1108,7 +1104,7 @@ def usertype_edit_save(request, simulation, demandsegment):
         if demandsegment.scale != scale:
             # Update total population.
             matrix = demandsegment.matrix
-            matrix_points = Matrix.objects.filter(matrices=matrix)
+            matrix_points = models.Matrix.objects.filter(matrices=matrix)
             if matrix_points.exists():
                 # It is not necessary to compute total population if the O-D
                 # matrix is empty.
@@ -1165,13 +1161,13 @@ def matrix_main(request, simulation, demandsegment):
     # Get total population.
     total = matrix.total
     # Get centroids.
-    centroids = get_query('centroid', simulation)
+    centroids = functions.get_query('centroid', simulation)
     has_centroid = centroids.count() >= 2
     large_matrix = centroids.count() > MATRIX_THRESHOLD
     # Get an import form.
-    import_form = ImportForm()
+    import_form = forms.ImportForm()
     # Check ownership.
-    owner = can_edit(request.user, simulation)
+    owner = functions.can_edit(request.user, simulation)
     context = {
         'simulation': simulation,
         'demandsegment': demandsegment,
@@ -1188,7 +1184,7 @@ def matrix_main(request, simulation, demandsegment):
 @check_demand_relation
 def matrix_view(request, simulation, demandsegment):
     """View to display the OD Matrix of an user type."""
-    centroids = get_query('centroid', simulation)
+    centroids = functions.get_query('centroid', simulation)
     if centroids.count() > MATRIX_THRESHOLD:
         # Large matrix, return a table instead.
         return MatrixListView.as_view()(request, simulation=simulation,
@@ -1196,7 +1192,7 @@ def matrix_view(request, simulation, demandsegment):
     else:
         # Small matrix, return it.
         matrix = demandsegment.matrix
-        matrix_points = Matrix.objects.filter(matrices=matrix)
+        matrix_points = models.Matrix.objects.filter(matrices=matrix)
         od_matrix = []
         # For each row, we build an array which will be appended to the
         # od_matrix array.
@@ -1217,7 +1213,7 @@ def matrix_view(request, simulation, demandsegment):
                             matrices=matrix
                         )
                         row.append(couple_object.r)
-                    except Matrix.DoesNotExist:
+                    except models.Matrix.DoesNotExist:
                         row.append(0)
             od_matrix.append(row)
         # Get total population.
@@ -1238,8 +1234,8 @@ def matrix_edit(request, simulation, demandsegment):
     """View to edit the OD Matrix of an user type."""
     # Get some objects.
     matrix = demandsegment.matrix
-    matrix_points = Matrix.objects.filter(matrices=matrix)
-    centroids = get_query('centroid', simulation)
+    matrix_points = models.Matrix.objects.filter(matrices=matrix)
+    centroids = functions.get_query('centroid', simulation)
     od_matrix = []
     # For each row, we build an array which will be appended to the od_matrix
     # array.
@@ -1265,8 +1261,8 @@ def matrix_edit(request, simulation, demandsegment):
                 i += 1
         od_matrix.append(row)
     # Create a formset to obtain the management form.
-    formset = MatrixFormSet(
-        queryset=Matrix.objects.filter(matrices=matrix),
+    formset = forms.MatrixFormSet(
+        queryset=models.Matrix.objects.filter(matrices=matrix),
     )
     # Get total population.
     total = int(matrix.total)
@@ -1288,11 +1284,11 @@ def matrix_save(request, simulation, demandsegment):
     """View to save the OD Matrix of an user type."""
     matrix = demandsegment.matrix
     # Get the formset from the POST data and save it.
-    formset = MatrixFormSet(request.POST)
+    formset = forms.MatrixFormSet(request.POST)
     if formset.is_valid():
         formset.save()
         # Update total.
-        matrix_points = Matrix.objects.filter(matrices=matrix)
+        matrix_points = models.Matrix.objects.filter(matrices=matrix)
         matrix.total = \
             demandsegment.scale * matrix_points.aggregate(Sum('r'))['r__sum']
         matrix.save()
@@ -1314,8 +1310,9 @@ def matrix_save(request, simulation, demandsegment):
 @check_demand_relation
 def matrix_export(request, simulation, demandsegment):
     """View to send a file with the OD Matrix to the user."""
-    dir_name = get_export_directory()
-    filename = matrix_export_function(simulation, demandsegment, dir_name)
+    dir_name = functions.get_export_directory()
+    filename = functions.matrix_export_function(
+        simulation, demandsegment, dir_name)
     if filename is None:
         return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
@@ -1337,7 +1334,8 @@ def matrix_import(request, simulation, demandsegment):
     """View to convert the imported file to an O-D matrix in the database."""
     try:
         encoded_file = request.FILES['import_file']
-        matrix_import_function(encoded_file, simulation, demandsegment)
+        functions.matrix_import_function(
+            encoded_file, simulation, demandsegment)
     except Exception as e:
         print(e)
         context = {
@@ -1358,7 +1356,7 @@ def matrix_reset(request, simulation, demandsegment):
     # Get matrix.
     matrix = demandsegment.matrix
     # Delete matrix points.
-    matrix_points = Matrix.objects.filter(matrices=matrix)
+    matrix_points = models.Matrix.objects.filter(matrices=matrix)
     matrix_points.delete()
     # Update total.
     matrix.total = 0
@@ -1372,16 +1370,16 @@ def matrix_reset(request, simulation, demandsegment):
 def pricing_main(request, simulation):
     """View to display the road pricing main page of an user type."""
     # Get number of tolls.
-    policies = get_query('policy', simulation)
+    policies = functions.get_query('policy', simulation)
     tolls = policies.filter(type='PRICING')
     count = tolls.count()
     # Get links.
-    links = get_query('link', simulation)
+    links = functions.get_query('link', simulation)
     has_link = links.count() >= 1
     # Get an import form.
-    import_form = ImportForm()
+    import_form = forms.ImportForm()
     # Check ownership.
-    owner = can_edit(request.user, simulation)
+    owner = functions.can_edit(request.user, simulation)
     context = {
         'simulation': simulation,
         'count': count,
@@ -1398,62 +1396,58 @@ def pricing_view(request, simulation):
     return TollListView.as_view()(request, simulation=simulation, )
 
 
-# @owner_required
-# def pricing_edit(request, simulation):
-    # # Get all pricing policies for this usertype.
-    # policies = get_query('policy', simulation)
-    # policies = policies.filter(usertype=demandsegment.usertype)
-    # tolls = policies.filter(type='PRICING')
-    # # Get all links of the network.
-    # links = get_query('link', simulation)
-    # # Get all LinkSelection of the network.
-    # locations = LinkSelection.objects.filter(
-        # network=simulation.scenario.supply.network
-    # )
-    # """View to edit the tolls."""
-    # # Create a formset to edit the objects.
-    # formset = PolicyFormSet
-    # context = {
-        # 'simulation': simulation,
-        # 'demandsegment': demandsegment,
-        # 'tolls': tolls,
-        # 'links': links,
-        # 'locations': locations,
-        # 'formset': formset,
-    # }
-    # return render(request, 'metro_app/pricing_edit.html', context)
+@owner_required
+def pricing_edit(request, simulation):
+    """View to edit the tolls."""
+    policies = functions.get_query('policy', simulation)
+    tolls = policies.filter(type='PRICING')
+    # Get all links of the network.
+    links = functions.get_query('link', simulation)
+    # Get all LinkSelection of the network.
+    locations = models.LinkSelection.objects.filter(
+        network=simulation.scenario.supply.network
+    )
+    # Create a formset to edit the objects.
+    formset = forms.PolicyFormSet
+    context = {
+        'simulation': simulation,
+        'tolls': tolls,
+        'links': links,
+        'locations': locations,
+        'formset': formset,
+    }
+    return render(request, 'metro_app/pricing_edit.html', context)
 
 
-# @require_POST
-# @owner_required
-# def pricing_save(request, simulation):
-    # """View to save the tolls of an user type."""
-    # # Retrieve the formset from the POST data.
-    # formset = PolicyFormSet(request.POST)
-    # if formset.is_valid():
-        # # Save the formset (updated values and newly created objects).
-        # formset.save()
-        # simulation.has_changed = True
-        # simulation.save()
-    # else:
-        # # Redirect to a page with the errors.
-        # context = {
-            # 'simulation': simulation,
-            # 'demandsegment': demandsegment,
-            # 'form': formset,
-        # }
-        # return render(request, 'metro_app/errors.html', context)
+@require_POST
+@owner_required
+def pricing_save(request, simulation):
+    """View to save the tolls of an user type."""
+    # Retrieve the formset from the POST data.
+    formset = forms.PolicyFormSet(request.POST)
+    if formset.is_valid():
+        # Save the formset (updated values and newly created objects).
+        formset.save()
+        simulation.has_changed = True
+        simulation.save()
+    else:
+        # Redirect to a page with the errors.
+        context = {
+            'simulation': simulation,
+            'form': formset,
+        }
+        return render(request, 'metro_app/errors.html', context)
 
-    # return HttpResponseRedirect(reverse(
-        # 'metro:pricing_edit', args=(simulation.id, demandsegment.id,)
-    # ))
+    return HttpResponseRedirect(reverse(
+        'metro:pricing_edit', args=(simulation.id,)
+    ))
 
 
 @public_required
 def pricing_export(request, simulation):
     """View to send a file with the tolls of an user type."""
-    dir_name = get_export_directory()
-    filename = pricing_export_function(simulation, dir_name)
+    dir_name = functions.get_export_directory()
+    filename = functions.pricing_export_function(simulation, dir_name)
     if filename is None:
         return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
@@ -1472,7 +1466,7 @@ def pricing_import(request, simulation):
     """View to convert the imported file to tolls in the database."""
     try:
         encoded_file = request.FILES['import_file']
-        pricing_import_function(encoded_file, simulation)
+        functions.pricing_import_function(encoded_file, simulation)
     except Exception as e:
         # Catch any exception while importing the file and return an error page
         # if there is any.
@@ -1492,7 +1486,7 @@ def pricing_import(request, simulation):
 def pricing_reset(request, simulation):
     """View to reset the tolls of an user type."""
     # Get all tolls.
-    policies = get_query('policy', simulation)
+    policies = functions.get_query('policy', simulation)
     tolls = policies.filter(type='PRICING')
     # Delete the Policy objects (the LinkSelection objects are not deleted).
     tolls.delete()
@@ -1504,13 +1498,13 @@ def pricing_reset(request, simulation):
 @public_required
 def public_transit_view(request, simulation):
     """Main view of the public transit system."""
-    owner = can_edit(request.user, simulation)
-    centroids = get_query('centroid', simulation)
+    owner = functions.can_edit(request.user, simulation)
+    centroids = functions.get_query('centroid', simulation)
     has_centroid = centroids.exists()
     large_matrix = False
     if has_centroid:
         large_matrix = centroids.count() > MATRIX_THRESHOLD
-    public_transit_pairs = get_query('public_transit', simulation)
+    public_transit_pairs = functions.get_query('public_transit', simulation)
     is_empty = not public_transit_pairs.exists()
     is_complete = False
     if not is_empty:
@@ -1519,7 +1513,7 @@ def public_transit_view(request, simulation):
         nb_centroids = centroids.count()
         nb_pairs = public_transit_pairs.count()
         is_complete = nb_pairs >= nb_centroids * (nb_centroids - 1)
-    import_form = ImportForm()
+    import_form = forms.ImportForm()
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -1535,13 +1529,13 @@ def public_transit_view(request, simulation):
 @public_required
 def public_transit_list(request, simulation):
     """View to display the public-transit travel times."""
-    centroids = get_query('centroid', simulation)
+    centroids = functions.get_query('centroid', simulation)
     if centroids.count() > MATRIX_THRESHOLD:
         # Large matrix, return a table instead.
         return PTMatrixListView.as_view()(request, simulation=simulation)
     else:
         # Small matrix, return it.
-        matrix_points = get_query('public_transit', simulation)
+        matrix_points = functions.get_query('public_transit', simulation)
         od_matrix = []
         # For each row, we build an array which will be appended to the
         # od_matrix array.
@@ -1561,10 +1555,10 @@ def public_transit_list(request, simulation):
                             q=column_centroid,
                         )
                         row.append(couple_object.r)
-                    except Matrix.DoesNotExist:
+                    except models.Matrix.DoesNotExist:
                         row.append(0)
             od_matrix.append(row)
-        demandsegment = get_query('demandsegment', simulation)
+        demandsegment = functions.get_query('demandsegment', simulation)
         context = {
             'simulation': simulation,
             'demandsegment': demandsegment,
@@ -1579,8 +1573,8 @@ def public_transit_list(request, simulation):
 def public_transit_edit(request, simulation):
     """View to edit the public transit OD Matrix."""
     matrix = simulation.scenario.supply.pttimes
-    matrix_points = get_query('public_transit', simulation)
-    centroids = get_query('centroid', simulation)
+    matrix_points = functions.get_query('public_transit', simulation)
+    centroids = functions.get_query('centroid', simulation)
     od_matrix = []
     # For each row, we build an array which will be appended to the od_matrix
     # array.
@@ -1612,9 +1606,7 @@ def public_transit_edit(request, simulation):
                 i += 1
         od_matrix.append(row)
     # Create a formset to obtain the management form.
-    formset = MatrixFormSet(
-        queryset=matrix_points.all()
-    )
+    formset = forms.MatrixFormSet(queryset=matrix_points.all())
     context = {
         'simulation': simulation,
         'centroids': centroids,
@@ -1629,9 +1621,8 @@ def public_transit_edit(request, simulation):
 @owner_required
 def public_transit_edit_save(request, simulation):
     """View to save the public transit OD Matrix."""
-    matrix = simulation.scenario.supply.pttimes
     # Get the formset from the POST data and save it.
-    formset = MatrixFormSet(request.POST)
+    formset = forms.MatrixFormSet(request.POST)
     if formset.is_valid():
         formset.save()
     else:
@@ -1651,7 +1642,7 @@ def public_transit_delete(request, simulation):
     """Delete all OD pairs of the public transit OD matrix.
     The Matrices object is not deleted so that the user can add OD pairs again.
     """
-    od_pairs = get_query('public_transit', simulation)
+    od_pairs = functions.get_query('public_transit', simulation)
     od_pairs.delete()
     return HttpResponseRedirect(reverse(
         'metro:public_transit_view', args=(simulation.id,)
@@ -1665,7 +1656,7 @@ def public_transit_import(request, simulation):
     database."""
     try:
         encoded_file = request.FILES['import_file']
-        public_transit_import_function(encoded_file, simulation)
+        functions.public_transit_import_function(encoded_file, simulation)
     except Exception as e:
         print(e)
         context = {
@@ -1682,8 +1673,8 @@ def public_transit_import(request, simulation):
 @public_required
 def public_transit_export(request, simulation):
     """View to send a file with the public transit OD Matrix to the user."""
-    dir_name = get_export_directory()
-    filename = public_transit_export_function(simulation, dir_name)
+    dir_name = functions.get_export_directory()
+    filename = functions.public_transit_export_function(simulation, dir_name)
     if filename is None:
         return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
@@ -1701,19 +1692,19 @@ def public_transit_export(request, simulation):
 @check_object_name
 def object_view(request, simulation, object_name):
     """Main view of a network object."""
-    owner = can_edit(request.user, simulation)
-    query = get_query(object_name, simulation)
+    owner = functions.can_edit(request.user, simulation)
+    query = functions.get_query(object_name, simulation)
     large_count = query.count() > OBJECT_THRESHOLD
     network_empty = False
     if object_name == 'link':
-        # Allow the user to edit links only if there are at least two centroids,
-        # one crossing and one congestion function.
-        nb_centroids = get_query('centroid', simulation).count()
-        nb_crossings = get_query('crossing', simulation).count()
-        nb_functions = get_query('function', simulation).count()
+        # Allow the user to edit links only if there are at least two
+        # centroids, one crossing and one congestion function.
+        nb_centroids = functions.get_query('centroid', simulation).count()
+        nb_crossings = functions.get_query('crossing', simulation).count()
+        nb_functions = functions.get_query('function', simulation).count()
         network_empty = not (nb_centroids >= 2 and nb_crossings >= 1
                              and nb_functions >= 1)
-    import_form = ImportForm()
+    import_form = forms.ImportForm()
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -1805,7 +1796,7 @@ def object_import(request, simulation, object_name):
     """View to import instances of a network object."""
     encoded_file = request.FILES['import_file']
     try:
-        object_import_function(encoded_file, simulation, object_name)
+        functions.object_import_function(encoded_file, simulation, object_name)
     except Exception as e:
         print(e)
         context = {
@@ -1823,15 +1814,16 @@ def object_import(request, simulation, object_name):
 @check_object_name
 def object_export(request, simulation, object_name):
     """View to export all instances of a network object."""
-    dir_name = get_export_directory()
-    filename = object_export_function(simulation, object_name, dir_name)
+    dir_name = functions.get_export_directory()
+    filename = functions.object_export_function(
+        simulation, object_name, dir_name)
     if filename is None:
         return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
         response['content_type'] = 'text/tab-separated-values'
-        name = metro_to_user(object_name).replace(' ', '_')
+        name = functions.metro_to_user(object_name).replace(' ', '_')
         response['Content-Disposition'] = \
             'attachement; filename={}s.tsv'.format(name)
     # We delete the export directory to save disk space.
@@ -1843,7 +1835,7 @@ def object_export(request, simulation, object_name):
 @check_object_name
 def object_delete(request, simulation, object_name):
     """View to delete all instances of a network objects."""
-    query = get_query(object_name, simulation)
+    query = functions.get_query(object_name, simulation)
     if object_name in ('centroid', 'crossing'):
         # Django cannot manage well delete for these objects.
         name = 'Centroid' if object_name == 'centroid' else 'Crossing'
@@ -1884,7 +1876,7 @@ def object_delete(request, simulation, object_name):
             )
         if object_name == 'centroid':
             # Reset the number of travelers.
-            matrices = get_query('matrices', simulation)
+            matrices = functions.get_query('matrices', simulation)
             for matrix in matrices:
                 matrix.total = 0
                 matrix.save()
@@ -1903,15 +1895,15 @@ def object_delete(request, simulation, object_name):
 def simulation_run_action(request, simulation):
     """View to create a new SimulationRun and launch the simulation."""
     # Check that there is no run in progress for this simulation.
-    running_simulations = SimulationRun.objects.filter(
+    running_simulations = models.SimulationRun.objects.filter(
         simulation=simulation
     ).filter(status__in=('Preparing', 'Running', 'Ending'))
     if not running_simulations.exists():
         # Create a SimulationRun object to keep track of the run.
-        run_form = RunForm(request.POST)
+        run_form = forms.RunForm(request.POST)
         if run_form.is_valid():
             run = run_form.save(simulation)
-            run_simulation(run)
+            functions.run_simulation(run)
         return HttpResponseRedirect(
             reverse('metro:simulation_run_view', args=(simulation.id, run.id,))
         )
@@ -1950,8 +1942,9 @@ def simulation_run_view(request, simulation, run):
         with open(log_file, 'r') as f:
             log = f.read().replace('\n', '<br>')
     # Get the results of the run (if any).
-    results = SimulationMOEs.objects.filter(runid=run.id).order_by('-day')
-    result_table = SimulationMOEsTable(results)
+    results = models.SimulationMOEs.objects.filter(runid=run.id)
+    results = results.order_by('-day')
+    result_table = tables.SimulationMOEsTable(results)
     context = {
         'simulation': simulation,
         'run': run,
@@ -1965,7 +1958,7 @@ def simulation_run_view(request, simulation, run):
 @public_required
 def simulation_run_list(request, simulation):
     """View with a list of the runs of the simulation."""
-    runs = get_query('run', simulation).order_by('-id')
+    runs = functions.get_query('run', simulation).order_by('-id')
     context = {
         'simulation': simulation,
         'runs': runs,
@@ -1978,11 +1971,9 @@ def simulation_run_list(request, simulation):
 def simulation_run_link_output(request, simulation, run):
     """Simple view to send the link-specific results of the run to the user."""
     try:
-        db_name = settings.DATABASES['default']['NAME']
         file_path = (
             '{0}/website_files/network_output/link_results_{1}_{2}.txt'
-                .format(settings.BASE_DIR, simulation.id, run.id)
-        )
+        ).format(settings.BASE_DIR, simulation.id, run.id)
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read())
             response['content_type'] = 'text/tab-separated-values'
@@ -1999,11 +1990,9 @@ def simulation_run_link_output(request, simulation, run):
 def simulation_run_user_output(request, simulation, run):
     """Simple view to send the user-specific results of the run to the user."""
     try:
-        db_name = settings.DATABASES['default']['NAME']
         file_path = (
             '{0}/website_files/network_output/user_results_{1}_{2}.txt'
-                .format(settings.BASE_DIR, simulation.id, run.id)
-        )
+        ).format(settings.BASE_DIR, simulation.id, run.id)
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read())
             response['content_type'] = 'text/tab-separated-values'
@@ -2020,11 +2009,9 @@ def simulation_run_user_output(request, simulation, run):
 def simulation_run_user_path(request, simulation, run):
     """Simple view to send the user-specific results of the run to the user."""
     try:
-        db_name = settings.DATABASES['default']['NAME']
         file_path = (
             '{0}/website_files/network_output/user_paths_{1}_{2}.tsv.gz'
-                .format(settings.BASE_DIR, simulation.id, run.id)
-        )
+        ).format(settings.BASE_DIR, simulation.id, run.id)
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read())
             response['content_type'] = 'text/tab-separated-values'
@@ -2041,17 +2028,16 @@ def simulation_run_user_path(request, simulation, run):
 def network_view(request, simulation):
     """View of the network of a simulation."""
     # If the network is large, the display method is different.
-    links = get_query('link', simulation)
+    links = functions.get_query('link', simulation)
     if links:
         large_network = links.count() > NETWORK_THRESHOLD
         # File where the data for the network are stored.
         output_file = (
             '{0}/website_files/network_output/network_{1!s}.json'
-                .format(settings.BASE_DIR, simulation.id)
-        )
+        ).format(settings.BASE_DIR, simulation.id)
         if simulation.has_changed or not os.path.isfile(output_file):
             # Generate a new output file.
-            output = network_output(simulation, large_network)
+            output = plots.network_output(simulation, large_network)
             with open(output_file, 'w') as f:
                 json.dump(output, f)
             # Do not generate a new output file the next time (unless the
@@ -2079,21 +2065,18 @@ def network_view_run(request, simulation, run):
     specific run.
     """
     # If the network is large, the display method is different.
-    links = get_query('link', simulation)
+    links = functions.get_query('link', simulation)
     large_network = links.count() > NETWORK_THRESHOLD
     # Files where the data for the network are stored.
     network_file = (
         '{0}/website_files/network_output/network_{1}_{2}.json'
-            .format(settings.BASE_DIR, simulation.id, run.id)
-    )
+    ).format(settings.BASE_DIR, simulation.id, run.id)
     parameters_file = (
         '{0}/website_files/network_output/parameters_{1}_{2}.json'
-            .format(settings.BASE_DIR, simulation.id, run.id)
-    )
+    ).format(settings.BASE_DIR, simulation.id, run.id)
     results_file = (
         '{0}/website_files/network_output/results_{1}_{2}.json'
-            .format(settings.BASE_DIR, simulation.id, run.id)
-    )
+    ).format(settings.BASE_DIR, simulation.id, run.id)
     if (os.path.isfile(network_file)
             and os.path.isfile(parameters_file)
             and os.path.isfile(results_file)):
@@ -2126,10 +2109,10 @@ class MatrixListView(SingleTableMixin, FilterView):
     The class must be initiated with one positional argument, the request, and
     two keyword arguments, simulation and demandsegment.
     """
-    table_class = MatrixTable
-    model = Matrix
+    table_class = tables.MatrixTable
+    model = models.Matrix
     template_name = 'metro_app/matrix_list.html'
-    filterset_class = MatrixFilter
+    filterset_class = filters.MatrixFilter
     paginate_by = 25
     # With django-filters 2.0, strict = False is required to show the queryset
     # when no filter is active.
@@ -2138,7 +2121,8 @@ class MatrixListView(SingleTableMixin, FilterView):
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
         self.demandsegment = self.kwargs['demandsegment']
-        queryset = Matrix.objects.filter(matrices=self.demandsegment.matrix)
+        queryset = models.Matrix.objects.filter(
+            matrices=self.demandsegment.matrix)
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2155,10 +2139,10 @@ class PTMatrixListView(SingleTableMixin, FilterView):
     Two differences: table and filter used rename Population to Travel time;
     public_transit is True (allow changes in the template).
     """
-    table_class = PTMatrixTable
-    model = Matrix
+    table_class = tables.PTMatrixTable
+    model = models.Matrix
     template_name = 'metro_app/matrix_list.html'
-    filterset_class = PTMatrixFilter
+    filterset_class = filters.PTMatrixFilter
     paginate_by = 25
     # With django-filters 2.0, strict = False is required to show the queryset
     # when no filter is active.
@@ -2166,7 +2150,7 @@ class PTMatrixListView(SingleTableMixin, FilterView):
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('public_transit', self.simulation)
+        queryset = functions.get_query('public_transit', self.simulation)
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2177,16 +2161,17 @@ class PTMatrixListView(SingleTableMixin, FilterView):
 
 
 class CentroidListView(SingleTableMixin, FilterView):
-    table_class = CentroidTable
-    model = Centroid
+    table_class = tables.CentroidTable
+    model = models.Centroid
     template_name = 'metro_app/object_list.html'
-    filterset_class = CentroidFilter
+    filterset_class = filters.CentroidFilter
     paginate_by = 25
     strict = False
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('centroid', self.simulation).order_by('user_id')
+        queryset = functions.get_query(
+            'centroid', self.simulation).order_by('user_id')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2197,16 +2182,17 @@ class CentroidListView(SingleTableMixin, FilterView):
 
 
 class CrossingListView(SingleTableMixin, FilterView):
-    table_class = CrossingTable
-    model = Crossing
+    table_class = tables.CrossingTable
+    model = models.Crossing
     template_name = 'metro_app/object_list.html'
-    filterset_class = CrossingFilter
+    filterset_class = filters.CrossingFilter
     paginate_by = 25
     strict = False
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('crossing', self.simulation).order_by('user_id')
+        queryset = functions.get_query(
+            'crossing', self.simulation).order_by('user_id')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2217,16 +2203,17 @@ class CrossingListView(SingleTableMixin, FilterView):
 
 
 class LinkListView(SingleTableMixin, FilterView):
-    table_class = LinkTable
-    model = Link
+    table_class = tables.LinkTable
+    model = models.Link
     template_name = 'metro_app/object_list.html'
-    filterset_class = LinkFilter
+    filterset_class = filters.LinkFilter
     paginate_by = 25
     strict = False
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('link', self.simulation).order_by('user_id')
+        queryset = functions.get_query(
+            'link', self.simulation).order_by('user_id')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2237,16 +2224,17 @@ class LinkListView(SingleTableMixin, FilterView):
 
 
 class FunctionListView(SingleTableMixin, FilterView):
-    table_class = FunctionTable
-    model = Function
+    table_class = tables.FunctionTable
+    model = models.Function
     template_name = 'metro_app/object_list.html'
-    filterset_class = FunctionFilter
+    filterset_class = filters.FunctionFilter
     paginate_by = 25
     strict = False
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('function', self.simulation).order_by('user_id')
+        queryset = functions.get_query(
+            'function', self.simulation).order_by('user_id')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2257,16 +2245,16 @@ class FunctionListView(SingleTableMixin, FilterView):
 
 
 class TollListView(SingleTableMixin, FilterView):
-    table_class = TollTable
-    model = Policy
+    table_class = tables.TollTable
+    model = models.Policy
     template_name = 'metro_app/pricing_list.html'
-    filterset_class = TollFilter
+    filterset_class = filters.TollFilter
     paginate_by = 25
     strict = False
 
     def get_queryset(self):
         self.simulation = self.kwargs['simulation']
-        queryset = get_query('policy', self.simulation)
+        queryset = functions.get_query('policy', self.simulation)
         queryset = queryset.filter(type='PRICING')
         queryset = queryset.order_by('location__link__user_id')
         return queryset
@@ -2280,9 +2268,9 @@ class TollListView(SingleTableMixin, FilterView):
 # Shows all events
 def show_events(request):
     """Sorts events by date"""
-    event_list = Event.objects.order_by('-date')
+    event_list = models.Event.objects.order_by('-date')
 
-    event_form = EventForm()
+    event_form = forms.EventForm()
 
     context = {'events': event_list, 'form': event_form}
     return render(request, 'metro_app/events_view.html', context)
@@ -2290,77 +2278,88 @@ def show_events(request):
 
 @user_passes_test(lambda u: u.is_superuser)
 def create_event(request):
-    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    # Could be changed to a wrapper but can't figure out how to access user
+    # from wrapper.
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-    my_form = EventForm(request.POST or None)
+    my_form = forms.EventForm(request.POST or None)
     if my_form.is_valid():
         event_title = my_form.cleaned_data['title']
         event_description = my_form.cleaned_data['description']
         event_author = request.user
-        event = Event.objects.create(title=event_title, author=event_author, description=event_description)
+        models.Event.objects.create(
+            title=event_title, author=event_author,
+            description=event_description,
+        )
 
-        my_form = EventForm()
+        my_form = forms.EventForm()
 
     return HttpResponseRedirect(reverse('metro:events_view'))
 
+
 @user_passes_test(lambda u: u.is_superuser)
 def delete_event(request, pk):
-    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    # Could be changed to a wrapper but can't figure out how to access user
+    # from wrapper.
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-    event = get_object_or_404(Event, id=pk)
+    event = get_object_or_404(models.Event, id=pk)
 
     if request.method == 'POST':
         event.delete()
 
     return HttpResponseRedirect(reverse('metro:events_view'))
 
+
 # Loads the edit Event page
 @user_passes_test(lambda u: u.is_superuser)
 def edit_event_show(request, pk):
-    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    # Could be changed to a wrapper but can't figure out how to access user
+    # from wrapper.
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-    event = get_object_or_404(Event, id=pk)
-    my_form = EventForm(initial={'title': event.title, 'description': event.description})
+    event = get_object_or_404(models.Event, id=pk)
+    my_form = forms.EventForm(
+        initial={'title': event.title, 'description': event.description})
 
     context = {'event': event, 'form': my_form}
     return render(request, 'metro_app/events_edit.html', context)
 
+
 @user_passes_test(lambda u: u.is_superuser)
 def edit_event(request, pk):
-    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    # Could be changed to a wrapper but can't figure out how to access user
+    # from wrapper.
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-    event = get_object_or_404(Event, id=pk)
-    my_form = EventForm(request.POST)
+    event = get_object_or_404(models.Event, id=pk)
+    my_form = forms.EventForm(request.POST)
 
     if request.POST and my_form.is_valid():
         event_title = my_form.cleaned_data['title']
         event_description = my_form.cleaned_data['description']
         event_author = event.author
-        event = Event.objects.filter(id=pk).update(title=event_title,
-                                                   author=event_author,
-                                                   description=event_description,
-                                                   date=datetime.datetime.now())
+        event = models.Event.objects.filter(id=pk)
+        event.update(
+            title=event_title, author=event_author,
+            description=event_description, date=datetime.datetime.now()
+        )
 
     return HttpResponseRedirect(reverse('metro:events_view'))
 
 
 def show_articles(request):
-    article_list = Article.objects.order_by('-id')
-    article_form = ArticleForm()
-    article_files = ArticleFile.objects
+    article_list = models.Article.objects.order_by('-id')
+    article_form = forms.ArticleForm()
 
     articles = []
 
     for article in article_list:
-        documents = article_files.filter(file_article=article.id)
+        documents = models.ArticleFile.objects.filter(file_article=article.id)
         articles.append(tuple((article, documents)))
 
     context = {'articles': articles, 'form': article_form}
@@ -2388,11 +2387,12 @@ def download_article_file(request, path):
 
 @user_passes_test(lambda u: u.is_superuser)
 def create_article(request):
-    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    # Could be changed to a wrapper but can't figure out how to access user
+    # from wrapper.
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-    my_form = ArticleForm(request.POST or None)
+    my_form = forms.ArticleForm(request.POST or None)
     files = request.FILES.getlist('files')
     if my_form.is_valid():
 
@@ -2400,15 +2400,18 @@ def create_article(request):
         article_description = my_form.cleaned_data['description']
         article_author = request.user
 
-        article = Article.objects.create(title=article_title,
-                                         description=article_description,
-                                         creator=article_author)
+        article = models.Article(
+            title=article_title, description=article_description,
+            creator=article_author,
+        )
+        article.save()
 
         for f in files:
             file_name = os.path.basename(f.name)
-            article_file = ArticleFile.objects.create(file=f, file_name=file_name, file_article=article)
+            models.ArticleFile.objects.create(
+                file=f, file_name=file_name, file_article=article)
 
-        my_form = ArticleForm()
+        my_form = forms.ArticleForm()
     else:
         print(my_form.errors)
 
@@ -2417,11 +2420,12 @@ def create_article(request):
 
 @user_passes_test(lambda u: u.is_superuser)
 def delete_article(request, pk):
-    # Could be changed to a wrapper but can't figure out how to access user from wrapper
+    # Could be changed to a wrapper but can't figure out how to access user
+    # from wrapper.
     if not request.user.is_superuser:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-    article = get_object_or_404(Article, id=pk)
+    article = get_object_or_404(models.Article, id=pk)
 
     if request.method == 'POST':
         article.delete()
@@ -2433,29 +2437,31 @@ def delete_article(request, pk):
 def simulation_export(request, simulation):
     """View to make a zip file of all simulation parameters."""
 
-    dir_name = get_export_directory()
+    dir_name = functions.get_export_directory()
 
     files_names = []
 
     files_names.append(
-        object_export_function(simulation, 'centroid', dir_name))
+        functions.object_export_function(simulation, 'centroid', dir_name))
     files_names.append(
-        object_export_function(simulation, 'crossing', dir_name))
+        functions.object_export_function(simulation, 'crossing', dir_name))
     files_names.append(
-        object_export_function(simulation, 'link', dir_name))
+        functions.object_export_function(simulation, 'link', dir_name))
     files_names.append(
-        object_export_function(simulation, 'function', dir_name))
+        functions.object_export_function(simulation, 'function', dir_name))
     files_names.append(
-        public_transit_export_function(simulation, dir_name))
+        functions.public_transit_export_function(simulation, dir_name))
     files_names.append(
-        pricing_export_function(simulation, dir_name))
+        functions.pricing_export_function(simulation, dir_name))
     files_names.append(
-        usertype_export_function(simulation, dir_name=dir_name))
+        functions.usertype_export_function(simulation, dir_name=dir_name))
 
-    demandsegments = get_query('demandsegment', simulation)
+    demandsegments = functions.get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
         files_names.append(
-            matrix_export_function(simulation, demandsegment, dir_name))
+            functions.matrix_export_function(
+                simulation, demandsegment, dir_name)
+        )
 
     zipname = str(simulation).replace(' ', '_')
 
@@ -2492,16 +2498,19 @@ def simulation_export(request, simulation):
 def traveler_simulation_export(request, simulation):
     """View to export usertypes and matrices in a zipfile."""
 
-    dir_name = get_export_directory()
+    dir_name = functions.get_export_directory()
 
     files_names = []
 
-    files_names.append(usertype_export_function(simulation, dir_name=dir_name))
+    files_names.append(
+        functions.usertype_export_function(simulation, dir_name=dir_name))
 
-    demandsegments = get_query('demandsegment', simulation)
+    demandsegments = functions.get_query('demandsegment', simulation)
     for demandsegment in demandsegments:
         files_names.append(
-            matrix_export_function(simulation, demandsegment, dir_name))
+            functions.matrix_export_function(
+                simulation, demandsegment, dir_name)
+        )
 
     zipname = str(simulation).replace(' ', '_')
 
@@ -2525,7 +2534,8 @@ def traveler_simulation_export(request, simulation):
     response = HttpResponse(s.getvalue())
     response['content_type'] = 'application/x-zip-compressed'
     # ..and correct content-disposition
-    response['Content-Disposition'] = 'attachment; filename={0}.zip'.format(zipname)
+    response['Content-Disposition'] = \
+        'attachment; filename={0}.zip'.format(zipname)
 
     # We delete the export directory to save disk space.
     shutil.rmtree(dir_name, ignore_errors=True)
@@ -2541,50 +2551,52 @@ def simulation_import_action(request):
     public) and a zipfile with the simulation data.
     """
     # Create a form with the data sent and check if it is valid.
-    form = SimulationImportForm(request.user, request.POST, request.FILES)
+    form = forms.SimulationImportForm(
+        request.user, request.POST, request.FILES)
     if form.is_valid():
         # Create a new simulation with the attributes sent.
-        simulation = create_simulation(request.user, form)
+        simulation = functions.create_simulation(request.user, form)
         # Import the zipfile data in the simulation.
         encoded_file = form.cleaned_data['zipfile']
         file = zipfile.ZipFile(encoded_file)
         namelist = file.namelist()
         for filename in namelist:
             if re.search('/zones.[tc]sv$', filename):
-                object_import_function(
+                functions.object_import_function(
                     file.open(filename), simulation, 'centroid')
                 break
 
         for filename in namelist:
             if re.search('/intersections.[tc]sv$', filename):
-                object_import_function(
+                functions.object_import_function(
                     file.open(filename), simulation, 'crossing')
                 break
 
         for filename in namelist:
             if re.search('/links.[tc]sv$', filename):
-                object_import_function(
+                functions.object_import_function(
                     file.open(filename), simulation, 'link')
                 break
 
         for filename in namelist:
             if re.search('/congestion_functions.[tc]sv$', filename):
-                object_import_function(
+                functions.object_import_function(
                     file.open(filename), simulation, 'function')
                 break
 
         for filename in namelist:
             if re.search('/public_transit.[tc]sv$', filename):
-                public_transit_import_function(
+                functions.public_transit_import_function(
                     file.open(filename), simulation)
                 break
 
         for filename in namelist:
             if re.search('/traveler_types.[tc]sv$', filename):
-                usertype_import_function(file.open(filename), simulation)
+                functions.usertype_import_function(
+                    file.open(filename), simulation)
                 break
 
-        demandsegments = get_query('demandsegment', simulation)
+        demandsegments = functions.get_query('demandsegment', simulation)
         for filename in namelist:
             d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
             if d:
@@ -2593,16 +2605,17 @@ def simulation_import_action(request):
                 try:
                     demandsegment = demandsegments.get(
                         usertype__user_id=user_id)
-                except DemandSegment.objects.DoesNotExist:
+                except models.DemandSegment.objects.DoesNotExist:
                     # Matrix file with an invalid id, ignore it.
                     continue
                 # Import the matrix file in the new demandsegment.
-                matrix_import_function(
+                functions.matrix_import_function(
                     file.open(filename), simulation, demandsegment)
 
         for filename in namelist:
             if re.search('/pricings.[tc]sv$', filename):
-                pricing_import_function(file.open(filename), simulation)
+                functions.pricing_import_function(
+                    file.open(filename), simulation)
                 break
 
         return HttpResponseRedirect(
@@ -2620,7 +2633,7 @@ def traveler_import_action(request, simulation):
     """View to import usertypes and matrices from a zipfile."""
     # Create a form with the data send and check if it is valid.
     try:
-        form = ImportForm(request.POST, request.FILES)
+        form = forms.ImportForm(request.POST, request.FILES)
         if form.is_valid():
             encoded_file = form.cleaned_data['import_file']
             file = zipfile.ZipFile(encoded_file)
@@ -2628,10 +2641,11 @@ def traveler_import_action(request, simulation):
 
             for filename in namelist:
                 if re.search('/traveler_types.[tc]sv$', filename):
-                    usertype_import_function(file.open(filename), simulation)
+                    functions.usertype_import_function(
+                        file.open(filename), simulation)
                     break
 
-            demandsegments = get_query('demandsegment', simulation)
+            demandsegments = functions.get_query('demandsegment', simulation)
             for filename in namelist:
                 d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
                 if d:
@@ -2640,11 +2654,11 @@ def traveler_import_action(request, simulation):
                     try:
                         demandsegment = demandsegments.get(
                             usertype__user_id=user_id)
-                    except DemandSegment.DoesNotExist:
+                    except models.DemandSegment.DoesNotExist:
                         # Matrix file with an invalid id, ignore it.
                         continue
                     # Import the matrix file in the new demandsegment.
-                    matrix_import_function(
+                    functions.matrix_import_function(
                         file.open(filename), simulation, demandsegment)
 
     except Exception as e:
@@ -2670,7 +2684,7 @@ def usertype_import(request, simulation):
     """View to convert the imported file to usertype in the database."""
     try:
         encoded_file = request.FILES['import_file']
-        usertype_import_function(encoded_file, simulation)
+        functions.usertype_import_function(encoded_file, simulation)
     except Exception as e:
         # Catch any exception while importing the file and return an error page
         # if there is any.
@@ -2690,8 +2704,9 @@ def usertype_import(request, simulation):
 @check_demand_relation
 def usertype_export(request, simulation, demandsegment):
     """View to send a file with the usertype parameters."""
-    dir_name = get_export_directory()
-    filename = usertype_export_function(simulation, demandsegment, dir_name)
+    dir_name = functions.get_export_directory()
+    filename = functions.usertype_export_function(
+        simulation, demandsegment, dir_name)
     if filename is None:
         return Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
@@ -2709,36 +2724,43 @@ def usertype_export(request, simulation, demandsegment):
 @login_required
 def environments_view(request):
     if request.user.is_authenticated:
-        auth_environments = Environment.objects.filter(users=request.user)
+        auth_environments = models.Environment.objects.filter(
+            users=request.user)
     else:
         auth_environments = {}
-    form = EnvironmentForm()
+    form = forms.EnvironmentForm()
 
     permission = request.user.has_perm('metro_app.add_environment')
 
-    context = {'environments': auth_environments, 'form': form, 'permission': permission}
+    context = {
+        'environments': auth_environments,
+        'form': form,
+        'permission': permission,
+    }
     return render(request, 'metro_app/environments_view.html', context)
 
 
 @login_required
 @environment_can_create
 def environment_create(request):
-    my_form = EnvironmentForm(request.POST or None)
+    my_form = forms.EnvironmentForm(request.POST or None)
     if my_form.is_valid():
         env_name = my_form.cleaned_data['name']
         env_user = {request.user}
 
-        environment = Environment.objects.create(name=env_name, creator=env_user)
+        environment = models.Environment.objects.create(
+            name=env_name, creator=env_user)
         environment.users.set(env_user)
 
-        my_form = EnvironmentForm()
+        my_form = forms.EnvironmentForm()
     return HttpResponseRedirect(reverse('metro:environments_view'))
+
 
 @login_required
 @environment_owner_required
 def environment_add_view(request, environment):
-    env = get_object_or_404(Environment, id=environment)
-    my_form = EnvironmentUserAddForm()
+    env = get_object_or_404(models.Environment, id=environment)
+    my_form = forms.EnvironmentUserAddForm()
 
     context = {'environment': env, 'form': my_form, 'error': False}
 
@@ -2748,36 +2770,40 @@ def environment_add_view(request, environment):
 @login_required
 @environment_owner_required
 def environment_add(request, environment):
-    env = get_object_or_404(Environment, id=environment)
-    my_form = EnvironmentUserAddForm(request.POST or None)
+    env = get_object_or_404(models.Environment, id=environment)
+    my_form = forms.EnvironmentUserAddForm(request.POST or None)
     if my_form.is_valid():
         username = my_form.cleaned_data['username']
         user = User.objects.get(username=username)
 
         env.users.add(user)
 
-        my_form = EnvironmentUserAddForm()
+        my_form = forms.EnvironmentUserAddForm()
         return HttpResponseRedirect(reverse('metro:environments_view'))
 
-
-    context = {'environment': env, 'form': my_form, 'error': True}
+    context = {
+        'environment': env,
+        'form': my_form,
+        'error': True,
+    }
     return render(request, 'metro_app/environments_edit.html', context)
 
 
 @login_required
 @environment_owner_required
 def environment_user_delete(request, environment, user):
-    env = get_object_or_404(Environment, id=environment)
+    env = get_object_or_404(models.Environment, id=environment)
 
     if request.method == 'POST':
         env.users.remove(user)
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
+
 @login_required
 @environment_owner_required
 def environment_delete(request, environment):
-    env = get_object_or_404(Environment, id=environment)
+    env = get_object_or_404(models.Environment, id=environment)
     env.delete()
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
@@ -2787,7 +2813,7 @@ def environment_delete(request, environment):
 # Receivers
 # ====================
 
-@receiver(pre_delete, sender=FunctionSet)
+@receiver(pre_delete, sender=models.FunctionSet)
 def pre_delete_function_set(sender, instance, **kwargs):
     """Delete all objects related to a functionset before deleting the
     functionset.
@@ -2796,7 +2822,7 @@ def pre_delete_function_set(sender, instance, **kwargs):
     instance.function_set.all().delete()
 
 
-@receiver(pre_delete, sender=Demand)
+@receiver(pre_delete, sender=models.Demand)
 def pre_delete_demand(sender, instance, **kwargs):
     """Delete all demand segments before deleting the demand."""
     demandsegments = instance.demandsegment_set.all()
@@ -2838,30 +2864,30 @@ def gen_formset(object_name, simulation, request=None):
     empty form (it is impossible to add the first form otherwise).
     """
     formset = None
-    query = get_query(object_name, simulation)
+    query = functions.get_query(object_name, simulation)
     if object_name == 'centroid':
         if request:
             if query.exists():
-                formset = CentroidFormSet(
+                formset = forms.CentroidFormSet(
                     request.POST,
                     prefix='centroid',
                     simulation=simulation,
                 )
             else:
-                formset = CentroidFormSetExtra(
+                formset = forms.CentroidFormSetExtra(
                     request.POST,
                     prefix='centroid',
                     simulation=simulation,
                 )
         else:
             if query.exists():
-                formset = CentroidFormSet(
+                formset = forms.CentroidFormSet(
                     queryset=query,
                     prefix='centroid',
                     simulation=simulation,
                 )
             else:
-                formset = CentroidFormSetExtra(
+                formset = forms.CentroidFormSetExtra(
                     queryset=query,
                     prefix='centroid',
                     simulation=simulation,
@@ -2869,26 +2895,26 @@ def gen_formset(object_name, simulation, request=None):
     elif object_name == 'crossing':
         if request:
             if query.exists():
-                formset = CrossingFormSet(
+                formset = forms.CrossingFormSet(
                     request.POST,
                     prefix='crossing',
                     simulation=simulation,
                 )
             else:
-                formset = CrossingFormSetExtra(
+                formset = forms.CrossingFormSetExtra(
                     request.POST,
                     prefix='crossing',
                     simulation=simulation,
                 )
         else:
             if query.exists():
-                formset = CrossingFormSet(
+                formset = forms.CrossingFormSet(
                     queryset=query,
                     prefix='crossing',
                     simulation=simulation,
                 )
             else:
-                formset = CrossingFormSetExtra(
+                formset = forms.CrossingFormSetExtra(
                     queryset=query,
                     prefix='crossing',
                     simulation=simulation,
@@ -2896,14 +2922,14 @@ def gen_formset(object_name, simulation, request=None):
     elif object_name == 'link':
         if request:
             if query.exists():
-                formset = LinkFormSet(
+                formset = forms.LinkFormSet(
                     request.POST,
                     prefix='link',
                     simulation=simulation,
                     form_kwargs={'simulation': simulation},
                 )
             else:
-                formset = LinkFormSetExtra(
+                formset = forms.LinkFormSetExtra(
                     request.POST,
                     prefix='link',
                     simulation=simulation,
@@ -2911,14 +2937,14 @@ def gen_formset(object_name, simulation, request=None):
                 )
         else:
             if query.exists():
-                formset = LinkFormSet(
+                formset = forms.LinkFormSet(
                     queryset=query,
                     prefix='link',
                     simulation=simulation,
                     form_kwargs={'simulation': simulation}
                 )
             else:
-                formset = LinkFormSetExtra(
+                formset = forms.LinkFormSetExtra(
                     queryset=query,
                     prefix='link',
                     simulation=simulation,
@@ -2927,26 +2953,26 @@ def gen_formset(object_name, simulation, request=None):
     elif object_name == 'function':
         if request:
             if query.exists():
-                formset = FunctionFormSet(
+                formset = forms.FunctionFormSet(
                     request.POST,
                     prefix='function',
                     simulation=simulation,
                 )
             else:
-                formset = FunctionFormSetExtra(
+                formset = forms.FunctionFormSetExtra(
                     request.POST,
                     prefix='function',
                     simulation=simulation,
                 )
         else:
             if query.exists():
-                formset = FunctionFormSet(
+                formset = forms.FunctionFormSet(
                     queryset=query,
                     prefix='function',
                     simulation=simulation,
                 )
             else:
-                formset = FunctionFormSetExtra(
+                formset = forms.FunctionFormSetExtra(
                     queryset=query,
                     prefix='function',
                     simulation=simulation,

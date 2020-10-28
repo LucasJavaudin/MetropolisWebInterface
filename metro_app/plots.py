@@ -1,31 +1,35 @@
 import os
 
-# Set matplotlib config directory.
-mplconfigdir = '/home/metropolis/matplotlib'
-if os.path.isdir(mplconfigdir):
-    os.environ['MPLCONFIGDIR'] = mplconfigdir
-
 import numpy as np
 import matplotlib.pyplot as plt
 
 from django.db.models import Sum
 
-from .models import *
+from metro_app import models
+
+# Set matplotlib config directory.
+mplconfigdir = '/home/metropolis/matplotlib'
+if os.path.isdir(mplconfigdir):
+    os.environ['MPLCONFIGDIR'] = mplconfigdir
+
 
 def get_arrivals_departures(simulation):
     # Get some objects.
-    centroids = Centroid.objects.filter(
+    centroids = models.Centroid.objects.filter(
             network__supply__scenario__simulation=simulation
     )
-    demand_segments = DemandSegment.objects.filter(
+    demand_segments = models.DemandSegment.objects.filter(
             demand=simulation.scenario.demand
     )
-    matrices = Matrices.objects.filter(demandsegment__in=demand_segments)
+    matrices = models.Matrices.objects.filter(
+        demandsegment__in=demand_segments)
     departures_values = []
     arrivals_values = []
     for centroid in centroids:
-        departures = Matrix.objects.filter(p=centroid, matrices__in=matrices)
-        arrivals = Matrix.objects.filter(q=centroid, matrices__in=matrices)
+        departures = models.Matrix.objects.filter(
+            p=centroid, matrices__in=matrices)
+        arrivals = models.Matrix.objects.filter(
+            q=centroid, matrices__in=matrices)
         if departures.exists():
             departures_values.append(departures.aggregate(Sum('r'))['r__sum'])
         else:
@@ -35,6 +39,7 @@ def get_arrivals_departures(simulation):
         else:
             arrivals_values.append(0)
     return departures_values, arrivals_values
+
 
 def build_colorscale(values, cmap):
     """Convert a numpy array of values to a list of colors using a color map.
@@ -75,10 +80,10 @@ def build_colorscale(values, cmap):
                   for color in colorscale]
     return stats, colors, colorscale
 
+
 def build_qualitative_colorscale(ids, names):
     transparency = 0.8
     n = len(ids)
-    values = np.arange(0, n, 1)
     stats = {'nb': n, 'names': names}
     colors = dict()
     colorscale = dict()
@@ -107,6 +112,7 @@ def build_qualitative_colorscale(ids, names):
                                                         color[2]*255)
     return stats, colors, colorscale
 
+
 def network_output(simulation, large_network):
     output = dict()
     output['stats'] = dict()
@@ -116,9 +122,8 @@ def network_output(simulation, large_network):
     # Get a color map from matplotlib.
     cmap = plt.get_cmap('YlGnBu')
 
-    centroids = Centroid.objects.filter(
-            network__supply__scenario__simulation=simulation
-    )
+    centroids = models.Centroid.objects.filter(
+            network__supply__scenario__simulation=simulation)
     # Retrieve departures and arrivals at each centroid.
     departures, arrivals = get_arrivals_departures(simulation)
     departures = np.array(departures, dtype=float)
@@ -165,13 +170,12 @@ def network_output(simulation, large_network):
         ]
     output['graph']['nodes'] = centroid_nodes
 
-    crossings = Crossing.objects.filter(
-            network__supply__scenario__simulation=simulation
-    )
+    crossings = models.Crossing.objects.filter(
+            network__supply__scenario__simulation=simulation)
     if large_network:
         crossing_nodes = [
                 {
-                    'id': crossing.id, 'x': crossing.x, 'y': -crossing.y, 
+                    'id': crossing.id, 'x': crossing.x, 'y': -crossing.y,
                     'name': crossing.name, 'centroid': 'false'
                 }
                 for crossing in crossings
@@ -179,16 +183,15 @@ def network_output(simulation, large_network):
     else:
         crossing_nodes = [
                 {
-                    'id': crossing.id, 'x': crossing.x, 'y': crossing.y, 
+                    'id': crossing.id, 'x': crossing.x, 'y': crossing.y,
                     'name': crossing.name, 'centroid': 'false'
                 }
                 for crossing in crossings
         ]
     output['graph']['nodes'] += crossing_nodes
 
-    links = Link.objects.filter(
-            network__supply__scenario__simulation=simulation
-    )
+    links = models.Link.objects.filter(
+            network__supply__scenario__simulation=simulation)
     # Compute stats, colors and colorscales for the attributes of the link.
     lanes = np.array(links.values_list('lanes', flat=True))
     stats, lanes_colors, colorscale = build_colorscale(lanes, cmap)
@@ -211,40 +214,37 @@ def network_output(simulation, large_network):
     function_ids = list(np.unique(links.values_list('vdf_id', flat=True)))
     function_names = list(np.unique(links.values_list('vdf__name', flat=True)))
     stats, type_colors, colorscale = build_qualitative_colorscale(
-        function_ids, function_names
-    )
+        function_ids, function_names)
     output['stats']['type'] = stats
     output['colorscales']['type'] = colorscale
     if large_network:
         link_edges = [
-                (
-                    {
-                        'source': link.origin, 'target': link.destination, 
-                        'name': link.name, 'id': link.id, 
-                        'lanes': {'values': lanes[i], 'colors': lanes_colors[i]},
-                        'length': {'values': length[i], 'colors': length_colors[i]},
-                        'speed': {'values': speed[i], 'colors': speed_colors[i]},
-                        'capacity': {'values': capacity[i],
-                                     'colors': capacity_colors[i]},
-                        'type': {'name': link.vdf.name,
-                                 'colors': type_colors[link.vdf.id]},
-                        'size': 1
-                    }
-                )
-                for i, link in enumerate(links)
+            ({
+                'source': link.origin, 'target': link.destination,
+                'name': link.name, 'id': link.id,
+                'lanes': {'values': lanes[i], 'colors': lanes_colors[i]},
+                'length': {'values': length[i], 'colors': length_colors[i]},
+                'speed': {'values': speed[i], 'colors': speed_colors[i]},
+                'capacity': {'values': capacity[i],
+                             'colors': capacity_colors[i]},
+                'type': {'name': link.vdf.name,
+                         'colors': type_colors[link.vdf.id]},
+                'size': 1,
+            })
+            for i, link in enumerate(links)
         ]
     else:
         link_edges = []
         for (i, link) in enumerate(links):
             # Find origin and destination nodes.
             try:
-                origin = Crossing.objects.get(pk=link.origin)
-            except Crossing.DoesNotExist:
-                origin = Centroid.objects.get(pk=link.origin)
+                origin = models.Crossing.objects.get(pk=link.origin)
+            except models.Crossing.DoesNotExist:
+                origin = models.Centroid.objects.get(pk=link.origin)
             try:
-                destination = Crossing.objects.get(pk=link.destination)
-            except Crossing.DoesNotExist:
-                destination = Centroid.objects.get(pk=link.destination)
+                destination = models.Crossing.objects.get(pk=link.destination)
+            except models.Crossing.DoesNotExist:
+                destination = models.Centroid.objects.get(pk=link.destination)
             # Get coordinates.
             x1 = origin.x
             x2 = destination.x
@@ -262,16 +262,17 @@ def network_output(simulation, large_network):
                 delta = delta[::-1]
                 dx, dy = delta
                 link_edge = {
-                        'source': link.origin, 'target': link.destination, 
-                        'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'dx': dx, 'dy': dy,
-                        'name': link.name, 'id': link.id, 'norm': norm,
-                        'lanes': {'values': lanes[i], 'colors': lanes_colors[i]},
-                        'length': {'values': length[i], 'colors': length_colors[i]},
-                        'speed': {'values': speed[i], 'colors': speed_colors[i]},
-                        'capacity': {'values': capacity[i],
-                                     'colors': capacity_colors[i]},
-                        'type': {'name': link.vdf.name,
-                                 'colors': type_colors[link.vdf.id]}
+                    'source': link.origin, 'target': link.destination,
+                    'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'dx': dx, 'dy': dy,
+                    'name': link.name, 'id': link.id, 'norm': norm,
+                    'lanes': {'values': lanes[i], 'colors': lanes_colors[i]},
+                    'length': {'values': length[i],
+                               'colors': length_colors[i]},
+                    'speed': {'values': speed[i], 'colors': speed_colors[i]},
+                    'capacity': {'values': capacity[i],
+                                 'colors': capacity_colors[i]},
+                    'type': {'name': link.vdf.name,
+                             'colors': type_colors[link.vdf.id]}
                 }
                 link_edges.append(link_edge)
     output['graph']['edges'] = link_edges
@@ -289,9 +290,9 @@ def network_output(simulation, large_network):
     output['stats']['y'] = {'min': min_y, 'max': max_y}
     if not large_network:
         min_norm = min(output['graph']['edges'],
-                       key=lambda x:x['norm'])['norm']
+                       key=lambda x: x['norm'])['norm']
         max_norm = max(output['graph']['edges'],
-                       key=lambda x:x['norm'])['norm']
+                       key=lambda x: x['norm'])['norm']
         ave_norm = np.mean([x['norm'] for x in output['graph']['edges']])
         output['stats']['norm'] = {'min': min_norm, 'max': max_norm,
                                    'ave': ave_norm}

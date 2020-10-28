@@ -23,11 +23,9 @@ os.environ.setdefault(
     "DJANGO_SETTINGS_MODULE", "metropolis_web_interface.settings")
 django.setup()
 
-from metro_app.models import Simulation, SimulationRun, Link
-from metro_app.functions import get_query
-from metro_app.plots import network_output
+from metro_app import models, functions, plots
 from metro_app.views import NETWORK_THRESHOLD
-TRAVELERS_THRESHOLD = 10000000 # 10 millions
+TRAVELERS_THRESHOLD = 10000000  # 10 millions
 
 print('Starting script...')
 
@@ -40,8 +38,8 @@ except IndexError:
 
 # Get the SimulationRun object of the argument.
 try:
-    run = SimulationRun.objects.get(pk=run_id)
-except SimulationRun.DoesNotExist:
+    run = models.SimulationRun.objects.get(pk=run_id)
+except models.SimulationRun.DoesNotExist:
     raise SystemExit('MetroDoesNotExist: No SimulationRun object corresponding'
                      + ' to the given id.')
 
@@ -50,7 +48,7 @@ simulation = run.simulation
 # Output user-specific results only if the population is small.
 # I believe that Metropolis does not output the file correctly if the
 # population is large.
-matrices = get_query('matrices', simulation)
+matrices = functions.get_query('matrices', simulation)
 nb_travelers = matrices.aggregate(Sum('total'))['total__sum']
 if nb_travelers > TRAVELERS_THRESHOLD:
     simulation.outputUsersTimes = 'false'
@@ -68,9 +66,9 @@ simulation_network = (
 if simulation.has_changed or not os.path.isfile(simulation_network):
     # Generate a new output file.
     print('Network file does not exist, generating a new one...')
-    links = get_query('link', simulation)
+    links = functions.get_query('link', simulation)
     large_network = links.count() > NETWORK_THRESHOLD
-    output = network_output(simulation, large_network)
+    output = plots.network_output(simulation, large_network)
     with open(simulation_network, 'w') as f:
         json.dump(output, f)
     # Do not generate a new output file the next time (unless the

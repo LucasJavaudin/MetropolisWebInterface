@@ -18,7 +18,7 @@ from django.conf import settings
 from django.db.models import Sum
 from django.db import connection
 
-from .models import *
+from metro_app import models
 
 
 def get_query(object_name, simulation):
@@ -27,44 +27,44 @@ def get_query(object_name, simulation):
     """
     query = None
     if object_name == 'centroid':
-        query = Centroid.objects.filter(
+        query = models.Centroid.objects.filter(
             network__supply__scenario__simulation=simulation
         )
     elif object_name == 'crossing':
-        query = Crossing.objects.filter(
+        query = models.Crossing.objects.filter(
             network__supply__scenario__simulation=simulation
         )
     elif object_name == 'link':
-        query = Link.objects.filter(
+        query = models.Link.objects.filter(
             network__supply__scenario__simulation=simulation
         )
     elif object_name == 'function':
-        query = Function.objects.filter(
+        query = models.Function.objects.filter(
             functionset__supply__scenario__simulation=simulation
         )
     elif object_name == 'usertype':
-        query = UserType.objects.filter(
+        query = models.UserType.objects.filter(
             demandsegment__demand__scenario__simulation=simulation
         ).order_by('user_id')
     elif object_name == 'demandsegment':
-        query = DemandSegment.objects.filter(
+        query = models.DemandSegment.objects.filter(
             demand__scenario__simulation=simulation
         )
     elif object_name == 'matrices':
-        query = Matrices.objects.filter(
+        query = models.Matrices.objects.filter(
             demandsegment__demand__scenario__simulation=simulation
         )
     elif object_name == 'run':
-        query = SimulationRun.objects.filter(
+        query = models.SimulationRun.objects.filter(
             simulation=simulation
         )
     elif object_name == 'public_transit':
         if simulation.scenario.supply.pttimes:  # Variable pttimes can be null.
-            query = Matrix.objects.filter(
+            query = models.Matrix.objects.filter(
                 matrices=simulation.scenario.supply.pttimes
             )
     elif object_name == 'policy':
-        query = Policy.objects.filter(scenario=simulation.scenario)
+        query = models.Policy.objects.filter(scenario=simulation.scenario)
     return query
 
 
@@ -136,10 +136,10 @@ def get_node_choices(simulation):
 
     These nodes can be origin or destination of links.
     """
-    centroids = Centroid.objects.filter(
+    centroids = models.Centroid.objects.filter(
         network__supply__scenario__simulation=simulation
     )
-    crossings = Crossing.objects.filter(
+    crossings = models.Crossing.objects.filter(
         network__supply__scenario__simulation=simulation
     )
     centroid_choices = [(centroid.id, str(centroid)) for centroid in centroids]
@@ -159,10 +159,8 @@ def run_simulation(run):
     metrosim_dir = settings.BASE_DIR + '/metrosim_files/'
     metrosim_file = '{0}execs/metrosim'.format(metrosim_dir)
     arg_file = (
-        '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'.format(metrosim_dir,
-                                                             simulation.id,
-                                                             run.id)
-    )
+        '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'
+    ).format(metrosim_dir, simulation.id, run.id)
     with open(arg_file, 'w') as f:
         database = settings.DATABASES['default']
         db_host = database['HOST']
@@ -176,12 +174,13 @@ def run_simulation(run):
             random_seed = simulation.random_seed
         else:
             random_seed = -1
-        arguments = ('-dbHost "{0}" -dbName "{1}" -dbUser "{2}" '
-                     + '-dbPass "{3}" -logFile "{4}" -tmpDir "{5}" '
-                     + '-stopFile "{6}" -simId "{7!s}" -runId "{8!s}" '
-                     + '-randomSeed "{9!s}"'
-                     ).format(db_host, db_name, db_user, db_pass, log, tmp,
-                              stop, simulation.id, run.id, random_seed)
+        arguments = (
+            '-dbHost "{0}" -dbName "{1}" -dbUser "{2}" -dbPass "{3}" '
+            '-logFile "{4}" -tmpDir "{5}" -stopFile "{6}" -simId "{7!s}" '
+            '-runId "{8!s}" -randomSeed "{9!s}"'
+        ).format(
+            db_host, db_name, db_user, db_pass, log, tmp, stop, simulation.id,
+            run.id, random_seed)
         f.write(arguments)
 
     # Run the script 'prepare_run.py' then run metrosim then run the script
@@ -247,7 +246,7 @@ def create_simulation(user, form):
     form: BaseSimulationForm or SimulationImportForm.
         Form containing basic data for the simulation (name, comment, etc.).
     """
-    simulation = Simulation()
+    simulation = models.Simulation()
     simulation.user = user
     simulation.name = form.cleaned_data['name']
     simulation.comment = form.cleaned_data['comment']
@@ -255,40 +254,42 @@ def create_simulation(user, form):
     simulation.environment = form.cleaned_data['environment']
     simulation.contact = form.cleaned_data['contact']
     # Create models associated with the new simulation.
-    network = Network()
+    network = models.Network()
     network.name = simulation.name
     network.save()
-    function_set = FunctionSet()
+    function_set = models.FunctionSet()
     function_set.name = simulation.name
     function_set.save()
     # Add defaults functions.
-    function = Function(name='Free flow', user_id=1,
-                        expression='3600*(length/speed)')
+    function = models.Function(
+        name='Free flow', user_id=1, expression='3600*(length/speed)')
     function.save()
     function.vdf_id = function.id
     function.save()
     function.functionset.add(function_set)
-    function = Function(name='Bottleneck function', user_id=2,
-                        expression=('3600*((dynVol<=(lanes*capacity*length'
-                                    + '/speed))*(length/speed)+(dynVol>'
-                                    + '(lanes*capacity*length/speed))*'
-                                    + '(dynVol/(capacity*lanes)))'))
+    function = models.Function(
+        name='Bottleneck function', user_id=2,
+        expression=(
+            '3600*((dynVol<=(lanes*capacity*length/speed))*(length/speed)+'
+            '(dynVol>(lanes*capacity*length/speed))*(dynVol/(capacity*lanes)))'
+        ),
+    )
     function.save()
     function.vdf_id = function.id
     function.save()
     function.functionset.add(function_set)
-    pttimes = Matrices()
+    pttimes = models.Matrices()
     pttimes.save()
-    supply = Supply()
+    supply = models.Supply()
     supply.name = simulation.name
     supply.network = network
     supply.functionset = function_set
     supply.pttimes = pttimes
     supply.save()
-    demand = Demand()
+    demand = models.Demand()
     demand.name = simulation.name
     demand.save()
-    scenario = Scenario()
+    scenario = models.Scenario()
     scenario.name = simulation.name
     scenario.supply = supply
     scenario.demand = demand
@@ -459,30 +460,37 @@ def object_import_function(encoded_file, simulation, object_name):
         if object_name == 'centroid':
             for key, row in df.iterrows():
                 new_objects.append(
-                    Centroid(user_id=row['id'], name=row['name'],
-                             x=row['x'], y=row['y'])
+                    models.Centroid(
+                        user_id=row['id'], name=row['name'],
+                        x=row['x'], y=row['y'],
+                    )
                 )
         elif object_name == 'crossing':
             for key, row in df.iterrows():
                 new_objects.append(
-                    Crossing(user_id=row['id'], name=row['name'],
-                             x=row['x'], y=row['y'])
+                    models.Crossing(
+                        user_id=row['id'], name=row['name'],
+                        x=row['x'], y=row['y'],
+                    )
                 )
         elif object_name == 'function':
             for key, row in df.iterrows():
                 new_objects.append(
-                    Function(user_id=row['id'], name=row['name'],
-                             expression=row['expression'])
+                    models.Function(
+                        user_id=row['id'], name=row['name'],
+                        expression=row['expression'],
+                    )
                 )
         elif object_name == 'link':
             for key, row in df.iterrows():
                 new_objects.append(
-                    Link(user_id=row['id'], name=row['name'],
-                         origin=row['id_origin'],
-                         destination=row['id_destination'],
-                         vdf=row['instance'], length=row['length'],
-                         lanes=row['lanes'], speed=row['speed'],
-                         capacity=row['capacity'])
+                    models.Link(
+                        user_id=row['id'], name=row['name'],
+                        origin=row['id_origin'],
+                        destination=row['id_destination'], vdf=row['instance'],
+                        length=row['length'], lanes=row['lanes'],
+                        speed=row['speed'], capacity=row['capacity'],
+                    )
                 )
         chunks = [new_objects[x:x + chunk_size]
                   for x in range(0, len(new_objects), chunk_size)]
@@ -554,7 +562,7 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
         reader = csv.DictReader(tsv_file, delimiter=',')
     # Create a set with all existing OD pairs in the OD matrix.
     matrix = demandsegment.matrix
-    pairs = Matrix.objects.filter(matrices=matrix)
+    pairs = models.Matrix.objects.filter(matrices=matrix)
     existing_pairs = set(pairs.values_list('p_id', 'q_id'))
     # Create a dictionary to map the centroid user ids with the centroid
     # objects.
@@ -582,10 +590,11 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
             to_be_updated.add((*pair, float(row['population'])))
         elif float(row['population']) > 0:
             to_be_created.append(
-                Matrix(p=centroid_mapping[int(row['origin'])],
-                       q=centroid_mapping[int(row['destination'])],
-                       r=float(row['population']),
-                       matrices=matrix)
+                models.Matrix(
+                    p=centroid_mapping[int(row['origin'])],
+                    q=centroid_mapping[int(row['destination'])],
+                    r=float(row['population']), matrices=matrix,
+                )
             )
     if to_be_updated:
         # Create a mapping between the values (p, q, r) and the ids.
@@ -617,10 +626,10 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
             centroid_id_mapping[centroid.id] = centroid
         # Now, create the updated pairs with the new values.
         to_be_created += [
-            Matrix(p=centroid_id_mapping[pair[0]],
-                   q=centroid_id_mapping[pair[1]],
-                   r=pair[2],
-                   matrices=matrix)
+            models.Matrix(
+                p=centroid_id_mapping[pair[0]], q=centroid_id_mapping[pair[1]],
+                r=pair[2], matrices=matrix,
+            )
             for pair in to_be_updated
         ]
     # Create the new OD pairs in bulk.
@@ -629,7 +638,7 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     chunks = [to_be_created[x:x + chunk_size]
               for x in range(0, len(to_be_created), chunk_size)]
     for chunk in chunks:
-        Matrix.objects.bulk_create(chunk, chunk_size)
+        models.Matrix.objects.bulk_create(chunk, chunk_size)
     # Update total.
     pairs = pairs.all()  # Update queryset from database.
     if pairs.exists():
@@ -670,16 +679,16 @@ def pricing_import_function(encoded_file, simulation):
     # Get all links of the network.
     links = get_query('link', simulation)
     # Get all LinkSelection of the network.
-    locations = LinkSelection.objects.filter(
+    locations = models.LinkSelection.objects.filter(
         network=simulation.scenario.supply.network
     )
     # Get all usertypes.
     usertypes = get_query('usertype', simulation)
     # Get an empty Vector or create one if there is none.
-    if Vector.objects.filter(data='').exists():
-        empty_vector = Vector.objects.filter(data='')[0]
+    if models.Vector.objects.filter(data='').exists():
+        empty_vector = models.Vector.objects.filter(data='')[0]
     else:
-        empty_vector = Vector(data='')
+        empty_vector = models.Vector(data='')
         empty_vector.save()
     if 'traveler_type' in reader.fieldnames:
         has_type = True
@@ -702,7 +711,7 @@ def pricing_import_function(encoded_file, simulation):
             # Create a LinkSelection for the current link.
             # Name and user_id of the Link Selection are set to the name
             # and user_id of the link.
-            location = LinkSelection(
+            location = models.LinkSelection(
                 network=simulation.scenario.supply.network,
                 name=link.name,
                 user_id=link.user_id,
@@ -713,11 +722,12 @@ def pricing_import_function(encoded_file, simulation):
         # object.
         try:
             toll = tolls.get(location=location)
-        except Policy.DoesNotExist:
+        except models.Policy.DoesNotExist:
             # Create a new toll with default values.
-            toll = Policy(location=location, type='PRICING', usertype=None,
-                          valueVector=empty_vector,
-                          timeVector=empty_vector)
+            toll = models.Policy(
+                location=location, type='PRICING', usertype=None,
+                valueVector=empty_vector, timeVector=empty_vector,
+            )
             toll.save()
             toll.scenario.add(simulation.scenario)
         # Update affected traveler type.
@@ -725,7 +735,7 @@ def pricing_import_function(encoded_file, simulation):
         if has_type:
             try:
                 toll.usertype = usertypes.get(user_id=row['traveler_type'])
-            except (UserType.DoesNotExist, ValueError):
+            except (models.UserType.DoesNotExist, ValueError):
                 # Usertype has not been found, set the toll as a global policy.
                 pass
         # Update values.
@@ -736,7 +746,7 @@ def pricing_import_function(encoded_file, simulation):
             # Remaining values are stored in valueVector (as a string of
             # comma separated values).
             values = [str(float(x)) for x in values]
-            v = Vector(data=','.join(values[1:]))
+            v = models.Vector(data=','.join(values[1:]))
             v.save()
             toll.valueVector = v
         else:
@@ -748,7 +758,7 @@ def pricing_import_function(encoded_file, simulation):
             if times[0] != ' ' and times[0]:
                 # There is at least one value, store it in timeVector.
                 times = [str(int(x)) for x in times]
-                v = Vector(data=','.join(times))
+                v = models.Vector(data=','.join(times))
                 v.save()
                 toll.timeVector = v
         toll.save()
@@ -800,10 +810,11 @@ def public_transit_import_function(encoded_file, simulation):
             to_be_updated.add((*pair, float(row['travel time'])))
         else:
             to_be_created.append(
-                Matrix(p=centroid_mapping[int(row['origin'])],
-                       q=centroid_mapping[int(row['destination'])],
-                       r=float(row['travel time']),
-                       matrices=matrix)
+                models.Matrix(
+                    p=centroid_mapping[int(row['origin'])],
+                    q=centroid_mapping[int(row['destination'])],
+                    r=float(row['travel time']), matrices=matrix,
+                )
             )
     if to_be_updated:
         # Create a mapping between the values (p, q, r) and the ids.
@@ -834,10 +845,10 @@ def public_transit_import_function(encoded_file, simulation):
             centroid_id_mapping[centroid.id] = centroid
         # Now, create the updated pairs with the new values.
         to_be_created += [
-            Matrix(p=centroid_id_mapping[pair[0]],
-                   q=centroid_id_mapping[pair[1]],
-                   r=pair[2],
-                   matrices=matrix)
+            models.Matrix(
+                p=centroid_id_mapping[pair[0]], q=centroid_id_mapping[pair[1]],
+                r=pair[2], matrices=matrix,
+            )
             for pair in to_be_updated
         ]
     # Create the new OD pairs in bulk.
@@ -846,7 +857,7 @@ def public_transit_import_function(encoded_file, simulation):
     chunks = [to_be_created[x:x + chunk_size]
               for x in range(0, len(to_be_created), chunk_size)]
     for chunk in chunks:
-        Matrix.objects.bulk_create(chunk, chunk_size)
+        models.Matrix.objects.bulk_create(chunk, chunk_size)
 
 
 def usertype_import_function(encoded_file, simulation):
@@ -871,10 +882,10 @@ def usertype_import_function(encoded_file, simulation):
     else:
         reader = csv.DictReader(tsv_file, delimiter=',')
     # Get an empty Vector or create one if there is none.
-    if Vector.objects.filter(data='').exists():
-        empty_vector = Vector.objects.filter(data='')[0]
+    if models.Vector.objects.filter(data='').exists():
+        empty_vector = models.Vector.objects.filter(data='')[0]
     else:
-        empty_vector = Vector(data='')
+        empty_vector = models.Vector(data='')
         empty_vector.save()
 
     for row in reader:
@@ -886,61 +897,61 @@ def usertype_import_function(encoded_file, simulation):
         mean = row['alphaTI_mean']
         std = row['alphaTI_std']
         dtype = row['alphaTI_type']
-        alphaTI = Distribution(mean=mean, std=std, type=dtype)
+        alphaTI = models.Distribution(mean=mean, std=std, type=dtype)
         alphaTI.save()
 
         mean = row['alphaTP_mean']
         std = row['alphaTP_std']
         dtype = row['alphaTP_type']
-        alphaTP = Distribution(mean=mean, std=std, type=dtype)
+        alphaTP = models.Distribution(mean=mean, std=std, type=dtype)
         alphaTP.save()
 
         mean = row['beta_mean']
         std = row['beta_std']
         dtype = row['beta_type']
-        beta = Distribution(mean=mean, std=std, type=dtype)
+        beta = models.Distribution(mean=mean, std=std, type=dtype)
         beta.save()
 
         mean = row['delta_mean']
         std = row['delta_std']
         dtype = row['delta_type']
-        delta = Distribution(mean=mean, std=std, type=dtype)
+        delta = models.Distribution(mean=mean, std=std, type=dtype)
         delta.save()
 
         mean = row['departureMu_mean']
         std = row['departureMu_std']
         dtype = row['departureMu_type']
-        departureMu = Distribution(mean=mean, std=std, type=dtype)
+        departureMu = models.Distribution(mean=mean, std=std, type=dtype)
         departureMu.save()
 
         mean = row['gamma_mean']
         std = row['gamma_std']
         dtype = row['gamma_type']
-        gamma = Distribution(mean=mean, std=std, type=dtype)
+        gamma = models.Distribution(mean=mean, std=std, type=dtype)
         gamma.save()
 
         mean = row['modeMu_mean']
         std = row['modeMu_std']
         dtype = row['modeMu_type']
-        modeMu = Distribution(mean=mean, std=std, type=dtype)
+        modeMu = models.Distribution(mean=mean, std=std, type=dtype)
         modeMu.save()
 
         mean = row['penaltyTP_mean']
         std = row['penaltyTP_std']
         dtype = row['penaltyTP_type']
-        penaltyTP = Distribution(mean=mean, std=std, type=dtype)
+        penaltyTP = models.Distribution(mean=mean, std=std, type=dtype)
         penaltyTP.save()
 
         mean = row['routeMu_mean']
         std = row['routeMu_std']
         dtype = row['routeMu_type']
-        routeMu = Distribution(mean=mean, std=std, type=dtype)
+        routeMu = models.Distribution(mean=mean, std=std, type=dtype)
         routeMu.save()
 
         mean = row['tstar_mean']
         std = row['tstar_std']
         dtype = row['tstar_type']
-        tstar = Distribution(mean=mean, std=std, type=dtype)
+        tstar = models.Distribution(mean=mean, std=std, type=dtype)
         tstar.save()
 
         typeOfRouteChoice = row['typeOfRouteChoice']
@@ -958,7 +969,7 @@ def usertype_import_function(encoded_file, simulation):
         try:
             existing_usertype = usertypes.get(user_id=user_id)
             demandsegment = existing_usertype.demandsegment_set.first()
-        except UserType.DoesNotExist:
+        except models.UserType.DoesNotExist:
             demandsegment = None
 
         if not user_id:
@@ -968,7 +979,7 @@ def usertype_import_function(encoded_file, simulation):
             else:
                 user_id = 1
 
-        usertype = UserType()
+        usertype = models.UserType()
         usertype.user_id = user_id
         usertype.name = name
         usertype.comment = comment
@@ -994,9 +1005,9 @@ def usertype_import_function(encoded_file, simulation):
 
         if demandsegment is None:
             # Create a new demand segment and OD matrix for the usertype.
-            matrix = Matrices()
+            matrix = models.Matrices()
             matrix.save()
-            demandsegment = DemandSegment()
+            demandsegment = models.DemandSegment()
             demandsegment.usertype = usertype
             demandsegment.matrix = matrix
             demandsegment.save()
@@ -1005,7 +1016,7 @@ def usertype_import_function(encoded_file, simulation):
             demandsegment.usertype = usertype
             demandsegment.save()
             # We also need to update the usertype of policies.
-            policies = Policy.objects.filter(usertype=existing_usertype)
+            policies = models.Policy.objects.filter(usertype=existing_usertype)
             policies.update(usertype=usertype)
             # We can now safely delete the old usertype.
             existing_usertype.delete()
@@ -1019,7 +1030,7 @@ def usertype_import_function(encoded_file, simulation):
 def matrix_export_function(simulation, demandsegment, dir_name):
     """Function to save the OD matrix as a tsv file."""
     matrix = demandsegment.matrix
-    matrix_couples = Matrix.objects.filter(matrices=matrix)
+    matrix_couples = models.Matrix.objects.filter(matrices=matrix)
     if not matrix_couples.exists():
         return
     filename = os.path.join(
@@ -1135,7 +1146,7 @@ def usertype_export_function(simulation, demandsegment=None, dir_name=''):
     else:
         # Export only the usertype for the given demandsegment.
         usertype = demandsegment.usertype
-        usertypes = UserType.objects.filter(pk=usertype.id)
+        usertypes = models.UserType.objects.filter(pk=usertype.id)
     if not usertypes.exists():
         return
 

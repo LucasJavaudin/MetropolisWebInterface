@@ -1,17 +1,8 @@
 from django.db import models
 from django.conf import settings
-from django.core.validators import MaxValueValidator, MinValueValidator
-from django.urls import reverse
-from django.utils import timezone
-
-### New fields ###
-
-class BlobField(models.Field):
-    description = "Blob"
-    def db_type(self, connection):
-        return 'blob'
 
 ### Standard tables ###
+
 
 class Matrices(models.Model):
     name = models.CharField(max_length=50, default='', blank=True, null=True)
@@ -20,31 +11,40 @@ class Matrices(models.Model):
     defaultValue = models.FloatField(default=0)
     total = models.FloatField(default=0)
     dimension = models.SmallIntegerField(default=2)
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Matrices'
+
 
 class Network(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     comment = models.CharField(max_length=100, blank=True, null=True)
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Network'
+
 
 class FunctionSet(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     comment = models.CharField(max_length=100, blank=True, null=True)
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'FunctionSet'
 
+
 class Function(models.Model):
     name = models.CharField(
-        max_length=50, 
-        default='', 
+        max_length=50,
+        default='',
         help_text='Name of the congestion function',
         blank=True,
         null=True,
@@ -56,27 +56,30 @@ class Function(models.Model):
     )
     user_id = models.IntegerField(default=0, verbose_name='Id')
     functionset = models.ManyToManyField(
-        FunctionSet, 
+        FunctionSet,
         db_table='FunctionSet_Function'
     )
+
     def __str__(self):
         if self.name:
             return self.name
         else:
             return self.expression
+
     class Meta:
         db_table = 'Function'
+
 
 class Supply(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     comment = models.CharField(max_length=100, blank=True, null=True)
     network = models.ForeignKey(
-        Network, 
+        Network,
         on_delete=models.CASCADE,
         db_column='network'
     )
     functionset = models.ForeignKey(
-        FunctionSet, 
+        FunctionSet,
         on_delete=models.CASCADE,
         db_column='functionset'
     )
@@ -85,10 +88,13 @@ class Supply(models.Model):
         on_delete=models.CASCADE,
         db_column='pttimes',
     )
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Supply'
+
 
 class Distribution(models.Model):
     mean = models.FloatField(default=0)
@@ -109,95 +115,95 @@ class Distribution(models.Model):
         choices=typeChoices,
         default=none
     )
+
     def __str__(self):
-        string = (
-            str(self.get_type_display()) + '(' + str(self.mean) 
-            + ', ' + str(self.std) + ')'
-        )
-        return string
+        return '{}({}, {})'.format(
+            self.get_type_display(), self.mean, self.std)
+
     class Meta:
         db_table = 'Distribution'
 
+
 class UserType(models.Model):
     name = models.CharField(
-        max_length=50, 
+        max_length=50,
         default='',
         help_text='Name of the traveler type',
         verbose_name='Traveler type',
     )
     comment = models.CharField(
-        max_length=100, 
+        max_length=100,
         default='',
         help_text='Optional comment of the traveler type',
         blank=True,
         null=True,
     )
     alphaTI = models.ForeignKey(
-        Distribution, 
+        Distribution,
         related_name='alphaTI',
         on_delete=models.CASCADE,
         db_column='alphaTI',
         verbose_name='Alpha TI',
     )
     alphaTP = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='alphaTP',
         db_column='alphaTP',
         verbose_name='Alpha TP'
     )
     beta = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='beta',
         db_column='beta',
         verbose_name='Beta'
     )
     delta = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='delta',
         db_column='delta',
         verbose_name='Delta'
     )
     departureMu = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='departureMu',
         db_column='departureMu',
         verbose_name='Departure Mu'
     )
     gamma = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='gamma',
         db_column='gamma',
         verbose_name='Gamma'
     )
     modeMu = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='modeMu',
         db_column='modeMu',
         verbose_name='Mode Mu'
     )
     penaltyTP = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='penaltyTP',
         db_column='penaltyTP',
         verbose_name='Penalty TP'
     )
     routeMu = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='routeMu',
         db_column='routeMu',
         verbose_name='Route Mu'
     )
     tstar = models.ForeignKey(
-        Distribution, 
-        on_delete=models.CASCADE, 
+        Distribution,
+        on_delete=models.CASCADE,
         related_name='tstar',
         db_column='tstar',
         verbose_name='t*'
@@ -300,59 +306,71 @@ class UserType(models.Model):
         )
     )
     user_id = models.IntegerField(default=-1, verbose_name='Id')
+
     def __str__(self):
         if self.name:
             string = self.name
         else:
             string = 'Traveler Type ' + str(self.user_id)
         return string
+
     class Meta:
         db_table = 'UserType'
+
 
 class Demand(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     comment = models.CharField(max_length=100, blank=True, null=True)
     scale = models.FloatField(default=1)
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Demand'
 
+
 class DemandSegment(models.Model):
     usertype = models.ForeignKey(
-        UserType, 
+        UserType,
         on_delete=models.CASCADE,
         db_column='usertype'
     )
     matrix = models.ForeignKey(
-        Matrices, 
+        Matrices,
         on_delete=models.CASCADE,
         db_column='matrix'
     )
     scale = models.FloatField(default=1)
     demand = models.ManyToManyField(Demand, db_table='Demand_DemandSegment')
+
     def __str__(self):
         return str(self.id)
+
     class Meta:
         db_table = 'DemandSegment'
 
+
 class Scenario(models.Model):
     demand = models.ForeignKey(
-        Demand, 
+        Demand,
         on_delete=models.CASCADE,
         db_column='demand'
     )
     supply = models.ForeignKey(
-        Supply, 
+        Supply,
         on_delete=models.CASCADE,
         db_column='supply'
     )
     comment = models.CharField(max_length=100, blank=True, null=True)
     name = models.CharField(max_length=50, blank=True, null=True)
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Scenario'
+
 
 class Centroid(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -364,32 +382,38 @@ class Centroid(models.Model):
     uz3 = models.FloatField(default=0)
     user_id = models.IntegerField(default=0, verbose_name='Id')
     network = models.ManyToManyField(Network, db_table='Network_Centroid')
+
     def __str__(self):
         if self.name and self.name != 'NULL':
             string = self.name
         else:
             string = 'x: ' + str(self.x) + ', y: ' + str(self.y)
         return string
+
     class Meta:
         db_table = 'Centroid'
+
 
 class CentroidSelection(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     network = models.ForeignKey(
-        Network, 
+        Network,
         on_delete=models.CASCADE,
         db_column='network'
     )
     storetype = models.IntegerField()
     definition = models.TextField()
     centroid = models.ManyToManyField(
-        Centroid, 
+        Centroid,
         db_table='CentroidSelection_Centroid'
     )
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'CentroidSelection'
+
 
 class Crossing(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -401,36 +425,42 @@ class Crossing(models.Model):
     un3 = models.FloatField(default=0)
     user_id = models.IntegerField(default=0, verbose_name='Id')
     network = models.ManyToManyField(Network, db_table='Network_Crossing')
+
     def __str__(self):
         if self.name and self.name != 'NULL':
             string = self.name
         else:
             string = 'x: ' + str(self.x) + ', y: ' + str(self.y)
         return string
+
     class Meta:
         db_table = 'Crossing'
+
 
 class CrossingSelection(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     network = models.ForeignKey(
-        Network, 
+        Network,
         on_delete=models.CASCADE,
         db_column='network'
     )
     storetype = models.IntegerField()
     definition = models.TextField()
     crossing = models.ManyToManyField(
-        Crossing, 
+        Crossing,
         db_table='CrossingSelection_Crossing'
     )
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'CrossingSelection'
 
+
 class Link(models.Model):
     name = models.CharField(
-        max_length=50, 
+        max_length=50,
         default='',
         help_text='Name (optional)',
         blank=True,
@@ -479,16 +509,19 @@ class Link(models.Model):
     staVol = models.FloatField(default=0)
     network = models.ManyToManyField(Network, db_table='Network_Link')
     user_id = models.IntegerField(default=0, verbose_name='Id')
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Link'
+
 
 class LinkSelection(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True,
                             verbose_name='Link name')
     network = models.ForeignKey(
-        Network, 
+        Network,
         on_delete=models.CASCADE,
         db_column='network'
     )
@@ -496,13 +529,16 @@ class LinkSelection(models.Model):
     definition = models.TextField(blank=True, null=True)
     link = models.ManyToManyField(Link, db_table='LinkSelection_Link')
     user_id = models.IntegerField(default=0, verbose_name='Link id')
+
     def __str__(self):
         if self.name:
             return self.name
         else:
             return 'LinkSelection ' + str(self.id)
+
     class Meta:
         db_table = 'LinkSelection'
+
 
 class Path(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
@@ -510,21 +546,24 @@ class Path(models.Model):
     destination = models.IntegerField()
     link = models.ManyToManyField(Link, db_table='Path_Link')
     network = models.ManyToManyField(Network, db_table='Network_Path')
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Path'
 
+
 class Simulation(models.Model):
     name = models.CharField(
-        max_length=50, 
+        max_length=50,
         default='',
         help_text='Name of the simulation'
     )
     comment = models.CharField(
         verbose_name='Comment (optional)',
-        max_length=100, 
-        default='', 
+        max_length=100,
+        default='',
         help_text='Optional comment of the simulation',
         blank=True,
         null=True,
@@ -732,14 +771,15 @@ class Simulation(models.Model):
     simpid = models.IntegerField(default=-1)
     shellpid = models.IntegerField(default=-1)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE
     )
     contact = models.BooleanField(
         verbose_name='Available for contact',
         default=False,
         help_text=(
-            'If checked, anyone with access to the simulation will be able to access your email to contact you.'
+            'If checked, anyone with access to the simulation will be able to '
+            'access your email to contact you.'
         )
     )
     public = models.BooleanField(
@@ -766,10 +806,13 @@ class Simulation(models.Model):
             'else, a random seed is used'
         ),
     )
+
     def __str__(self):
         return self.name
+
     class Meta:
         db_table = 'Simulation'
+
 
 class Policy(models.Model):
     usertype = models.ForeignKey(
@@ -823,6 +866,7 @@ class Policy(models.Model):
     dayStart = models.IntegerField(default=0, blank=True, null=True)
     dayEnd = models.IntegerField(default=0, blank=True, null=True)
     scenario = models.ManyToManyField(Scenario, db_table='Scenario_Policy')
+
     def get_value_vector(self):
         values = self.valueVector.data
         if not values:
@@ -831,22 +875,29 @@ class Policy(models.Model):
         else:
             # Append baseValue at beginning of valueVector.
             return str(self.baseValue) + ',' + self.valueVector.data
+
     def get_time_vector(self):
         # Append value 0 at beginning of timeVector.
         return self.timeVector.data
+
     def __str__(self):
         return 'Policy ' + str(self.id)
+
     class Meta:
         db_table = 'Policy'
+
 
 class Region(models.Model):
     name = models.CharField(max_length=50, blank=True, null=True)
     points = models.IntegerField(default=0)
     network = models.ManyToManyField(Network, db_table='Network_Region')
+
     def __str__(self):
         return str(self.id)
+
     class Meta:
         db_table = 'Region'
+
 
 class Turn(models.Model):
     atnode = models.IntegerField(default=0)
@@ -855,14 +906,17 @@ class Turn(models.Model):
     capacity = models.FloatField(default=0)
     penalty = models.FloatField(default=0)
     network = models.ManyToManyField(Network, db_table='Network_Turn')
+
     def __str__(self):
         return str(self.id)
+
     class Meta:
         db_table = 'Turn'
 
+
 class Matrix(models.Model):
     p = models.ForeignKey(
-        Centroid, 
+        Centroid,
         verbose_name='Origin',
         on_delete=models.CASCADE,
         related_name='origin',
@@ -870,7 +924,7 @@ class Matrix(models.Model):
         default=1
     )
     q = models.ForeignKey(
-        Centroid, 
+        Centroid,
         verbose_name='Destination',
         on_delete=models.CASCADE,
         related_name='destination',
@@ -879,78 +933,27 @@ class Matrix(models.Model):
     )
     r = models.FloatField('Population', default=0)
     matrices = models.ForeignKey(Matrices, on_delete=models.CASCADE)
+
     def __str__(self):
         return str(self.id)
+
     class Meta:
         db_table = 'Matrix'
 
+
 class Vector(models.Model):
-    data = models.TextField(blank=True, null=True, db_column='data',
-                            default='')
+    data = models.TextField(
+        blank=True, null=True, db_column='data', default='')
+
     def __str__(self):
         return str(self.id)
+
     class Meta:
         db_table = 'Vector'
 
 
-
-### Added by Lucas Hornung ###
-
-class Event(models.Model):
-    title = models.CharField(max_length=300, blank=False, null=False, default='', db_column='name')
-    author = models.CharField(max_length=150, blank=False, null=False, default='', db_column='author')
-    date = models.DateTimeField(auto_now_add=True, blank=False, db_column='creation_date')
-    description = models.TextField(blank=True, null=True, db_column='description')
-
-    def __str__(self):
-        return str(self.id)
-
-    class Meta:
-        db_table = 'Events'
-
-
-class Article(models.Model):
-    title = models.CharField(max_length=300, blank=False, null=False,
-                             default='', db_column='title')
-    description = models.TextField(blank=True, null=True,
-                                   db_column='description')
-    creator = models.CharField(max_length=150, blank=False, null=False,
-                               default='', db_column='author')
-
-    def __str__(self):
-        return str(self.id)
-
-    class Meta:
-        db_table = 'Articles'
-
-class ArticleFile(models.Model):
-    file = models.FileField(upload_to='articles/', max_length=500, blank=False, null=False, default='')
-    file_name = models.CharField(max_length=500)
-    file_article = models.ForeignKey(Article, on_delete=models.CASCADE, null=True)
-
-    def __str__(self):
-        return str(self.id)
-
-    def get_download(self):
-        return "<a href='" + self.file.name + "'>" + self.file_name + "</a>"
-
-class Environment(models.Model):
-    name = models.CharField(max_length=200)
-    users = models.ManyToManyField(settings.AUTH_USER_MODEL)
-    creator = models.CharField(max_length=150, blank=False, null=False,
-                               default='', db_column='author')
-
-    def __str__(self):
-        return str(self.name)
-
-    def is_authorised(self, user):
-        if user in self.users.all():
-            return True
-        else:
-            return False
-
-
 ### Results tables ###
+
 
 class SimulationMOEs(models.Model):
     simulation = models.IntegerField(default=0)
@@ -1024,11 +1027,11 @@ class SimulationMOEs(models.Model):
     )
     early = models.FloatField(
         default=0, verbose_name='Mean Early Delay (min)',
-        help_text=('Average delay of drivers who arrive too early (in minutes)')
+        help_text='Average delay of drivers who arrive too early (in minutes)'
     )
     late = models.FloatField(
         default=0, verbose_name='Mean Late Delay (min)',
-        help_text=('Average delay of drivers who arrive too late (in minutes)')
+        help_text='Average delay of drivers who arrive too late (in minutes)'
     )
     scost = models.FloatField(
         default=0, verbose_name='Schedule Delay Cost (€)',
@@ -1046,12 +1049,16 @@ class SimulationMOEs(models.Model):
         default=0, verbose_name='Late Ratio (%)',
         help_text='Ratio of drivers who arrive late (in percentage)'
     )
+
     def __str__(self):
         return str(self.id)
+
     class Meta:
         db_table = 'SimulationMOEs'
 
+
 ### Website specific tables ###
+
 
 class SimulationRun(models.Model):
     name = models.CharField(max_length=50)
@@ -1064,5 +1071,68 @@ class SimulationRun(models.Model):
     link_output = models.BooleanField(default=False)
     user_output = models.BooleanField(default=False)
     user_path = models.BooleanField(default=False)
+
     class Meta:
         db_table = 'SimulationRun'
+
+
+class Event(models.Model):
+    title = models.CharField(max_length=300, blank=False, null=False,
+                             default='', db_column='name')
+    author = models.CharField(max_length=150, blank=False, null=False,
+                              default='', db_column='author')
+    date = models.DateTimeField(auto_now_add=True, blank=False,
+                                db_column='creation_date')
+    description = models.TextField(blank=True, null=True,
+                                   db_column='description')
+
+    def __str__(self):
+        return str(self.id)
+
+    class Meta:
+        db_table = 'Events'
+
+
+class Article(models.Model):
+    title = models.CharField(max_length=300, blank=False, null=False,
+                             default='', db_column='title')
+    description = models.TextField(blank=True, null=True,
+                                   db_column='description')
+    creator = models.CharField(max_length=150, blank=False, null=False,
+                               default='', db_column='author')
+
+    def __str__(self):
+        return str(self.id)
+
+    class Meta:
+        db_table = 'Articles'
+
+
+class ArticleFile(models.Model):
+    file = models.FileField(upload_to='articles/', max_length=500, blank=False,
+                            null=False, default='')
+    file_name = models.CharField(max_length=500)
+    file_article = models.ForeignKey(
+        Article, on_delete=models.CASCADE, null=True)
+
+    def __str__(self):
+        return str(self.id)
+
+    def get_download(self):
+        return "<a href='" + self.file.name + "'>" + self.file_name + "</a>"
+
+
+class Environment(models.Model):
+    name = models.CharField(max_length=200)
+    users = models.ManyToManyField(settings.AUTH_USER_MODEL)
+    creator = models.CharField(max_length=150, blank=False, null=False,
+                               default='', db_column='author')
+
+    def __str__(self):
+        return str(self.name)
+
+    def is_authorised(self, user):
+        if user in self.users.all():
+            return True
+        else:
+            return False
