@@ -7,15 +7,6 @@ This file must be in the directory metro_app.
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
-# Execute the script with the virtualenv.
-try:
-    activate_this_file = '/home/metropolis/python3/bin/activate_this.py'
-    with open(activate_this_file) as f:
-            exec(f.read(), {'__file__': activate_this_file})
-except FileNotFoundError:
-    print('Running script without a virtualenv.')
-    pass
-
 import os
 import sys
 import json
@@ -28,8 +19,8 @@ from django.db.models import Sum
 # Load the django website.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(PROJECT_ROOT)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE",
-                      "metropolis_web_interface.settings")
+os.environ.setdefault(
+    "DJANGO_SETTINGS_MODULE", "metropolis_web_interface.settings")
 django.setup()
 
 from metro_app.models import Simulation, SimulationRun, Link

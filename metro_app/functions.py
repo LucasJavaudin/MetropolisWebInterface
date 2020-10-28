@@ -6,6 +6,7 @@ E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 
 import os
+import sys
 import subprocess
 import csv
 from io import StringIO
@@ -202,14 +203,20 @@ def run_simulation(run):
     # && python3 ./metro_app/build_results.py y
     # 2>&1 | tee ./website_files/script_logs/run_y.txt
     #
+    # The python executable is the same as the one used by Django (i.e.
+    # sys.executable).
+    #
     # 2>&1 | tee is used to redirect output and errors to file.
-    command = ('python3 {first_script} {run_id} 2>&1 | tee {log} && '
-               + '{metrosim} {argfile} && '
-               + 'python3 {second_script} {run_id} 2>&1 | tee {log}')
-    command = command.format(first_script=prepare_run_file, run_id=run.id,
-                             log=log_file, metrosim=metrosim_file,
-                             argfile=arg_file,
-                             second_script=build_results_file)
+    command = (
+        '{executable} {first_script} {run_id} 2>&1 | tee {log} && '
+        '{metrosim} {argfile} && '
+        '{executable} {second_script} {run_id} 2>&1 | tee {log}'
+    )
+    command = command.format(
+        executable=sys.executable, first_script=prepare_run_file,
+        run_id=run.id, log=log_file, metrosim=metrosim_file, argfile=arg_file,
+        second_script=build_results_file,
+    )
     subprocess.Popen(command, shell=True)
 
 
