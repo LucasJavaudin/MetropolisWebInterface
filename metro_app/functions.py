@@ -240,7 +240,7 @@ def object_import_function(encoded_file, simulation, object_name):
     else:
         df = pd.read_csv(tsv_file, delimiter=',')
     # Do not do anything if the file is empty.
-    num_lines = len(list(reader))
+    num_lines = len(df)
     if num_lines == 0:
         return
     if object_name == 'function':
@@ -448,16 +448,17 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     to be updated. To update values, we simply delete the previous entries in
     the database and insert the new ones.
     """
-    # Convert the imported file to a csv DictReader.
     tsv_file = StringIO(encoded_file.read().decode())
+    # Do not do anything if the file is empty.
+    num_lines = sum(1 for row in tsv_file)
+    if num_lines <= 1:
+        return
+    tsv_file.seek(0)
+    # Convert the imported file to a csv DictReader.
     if encoded_file.name.split(".")[-1] == 'tsv':
         reader = csv.DictReader(tsv_file, delimiter='\t')
     else:
         reader = csv.DictReader(tsv_file, delimiter=',')
-    # Do not do anything if the file is empty.
-    num_lines = len(list(reader))
-    if num_lines == 0:
-        return
     # Create a set with all existing OD pairs in the OD matrix.
     matrix = demandsegment.matrix
     pairs = Matrix.objects.filter(matrices=matrix)
@@ -476,10 +477,14 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
     to_be_updated = set()
     to_be_created = list()
     for row in reader:
-        pair = (
-            centroid_id_mapping[int(row['origin'])],
-            centroid_id_mapping[int(row['destination'])]
-        )
+        try:
+            pair = (
+                centroid_id_mapping[int(row['origin'])],
+                centroid_id_mapping[int(row['destination'])]
+            )
+        except KeyError:
+            # Unable to find centroid origin or destination.
+            continue
         if pair in existing_pairs:
             to_be_updated.add((*pair, float(row['population'])))
         elif float(row['population']) > 0:
@@ -534,9 +539,12 @@ def matrix_import_function(encoded_file, simulation, demandsegment):
         Matrix.objects.bulk_create(chunk, chunk_size)
     # Update total.
     pairs = pairs.all()  # Update queryset from database.
-    matrix.total = int(
-        demandsegment.scale * pairs.aggregate(Sum('r'))['r__sum']
-    )
+    if pairs.exists():
+        matrix.total = int(
+            demandsegment.scale * pairs.aggregate(Sum('r'))['r__sum']
+        )
+    else:
+        matrix.total = 0
     matrix.save()
     simulation.has_changed = True
     simulation.save()
@@ -555,16 +563,17 @@ def pricing_import_function(encoded_file, simulation, id_map=None):
         Dictionary mapping usertypes' user_id from the file to usertypes'
         user_id in the simulation.
     """
-    # Convert the imported file to a csv DictReader.
     tsv_file = StringIO(encoded_file.read().decode())
+    # Do not do anything if the file is empty.
+    num_lines = sum(1 for row in tsv_file)
+    if num_lines <= 1:
+        return
+    tsv_file.seek(0)
+    # Convert the imported file to a csv DictReader.
     if encoded_file.name.split(".")[-1] == 'tsv':
         reader = csv.DictReader(tsv_file, delimiter='\t')
     else:
         reader = csv.DictReader(tsv_file, delimiter=',')
-    # Do not do anything if the file is empty.
-    num_lines = len(list(reader))
-    if num_lines == 0:
-        return
     # Get all pricing policies for this usertype.
     policies = get_query('policy', simulation)
     tolls = policies.filter(type='PRICING')
@@ -672,16 +681,17 @@ def public_transit_import_function(encoded_file, simulation):
     simulation: Simulation object.
         Simulation to modify.
     """
-    # Convert the imported file to a csv DictReader.
     tsv_file = StringIO(encoded_file.read().decode())
+    # Do not do anything if the file is empty.
+    num_lines = sum(1 for row in tsv_file)
+    if num_lines <= 1:
+        return
+    tsv_file.seek(0)
+    # Convert the imported file to a csv DictReader.
     if encoded_file.name.split(".")[-1] == 'tsv':
         reader = csv.DictReader(tsv_file, delimiter='\t')
     else:
         reader = csv.DictReader(tsv_file, delimiter=',')
-    # Do not do anything if the file is empty.
-    num_lines = len(list(reader))
-    if num_lines == 0:
-        return
     # Create a set with all existing OD pairs in the OD matrix.
     matrix = simulation.scenario.supply.pttimes
     pairs = get_query('public_transit', simulation)
@@ -766,16 +776,17 @@ def usertype_import_function(encoded_file, simulation):
     simulation: Simulation object.
         Simulation to modify.
     """
-    # Convert the imported file to a csv DictReader.
     tsv_file = StringIO(encoded_file.read().decode())
+    # Do not do anything if the file is empty.
+    num_lines = sum(1 for row in tsv_file)
+    if num_lines <= 1:
+        return
+    tsv_file.seek(0)
+    # Convert the imported file to a csv DictReader.
     if encoded_file.name.split(".")[-1] == 'tsv':
         reader = csv.DictReader(tsv_file, delimiter='\t')
     else:
         reader = csv.DictReader(tsv_file, delimiter=',')
-    # Do not do anything if the file is empty.
-    num_lines = len(list(reader))
-    if num_lines == 0:
-        return
     # Get an empty Vector or create one if there is none.
     if Vector.objects.filter(data='').exists():
         empty_vector = Vector.objects.filter(data='')[0]
@@ -788,69 +799,64 @@ def usertype_import_function(encoded_file, simulation):
         name = row['name']
         comment = row['comment']
 
-        alphaTI_mean = row['alphaTI_mean']
-        alphaTI_std = row['alphaTI_std']
-        alphaTI_type = row['alphaTI_type']
-        alphaTI = Distribution(
-            mean=alphaTI_mean, std=alphaTI_std, type=alphaTI_type)
+        mean = row['alphaTI_mean']
+        std = row['alphaTI_std']
+        dtype = row['alphaTI_type']
+        alphaTI = Distribution(mean=mean, std=std, type=dtype)
         alphaTI.save()
 
-        alphaTP_mean = row['alphaTP_mean']
-        alphaTP_std = row['alphaTP_std']
-        alphaTP_type = row['alphaTP_type']
-        alphaTP = Distribution(mean=alphaTP_mean, std=alphaTP_std, type=alphaTP_type)
+        mean = row['alphaTP_mean']
+        std = row['alphaTP_std']
+        dtype = row['alphaTP_type']
+        alphaTP = Distribution(mean=mean, std=std, type=dtype)
         alphaTP.save()
 
-        beta_mean = row['beta_mean']
-        beta_std = row['beta_std']
-        beta_type = row['beta_type']
-        beta = Distribution(mean=beta_mean, std=beta_std, type=beta_type)
+        mean = row['beta_mean']
+        std = row['beta_std']
+        dtype = row['beta_type']
+        beta = Distribution(mean=mean, std=std, type=dtype)
         beta.save()
 
-        delta_mean = row['delta_mean']
-        delta_std = row['delta_std']
-        delta_type = row['delta_type']
-        delta = Distribution(mean=delta_mean, std=delta_std, type=delta_type)
+        mean = row['delta_mean']
+        std = row['delta_std']
+        dtype = row['delta_type']
+        delta = Distribution(mean=mean, std=std, type=dtype)
         delta.save()
 
-        departureMu_mean = row['departureMu_mean']
-        departureMu_std = row['departureMu_std']
-        departureMu_type = row['departureMu_type']
-        departureMu = Distribution(
-            mean=departureMu_mean, std=departureMu_std, type=departureMu_type)
+        mean = row['departureMu_mean']
+        std = row['departureMu_std']
+        dtype = row['departureMu_type']
+        departureMu = Distribution(mean=mean, std=std, type=dtype)
         departureMu.save()
 
-        gamma_mean = row['gamma_mean']
-        gamma_std = row['gamma_std']
-        gamma_type = row['gamma_type']
-        gamma = Distribution(mean=gamma_mean, std=gamma_std, type=gamma_type)
+        mean = row['gamma_mean']
+        std = row['gamma_std']
+        dtype = row['gamma_type']
+        gamma = Distribution(mean=mean, std=std, type=dtype)
         gamma.save()
 
-        modeMu_mean = row['modeMu_mean']
-        modeMu_std = row['modeMu_std']
-        modeMu_type = row['modeMu_type']
-        modeMu = Distribution(
-            mean=modeMu_mean, std=modeMu_std, type=modeMu_type)
+        mean = row['modeMu_mean']
+        std = row['modeMu_std']
+        dtype = row['modeMu_type']
+        modeMu = Distribution(mean=mean, std=std, type=dtype)
         modeMu.save()
 
-        penaltyTP_mean = row['penaltyTP_mean']
-        penaltyTP_std = row['penaltyTP_std']
-        penaltyTP_type = row['penaltyTP_type']
-        penaltyTP = Distribution(
-            mean=penaltyTP_mean, std=penaltyTP_std, type=penaltyTP_type)
+        mean = row['penaltyTP_mean']
+        std = row['penaltyTP_std']
+        dtype = row['penaltyTP_type']
+        penaltyTP = Distribution(mean=mean, std=std, type=dtype)
         penaltyTP.save()
 
-        routeMu_mean = row['routeMu_mean']
-        routeMu_std = row['routeMu_std']
-        routeMu_type = row['routeMu_type']
-        routeMu = Distribution(
-            mean=routeMu_mean, std=routeMu_std, type=routeMu_type)
+        mean = row['routeMu_mean']
+        std = row['routeMu_std']
+        dtype = row['routeMu_type']
+        routeMu = Distribution(mean=mean, std=std, type=dtype)
         routeMu.save()
 
-        tstar_mean = row['tstar_mean']
-        tstar_std = row['tstar_std']
-        tstar_type = row['tstar_type']
-        tstar = Distribution(mean=tstar_mean, std=tstar_std, type=tstar_type)
+        mean = row['tstar_mean']
+        std = row['tstar_std']
+        dtype = row['tstar_type']
+        tstar = Distribution(mean=mean, std=std, type=dtype)
         tstar.save()
 
         typeOfRouteChoice = row['typeOfRouteChoice']
@@ -869,6 +875,8 @@ def usertype_import_function(encoded_file, simulation):
             user_id = 1
 
         usertype = UserType()
+        usertype.name = name
+        usertype.comment = comment
         usertype.alphaTI = alphaTI
         usertype.alphaTP = alphaTP
         usertype.beta = beta

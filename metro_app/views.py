@@ -1104,15 +1104,6 @@ def usertype_edit_save(request, simulation, demandsegment):
     if form.is_valid():
         form.save()
         demandsegment.refresh_from_db()
-        # Add default name if needed.
-        usertype = demandsegment.usertype
-        if usertype.name == '':
-            usertypes = get_query('usertype', simulation)
-            usertype_index = list(
-                usertypes.values_list('id', flat=True)
-            ).index(usertype.id)
-            usertype.name = 'Traveler Type {}'.format(usertype_index + 1)
-            usertype.save()
         # Check if value of scale has changed.
         if demandsegment.scale != scale:
             # Update total population.
@@ -3099,53 +3090,58 @@ def simulation_import_action(request):
         # Import the zipfile data in the simulation.
         encoded_file = form.cleaned_data['zipfile']
         file = zipfile.ZipFile(encoded_file)
-        name = file.namelist()
-        for n in name:
-            if re.search('zones.[tc]sv$', n):
-                object_import_function(file.open(n), simulation, 'centroid')
+        namelist = file.namelist()
+        for filename in namelist:
+            if re.search('/zones.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'centroid')
                 break
 
-        for c in name:
-            if re.search('intersections.[tc]sv$', n):
-                object_import_function(file.open(c), simulation, 'crossing')
+        for filename in namelist:
+            if re.search('/intersections.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'crossing')
                 break
 
-        for l in name:
-            if re.search('links.[tc]sv$', n):
-                object_import_function(file.open(l), simulation, 'link')
+        for filename in namelist:
+            if re.search('/links.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'link')
                 break
 
-        for f in name:
-            if re.search('congestion_functions.[tc]sv$', n):
-                object_import_function(file.open(f), simulation, 'function')
+        for filename in namelist:
+            if re.search('/congestion_functions.[tc]sv$', filename):
+                object_import_function(
+                    file.open(filename), simulation, 'function')
                 break
 
-        for public in name:
-            if re.search('public_transit.[tc]sv$', n):
-                public_transit_import_function(file.open(public), simulation)
+        for filename in namelist:
+            if re.search('/public_transit.[tc]sv$', filename):
+                public_transit_import_function(
+                    file.open(filename), simulation)
                 break
 
         old_to_new_id = dict()
-        for user in name:
-            d = re.search('usertype_([0-9]+).[tc]sv$', user)
+        for filename in namelist:
+            d = re.search('/usertype_([0-9]+).[tc]sv$', filename)
             if d:
                 old_id = d.group(1)
                 # Import the new usertype.
-                usertype_import_function(file.open(user), simulation)
+                usertype_import_function(file.open(filename), simulation)
                 # The last demandsegment of the simulation corresponds to the
                 # new usertype.
                 demandsegment = get_query('demandsegment', simulation).last()
                 old_to_new_id[old_id] = demandsegment.usertype.user_id
-                for m in name:
-                    if re.search('matrix_{}.[tc]sv$'.format(old_id), m):
+                for filename in namelist:
+                    if re.search('/matrix_{}.[tc]sv$'.format(old_id), filename):
                         # Import the matrix file in the new demandsegment.
-                        matrix_import_function(file.open(m), simulation,
-                                               demandsegment)
+                        matrix_import_function(
+                            file.open(filename), simulation, demandsegment)
                         break
 
-        for price in name:
-            if re.search('pricings.[tc]sv$', n):
-                pricing_import_function(file.open(price), simulation,
+        for filename in namelist:
+            if re.search('/pricings.[tc]sv$', filename):
+                pricing_import_function(file.open(filename), simulation,
                                         id_map=old_to_new_id)
                 break
 
