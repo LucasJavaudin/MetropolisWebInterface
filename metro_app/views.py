@@ -2605,7 +2605,7 @@ def simulation_import_action(request):
                 try:
                     demandsegment = demandsegments.get(
                         usertype__user_id=user_id)
-                except models.DemandSegment.objects.DoesNotExist:
+                except models.DemandSegment.DoesNotExist:
                     # Matrix file with an invalid id, ignore it.
                     continue
                 # Import the matrix file in the new demandsegment.
