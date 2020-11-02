@@ -163,6 +163,28 @@ def check_run_relation(view):
     return wrap
 
 
+def check_batch_relation(view):
+    """Decorator used in the batch views to ensure that the batch and the
+    simulation are related.
+    The decorator also converts the batch id to a Batch object.
+    """
+
+    def wrap(*args, **kwargs):
+        # The decorator is run after public_required or owner_required so
+        # simulation_id has already been converted to a Simulation object.
+        simulation = kwargs.pop('simulation')
+        batch_id = kwargs.pop('batch_id')
+        batch = get_object_or_404(models.Batch, pk=batch_id)
+        if batch.simulation == simulation:
+            return view(*args, simulation=simulation,
+                        batch=batch)
+        else:
+            # The run id not related to the simulation.
+            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
+    return wrap
+
+
 def environment_owner_required(view):
     """Decorator to execute a function only if the requesting user has edit
     access to the environment.
@@ -918,6 +940,12 @@ def simulation_view(request, simulation):
     if owner and complete_simulation:
         run_form = forms.RunForm(
             initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
+    # Create a form to run a batch.
+    nb_batch = functions.get_query('batch', simulation).count()
+    batch_form = forms.BatchForm(
+        initial={'name': 'Batch {}'.format(nb_batch+1)})
+    # Check if the simulation has any batch.
+    has_batch = nb_batch > 0
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -932,6 +960,8 @@ def simulation_view(request, simulation):
         'complete_simulation': complete_simulation,
         'good_pt': good_pt,
         'run_form': run_form,
+        'batch_form': batch_form,
+        'has_batch': has_batch,
     }
     return render(request, 'metro_app/simulation_view.html', context)
 
@@ -2807,6 +2837,98 @@ def environment_delete(request, environment):
     env.delete()
 
     return HttpResponseRedirect(reverse('metro:environments_view'))
+
+
+@require_POST
+@owner_required
+def batch_new(request, simulation):
+    """View to create a new batch run."""
+    batch_form = forms.BatchForm(request.POST)
+    if batch_form.is_valid():
+        # Save the batch and its runs.
+        batch = batch_form.save(simulation)
+        for i in range(batch.nb_runs):
+            run = models.BatchRun()
+            run.batch = batch
+            run.run_order = i+1
+            run.save()
+        # Return the view to edit the batch.
+        return HttpResponseRedirect(
+            reverse('metro:batch_edit', args=(simulation.id, batch.id,))
+        )
+    else:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
+
+@owner_required
+@check_batch_relation
+def batch_edit(request, simulation, batch):
+    """View to edit the files of a batch run."""
+    # Create a formset to edit the files.
+    BatchRunFormSet = forms.modelformset_factory(
+        models.BatchRun,
+        form=forms.BatchRunForm,
+        extra=0,
+    )
+    batch_runs = models.BatchRun.objects.filter(batch=batch)
+    batch_form_set = BatchRunFormSet(queryset=batch_runs)
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'formset': batch_form_set,
+    }
+    return render(request, 'metro_app/batch_edit.html', context)
+
+
+@require_POST
+@owner_required
+@check_batch_relation
+def batch_save(request, simulation, batch):
+    """View to save the formset of a batch."""
+    BatchRunFormSet = forms.modelformset_factory(
+        models.BatchRun,
+        form=forms.BatchRunForm,
+        extra=0,
+    )
+    formset = BatchRunFormSet(request.POST, request.FILES)
+    if formset.is_valid():
+        formset.save()
+        return HttpResponseRedirect(
+            reverse('metro:batch_view', args=(simulation.id, batch.id,))
+        )
+    else:
+        context = {
+            'simulation': simulation,
+            'form': formset,
+        }
+        return render(request, 'metro_app/errors.html', context)
+
+
+@public_required
+@check_batch_relation
+def batch_view(request, simulation, batch):
+    """View to show data on a batch (runs, status)."""
+    is_owner = functions.can_edit(request.user, simulation)
+    # Here we should run the batch, if is_owner is True and if the batch is not
+    # running already.
+    runs = models.BatchRun.objects.filter(batch=batch)
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'runs': runs,
+        'is_owner': is_owner,
+    }
+    return render(request, 'metro_app/batch_view.html', context)
+
+
+@public_required
+def batch_history(request, simulation):
+    batchs = functions.get_query('batch', simulation)
+    context = {
+        'simulation': simulation,
+        'batchs': batchs,
+    }
+    return render(request, 'metro_app/batch_history.html', context)
 
 
 # ====================

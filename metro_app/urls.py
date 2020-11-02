@@ -179,4 +179,14 @@ urlpatterns = [
          views.environment_delete, name='environments_delete'),
     path(r'environments/delete/<environment_id>/<user>',
          views.environment_user_delete, name='environment_user_delete'),
+    # Batch pages.
+    path(r'<simulation_id>/batch/new', views.batch_new, name='batch_new'),
+    path(r'<simulation_id>/batch/<batch_id>/edit', views.batch_edit,
+         name='batch_edit'),
+    path(r'<simulation_id>/batch/<batch_id>/save', views.batch_save,
+         name='batch_save'),
+    path(r'<simulation_id>/batch/<batch_id>/view', views.batch_view,
+         name='batch_view'),
+    path(r'<simulation_id>/batch_history', views.batch_history,
+         name='batch_history'),
 ]

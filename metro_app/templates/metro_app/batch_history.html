@@ -1,0 +1,37 @@
+{%extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+{% load humanize %}
+
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+
+{% block main %}
+<center>
+    <a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+        <span class="far fa-caret-square-left"></span> Back </a>
+</center>
+
+This page should show the details on all the batches (status, number of runs, link to the runs, etc.).
+
+<br>
+
+<ul>
+{% for batch in batchs %}
+<li>
+<a href="{% url 'metro:batch_view' simulation.id batch.id %}">
+{% if batch.name %}
+{{ batch.name }}
+{% else %}
+Batch {{ forloop.counter }}
+{% endif %}
+</a>
+</li>
+{% endfor %}
+</ul>
+
+{% endblock %}

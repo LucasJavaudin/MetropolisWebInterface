@@ -659,6 +659,28 @@ class EnvironmentUserAddForm(forms.Form):
         return True
 
 
+class BatchRunForm(forms.ModelForm):
+    class Meta:
+        model = models.BatchRun
+        fields = ['name', 'comment', 'centroid_file', 'crossing_file',
+                  'function_file', 'link_file', 'public_transit_file',
+                  'traveler_file', 'pricing_file', 'zip_file']
+
+
+class BatchForm(forms.ModelForm):
+    def save(self, simulation, commit=True):
+        # Save the Batch with the specified Simulation.
+        instance = super(BatchForm, self).save(commit=False)
+        instance.simulation = simulation
+        if commit:
+            instance.save()
+        return instance
+
+    class Meta:
+        model = models.Batch
+        fields = ['name', 'comment', 'nb_runs']
+
+
 # ====================
 # FormSets
 # ====================

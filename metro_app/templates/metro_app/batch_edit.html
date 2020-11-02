@@ -1,0 +1,68 @@
+{%extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+{% load humanize %}
+
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+
+{% block main %}
+<script src="{% static 'js/jquery.formset.js' %}"></script>
+
+<center>
+    <a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+        <span class="far fa-caret-square-left"></span> Back </a>
+</center>
+
+<form action="{% url 'metro:batch_save' simulation.id batch.id %}" method="post" enctype="multipart/form-data">
+    {{ formset.management_form }}
+    {% csrf_token %}
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover">
+            <thead class="thead-light">
+                <tr>
+                    <th scope="col">Order</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Comment</th>
+                    <th scope="col">Zones</th>
+                    <th scope="col">Intersections</th>
+                    <th scope="col">Congestion functions</th>
+                    <th scope="col">Links</th>
+                    <th scope="col">Public transit</th>
+                    <th scope="col">Travelers</th>
+                    <th scope="col">Road pricing</th>
+                    <th scope="col">Zip file</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for form in formset %}
+                <tr>
+                    {% for field in form.hidden_fields %}
+                    {{ field }}
+                    {% endfor %}
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ form.name }}</td>
+                    <td>{{ form.comment }}</td>
+                    <td>{{ form.centroid_file }}</td>
+                    <td>{{ form.crossing_file }}</td>
+                    <td>{{ form.function_file }}</td>
+                    <td>{{ form.link_file }}</td>
+                    <td>{{ form.public_transit_file }}</td>
+                    <td>{{ form.traveler_file }}</td>
+                    <td>{{ form.pricing_file }}</td>
+                    <td>{{ form.zip_file }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <center>
+        <button type="submit"  class="btn btn-outline-primary btn-lg my-3">Confirm</button>
+    </center>
+</form>
+
+{% endblock %}

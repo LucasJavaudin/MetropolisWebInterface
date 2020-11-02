@@ -65,6 +65,8 @@ def get_query(object_name, simulation):
             )
     elif object_name == 'policy':
         query = models.Policy.objects.filter(scenario=simulation.scenario)
+    elif object_name == 'batch':
+        query = models.Batch.objects.filter(simulation=simulation)
     return query
 
 
