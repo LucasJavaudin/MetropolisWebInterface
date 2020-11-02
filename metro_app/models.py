@@ -1157,7 +1157,7 @@ class Batch(models.Model):
 
 
 class BatchRun(models.Model):
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, blank=True, null=True)
     comment = models.CharField(
         max_length=100, default='', blank=True, null=True)
     centroid_file = models.FileField(
