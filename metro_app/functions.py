@@ -8,17 +8,21 @@ E-mail: lucas.javaudin@ens-paris-saclay.fr
 import os
 import sys
 import subprocess
+import re
 import csv
 from io import StringIO
 import codecs
+import zipfile
 import numpy as np
 import pandas as pd
 
 from django.conf import settings
+from django.contrib.sessions.backends import file
 from django.db.models import Sum
 from django.db import connection
 
 from metro_app import models
+
 
 
 def get_query(object_name, simulation):
@@ -69,6 +73,14 @@ def get_query(object_name, simulation):
         query = models.Batch.objects.filter(simulation=simulation)
     return query
 
+def get_batch_query(object_name, run):
+    """Function used to return all instances of an object related to a
+    simulation.
+    """
+    query = None
+    if object_name == 'batch':
+        query = models.BatchRun.objects.filter(run=run)
+    return query
 
 def can_view(user, simulation):
     """Check if the user can view a specific simulation.
@@ -109,6 +121,7 @@ def can_edit_environment(user, environment):
 
 
 def metro_to_user(object):
+
     """Convert the name of a network object (used in the source code) to a name
     suitable for users.
     """
@@ -150,7 +163,7 @@ def get_node_choices(simulation):
     return node_choices
 
 
-def run_simulation(run):
+def run_simulation(run, background=True):
     """Function to start a SimulationRun.
 
     This function writes the argument file of Metropolis, then runs two scripts
@@ -159,7 +172,7 @@ def run_simulation(run):
     # Write the argument file used by metrosim.
     simulation = run.simulation
     metrosim_dir = settings.BASE_DIR + '/metrosim_files/'
-    metrosim_file = '{0}execs/metrosim'.format(metrosim_dir)
+    metrosim_file = '{0}execs/metrosim.py'.format(metrosim_dir)
     arg_file = (
         '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'
     ).format(metrosim_dir, simulation.id, run.id)
@@ -181,7 +194,7 @@ def run_simulation(run):
             '-logFile "{4}" -tmpDir "{5}" -stopFile "{6}" -simId "{7!s}" '
             '-runId "{8!s}" -randomSeed "{9!s}"'
         ).format(
-            db_host, db_name, db_user, db_pass, log, tmp, stop, simulation.id,
+            db_host, db_name, db_user, db_pass,log, tmp, stop, simulation.id,
             run.id, random_seed)
         f.write(arguments)
 
@@ -195,30 +208,63 @@ def run_simulation(run):
             settings.BASE_DIR, run.id
         )
     )
+
     # Command looks like:
     #
-    # python3 ./metro_app/prepare_results.py y
-    # 2>&1 | tee ./website_files/script_logs/run_y.txt
-    # && ./metrosim_files/execs/metrosim
+    # python3 ./metro_app/prepare_results.py y &&
+    # ./metrosim_files/execs/metrosim
     # ./metrosim_files/arg_files/simulation_x_run_y.txt
     # && python3 ./metro_app/build_results.py y
-    # 2>&1 | tee ./website_files/script_logs/run_y.txt
     #
     # The python executable is the same as the one used by Django (i.e.
     # sys.executable).
-    #
-    # 2>&1 | tee is used to redirect output and errors to file.
     command = (
-        '{executable} {first_script} {run_id} 2>&1 | tee {log} && '
+        '{executable} {first_script} {run_id} && '
         '{metrosim} {argfile} && '
-        '{executable} {second_script} {run_id} 2>&1 | tee {log}'
+        '{executable} {second_script} {run_id}'
     )
     command = command.format(
         executable=sys.executable, first_script=prepare_run_file,
-        run_id=run.id, log=log_file, metrosim=metrosim_file, argfile=arg_file,
+        run_id=run.id, metrosim=metrosim_file, argfile=arg_file,
         second_script=build_results_file,
     )
-    subprocess.Popen(command, shell=True)
+    # Call the command in a shell and redirect stdout and stderr to the log
+    # file.
+    with open(log_file, 'w') as f:
+        if background:
+            subprocess.Popen(command, shell=True, stdout=f, stderr=f)
+
+        else:
+            subprocess.call(command, shell=True, stdout=f, stderr=f)
+
+
+#Implemented a run_batch to run the external script.
+def run_batch(batch):
+
+    if batch.status == "Preparing":
+        batch.status = "Running"
+
+    batch_run_file = settings.BASE_DIR + '/metro_app/batch_run.py'
+    log_file = (
+
+        '{0}/website_files/script_logs/batch_{1}.txt'.format(
+            settings.BASE_DIR, batch.id
+        )
+    )
+
+    command = (
+            '{executable} {first_script} {batch_id}'
+            )
+
+    command = command.format(
+
+            executable=sys.executable, first_script=batch_run_file,
+            batch_id=batch.id,
+            )
+    # Call the command in a shell and redirect stdout and stderr to the log
+    # file.
+    with open(log_file, "w") as f:
+        subprocess.Popen(command, shell=True, stderr=f, stdout=f)
 
 
 def get_export_directory():
@@ -302,10 +348,103 @@ def create_simulation(user, form):
     return simulation
 
 
-######################
-#  Import functions  #
-######################
+#Method to Import a simulation as a zip_file(Calling this method in views.py)
+def simulation_import(simulation, file):
 
+    file = zipfile.ZipFile(file)
+    namelist = file.namelist()
+
+    for filename in namelist:
+        if re.search('/zones.[tc]sv$', filename):
+            object_import_function(
+                file.open(filename), simulation, 'centroid')
+            break
+
+    for filename in namelist:
+        if re.search('/intersections.[tc]sv$', filename):
+            object_import_function(
+                file.open(filename), simulation, 'crossing')
+            break
+
+    for filename in namelist:
+        if re.search('/links.[tc]sv$', filename):
+            object_import_function(
+                file.open(filename), simulation, 'link')
+            break
+
+    for filename in namelist:
+        if re.search('/congestion_functions.[tc]sv$', filename):
+            object_import_function(
+                file.open(filename), simulation, 'function')
+            break
+
+    for filename in namelist:
+        if re.search('/public_transit.[tc]sv$', filename):
+            public_transit_import_function(
+                file.open(filename), simulation)
+            break
+
+    for filename in namelist:
+        if re.search('/traveler_types.[tc]sv$', filename):
+            usertype_import_function(
+                file.open(filename), simulation)
+            break
+
+    demandsegments = get_query('demandsegment', simulation)
+    for filename in namelist:
+        d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+        if d:
+            # Get the demandsegment associated with this OD matrix.
+            user_id = d.group(1)
+            try:
+                demandsegment = demandsegments.get(
+                    usertype__user_id=user_id)
+            except models.DemandSegment.objects.DoesNotExist:
+                # Matrix file with an invalid id, ignore it.
+                continue
+            # Import the matrix file in the new demandsegment.
+            matrix_import_function(
+                file.open(filename), simulation, demandsegment)
+
+    for filename in namelist:
+        if re.search('/pricings.[tc]sv$', filename):
+            pricing_import_function(
+                file.open(filename), simulation)
+            break
+
+
+    return file
+
+
+
+def traveler_zip_file(simulation, file):
+
+    file = zipfile.ZipFile(file)
+    namelist = file.namelist()
+
+    for filename in namelist:
+        if re.search('/traveler_types.[tc]sv$', filename):
+            usertype_import_function(
+                file.open(filename), simulation)
+            break
+
+    demandsegments = get_query('demandsegment', simulation)
+    for filename in namelist:
+        d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+        if d:
+            # Get the demandsegment associated with this OD matrix.
+            user_id = d.group(1)
+            try:
+                demandsegment = demandsegments.get(
+                    usertype__user_id=user_id)
+            except models.DemandSegment.objects.DoesNotExist:
+                # Matrix file with an invalid id, ignore it.
+                continue
+            # Import the matrix file in the new demandsegment.
+            matrix_import_function(
+                file.open(filename), simulation, demandsegment)
+
+    return file
 
 def object_import_function(encoded_file, simulation, object_name):
     """Function to import a file representing the input of a simulation.
@@ -1187,3 +1326,9 @@ def usertype_export_function(simulation, demandsegment=None, dir_name=''):
 
         writer.writerows(values)
     return filename
+
+
+
+
+
+
