@@ -28,34 +28,79 @@
                     <th scope="col">Order</th>
                     <th scope="col">Name</th>
                     <th scope="col">Comment</th>
-                    <th scope="col">Zones</th>
-                    <th scope="col">Intersections</th>
-                    <th scope="col">Congestion functions</th>
-                    <th scope="col">Links</th>
-                    <th scope="col">Public transit</th>
-                    <th scope="col">Travelers</th>
-                    <th scope="col">Road pricing</th>
-                    <th scope="col">Zip file</th>
+                    <th scope="col">Actions</th>
+
                 </tr>
             </thead>
             <tbody>
+
                 {% for form in formset %}
-                <tr>
-                    {% for field in form.hidden_fields %}
+                    <tr>
+                     {% for field in form.hidden_fields %}
                     {{ field }}
-                    {% endfor %}
+                     {% endfor %}
                     <td>{{ forloop.counter }}</td>
                     <td>{{ form.name }}</td>
                     <td>{{ form.comment }}</td>
-                    <td>{{ form.centroid_file }}</td>
-                    <td>{{ form.crossing_file }}</td>
-                    <td>{{ form.function_file }}</td>
-                    <td>{{ form.link_file }}</td>
-                    <td>{{ form.public_transit_file }}</td>
-                    <td>{{ form.traveler_file }}</td>
-                    <td>{{ form.pricing_file }}</td>
-                    <td>{{ form.zip_file }}</td>
-                </tr>
+
+                    <td>
+                        <center>
+
+                      <label for="files" class="btn" >Zones: </label>
+                            <br>
+                            {{ form.centroid_file }}
+
+                            </center>
+                        <br>
+                        <center>
+
+                     <label for="files" class="btn">Intersection: </label>
+                            <br>
+                            {{ form.crossing_file }}
+                            </center>
+                        <br>
+
+                        <center>
+                     <label for="files" class="btn">Congestion Function: </label>
+                            <br>
+                            {{ form.function_file }}
+                            </center>
+                        <br>
+
+                        <center>
+                      <label for="files" class="btn">Links: </label>
+                            <br>
+                        {{ form.link_file }}
+                            </center>
+                        <br>
+                         <center>
+                      <label for="files" class="btn">Public Transit: </label>
+                             <br>
+				        {{ form.public_transit_file }}
+                          </center>
+                        <br>
+                          <center>
+                       <label for="files" class="btn">Travelers(Zip File): </label>
+                              <br>
+                              {{ form.traveler_file }}
+                          </center>
+                        <br>
+                              <center>
+                       <label for="files" class="btn">Road Pricing:</label>
+                                  <br>
+				        {{ form.pricing_file }}
+                                  <br>
+                                  </center>
+
+                        <center>
+                            <label for="files" class="btn"> Zip File: </label>
+                            <br>
+                            {{ form.zip_file }}
+                            <br>
+                        </center>
+                    </td>
+             </tr>
+
                 {% endfor %}
             </tbody>
         </table>
