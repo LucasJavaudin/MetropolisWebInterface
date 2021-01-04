@@ -11,6 +11,7 @@ from io import BytesIO
 import zipfile
 import json
 import codecs
+import sys
 from math import sqrt
 
 from django.shortcuts import render, get_object_or_404
@@ -852,7 +853,6 @@ def copy_simulation(request):
         )
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
-
 @owner_required
 def simulation_delete(request, simulation):
     """View used to delete a simulation.
@@ -867,7 +867,6 @@ def simulation_delete(request, simulation):
     functionset.delete()
     demand.delete()
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
-
 
 @public_required
 def simulation_view(request, simulation):
@@ -946,7 +945,8 @@ def simulation_view(request, simulation):
         initial={'name': 'Batch {}'.format(nb_batch+1)})
     # Check if the simulation has any batch.
     has_batch = nb_batch > 0
-    context = {
+
+    context ={
         'simulation': simulation,
         'owner': owner,
         'copy_form': copy_form,
@@ -1960,6 +1960,24 @@ def simulation_run_stop(request, simulation, run):
     ))
 
 
+@owner_required
+@check_run_relation
+@check_batch_relation
+def batch_run_stop(request, simulation, batch):
+    """View to stop a running simulation."""
+    if batch.status == 'Running':
+        # Create the stop file.
+        # The simulation will stop at the end of the current iteration.
+        stop_file = '{0}/metrosim_files/stop_files/run_{1}.stop'.format(
+            settings.BASE_DIR, batch.id)
+        open(stop_file, 'a').close()
+        # Change the status of the run.
+        batch.status = 'Aborted'
+        batch.save()
+    return HttpResponseRedirect(reverse(
+        'metro:batch_run_view', args=(simulation.id, batch.id,)
+    ))
+
 @public_required
 @check_run_relation
 def simulation_run_view(request, simulation, run):
@@ -1984,6 +2002,31 @@ def simulation_run_view(request, simulation, run):
     }
     return render(request, 'metro_app/simulation_run.html', context)
 
+@public_required
+@check_run_relation
+def batch_run_view(request, simulation, batch):
+    """View with the current status, the results and the log of a run."""
+    # Open and read the log file (if it exists).
+    log_file = '{0}/metrosim_files/logs/run_{1}.txt'.format(settings.BASE_DIR,
+                                                            batch.id)
+    log = None
+    if os.path.isfile(log_file):
+        with open(log_file, 'r') as f:
+            log = f.read().replace('\n', '<br>')
+    # Get the results of the run (if any).
+    results = models.SimulationMOEs.objects.filter(runid=batch.id)
+    results = results.order_by('-day')
+    result_table = tables.SimulationMOEsTable(results)
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'log': log,
+        'results': results,
+        'result_table': result_table,
+    }
+    return render(request, 'metro_app/batch_run.html', context)
+
+
 
 @public_required
 def simulation_run_list(request, simulation):
@@ -1994,7 +2037,6 @@ def simulation_run_list(request, simulation):
         'runs': runs,
     }
     return render(request, 'metro_app/simulation_run_list.html', context)
-
 
 @public_required
 @check_run_relation
@@ -2588,66 +2630,8 @@ def simulation_import_action(request):
         simulation = functions.create_simulation(request.user, form)
         # Import the zipfile data in the simulation.
         encoded_file = form.cleaned_data['zipfile']
-        file = zipfile.ZipFile(encoded_file)
-        namelist = file.namelist()
-        for filename in namelist:
-            if re.search('/zones.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'centroid')
-                break
-
-        for filename in namelist:
-            if re.search('/intersections.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'crossing')
-                break
-
-        for filename in namelist:
-            if re.search('/links.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'link')
-                break
-
-        for filename in namelist:
-            if re.search('/congestion_functions.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'function')
-                break
-
-        for filename in namelist:
-            if re.search('/public_transit.[tc]sv$', filename):
-                functions.public_transit_import_function(
-                    file.open(filename), simulation)
-                break
-
-        for filename in namelist:
-            if re.search('/traveler_types.[tc]sv$', filename):
-                functions.usertype_import_function(
-                    file.open(filename), simulation)
-                break
-
-        demandsegments = functions.get_query('demandsegment', simulation)
-        for filename in namelist:
-            d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
-            if d:
-                # Get the demandsegment associated with this OD matrix.
-                user_id = d.group(1)
-                try:
-                    demandsegment = demandsegments.get(
-                        usertype__user_id=user_id)
-                except models.DemandSegment.objects.DoesNotExist:
-                    # Matrix file with an invalid id, ignore it.
-                    continue
-                # Import the matrix file in the new demandsegment.
-                functions.matrix_import_function(
-                    file.open(filename), simulation, demandsegment)
-
-        for filename in namelist:
-            if re.search('/pricings.[tc]sv$', filename):
-                functions.pricing_import_function(
-                    file.open(filename), simulation)
-                break
-
+        # function to import the simulation from as a zip_file
+        batch_import = functions.simulation_import(simulation,encoded_file)
         return HttpResponseRedirect(
             reverse('metro:simulation_view', args=(simulation.id,))
         )
@@ -2851,13 +2835,16 @@ def batch_new(request, simulation):
             run = models.BatchRun()
             run.batch = batch
             run.run_order = i+1
+            run.name = "Run " + str(i+1)
             run.save()
+
         # Return the view to edit the batch.
         return HttpResponseRedirect(
             reverse('metro:batch_edit', args=(simulation.id, batch.id,))
         )
     else:
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
 
 
 @owner_required
@@ -2871,15 +2858,63 @@ def batch_edit(request, simulation, batch):
         extra=0,
     )
     batch_runs = models.BatchRun.objects.filter(batch=batch)
+    print("jhgjygjyjuguy")
     batch_form_set = BatchRunFormSet(queryset=batch_runs)
+    batchs = batch.batchrun_set.all()
+    batch_run = functions.get_query('run', simulation)
+    counter = 0
+    #Disable the form if the batch is running
+    for i in batchs:
+       if not (i.run == None):
+           print(i.run)
+           batch_form_set[counter].fields['name'].disabled = True
+           batch_form_set[counter].fields['comment'].disabled = True
+           batch_form_set[counter].fields['centroid_file'].disabled = True
+           batch_form_set[counter].fields['crossing_file'].disabled = True
+           batch_form_set[counter].fields['function_file'].disabled = True
+           batch_form_set[counter].fields['link_file'].disabled = True
+           batch_form_set[counter].fields['public_transit_file'].disabled = True
+           batch_form_set[counter].fields['traveler_file'].disabled = True
+           batch_form_set[counter].fields['pricing_file'].disabled = True
+           batch_form_set[counter].fields['zip_file'].disabled = True
+
+       counter = counter + 1
+
     context = {
         'simulation': simulation,
         'batch': batch,
+        'batch_runs': batchs,
+        'batch_run': batch_run,
         'formset': batch_form_set,
     }
     return render(request, 'metro_app/batch_edit.html', context)
 
 
+@owner_required
+@check_batch_relation
+def batch_delete(request, simulation, batch):
+    """View to edit the files of a batch run."""
+    # Create a formset to edit the files.
+    is_owner = functions.can_edit(request.user, simulation)
+    BatchRunFormSet = forms.modelformset_factory(
+        models.BatchRun,
+        form=forms.BatchRunForm,
+        extra=0,
+    )
+    batch_runs = models.BatchRun.objects.filter(batch=batch)
+    batch_form_set = BatchRunFormSet(queryset=batch_runs)
+    if request.user:
+        batch.delete()
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'formset': batch_form_set,
+        'is_owner': is_owner,
+    }
+    return render(request, 'metro_app/batch_edit.html', context)
+
+
+#Method to call the external script in order to run the batch process.
 @require_POST
 @owner_required
 @check_batch_relation
@@ -2893,16 +2928,18 @@ def batch_save(request, simulation, batch):
     formset = BatchRunFormSet(request.POST, request.FILES)
     if formset.is_valid():
         formset.save()
+        functions.run_batch(batch)
         return HttpResponseRedirect(
-            reverse('metro:batch_view', args=(simulation.id, batch.id,))
+            reverse('metro:batch_view', args=(simulation.id, batch.id))
         )
     else:
         context = {
             'simulation': simulation,
             'form': formset,
+            'batch': batch,
+
         }
         return render(request, 'metro_app/errors.html', context)
-
 
 @public_required
 @check_batch_relation
@@ -2911,15 +2948,25 @@ def batch_view(request, simulation, batch):
     is_owner = functions.can_edit(request.user, simulation)
     # Here we should run the batch, if is_owner is True and if the batch is not
     # running already.
-    runs = models.BatchRun.objects.filter(batch=batch)
-    context = {
-        'simulation': simulation,
-        'batch': batch,
-        'runs': runs,
-        'is_owner': is_owner,
-    }
-    return render(request, 'metro_app/batch_view.html', context)
+    batch_runs = batch.batchrun_set.all()
+    batch_run = functions.get_query('run', simulation)
+    for i in batch_runs:
+        print(i.run)
 
+    context = {
+        'batch': batch,
+        'simulation': simulation,
+        'batch_runs': batch_runs,
+        'batch_run': batch_run,
+        'is_owner': is_owner,
+        'status': 'Not Started',
+        'start_time': 'None',
+        'end_time': 'None',
+        'time_taken': 'None',
+
+    }
+
+    return render(request, 'metro_app/batch_view.html', context)
 
 @public_required
 def batch_history(request, simulation):
@@ -2928,8 +2975,8 @@ def batch_history(request, simulation):
         'simulation': simulation,
         'batchs': batchs,
     }
-    return render(request, 'metro_app/batch_history.html', context)
 
+    return render(request, 'metro_app/batch_history.html', context)
 
 # ====================
 # Receivers
@@ -2987,7 +3034,7 @@ def gen_formset(object_name, simulation, request=None):
     """
     formset = None
     query = functions.get_query(object_name, simulation)
-    if object_name == 'centroid':
+    if object_name == 'centroidFfunction':
         if request:
             if query.exists():
                 formset = forms.CentroidFormSet(
