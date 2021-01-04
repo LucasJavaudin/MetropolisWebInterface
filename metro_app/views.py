@@ -2003,32 +2003,6 @@ def simulation_run_view(request, simulation, run):
     return render(request, 'metro_app/simulation_run.html', context)
 
 @public_required
-@check_run_relation
-def batch_run_view(request, simulation, batch):
-    """View with the current status, the results and the log of a run."""
-    # Open and read the log file (if it exists).
-    log_file = '{0}/metrosim_files/logs/run_{1}.txt'.format(settings.BASE_DIR,
-                                                            batch.id)
-    log = None
-    if os.path.isfile(log_file):
-        with open(log_file, 'r') as f:
-            log = f.read().replace('\n', '<br>')
-    # Get the results of the run (if any).
-    results = models.SimulationMOEs.objects.filter(runid=batch.id)
-    results = results.order_by('-day')
-    result_table = tables.SimulationMOEsTable(results)
-    context = {
-        'simulation': simulation,
-        'batch': batch,
-        'log': log,
-        'results': results,
-        'result_table': result_table,
-    }
-    return render(request, 'metro_app/batch_run.html', context)
-
-
-
-@public_required
 def simulation_run_list(request, simulation):
     """View with a list of the runs of the simulation."""
     runs = functions.get_query('run', simulation).order_by('-id')
