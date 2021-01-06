@@ -58,7 +58,7 @@ try:
 
         run = models.SimulationRun(name=batch_run.name, simulation=simulation)
         run.save()
-        batch_run.run
+        batch_run.run = run
         batch_run.save()
         functions.run_simulation(run, background=False)
 
