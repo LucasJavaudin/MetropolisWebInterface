@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 
 from django.conf import settings
-from django.contrib.sessions.backends import file
 from django.db.models import Sum
 from django.db import connection
 
@@ -71,15 +70,6 @@ def get_query(object_name, simulation):
         query = models.Policy.objects.filter(scenario=simulation.scenario)
     elif object_name == 'batch':
         query = models.Batch.objects.filter(simulation=simulation)
-    return query
-
-def get_batch_query(object_name, run):
-    """Function used to return all instances of an object related to a
-    simulation.
-    """
-    query = None
-    if object_name == 'batch':
-        query = models.BatchRun.objects.filter(run=run)
     return query
 
 def can_view(user, simulation):
@@ -172,7 +162,7 @@ def run_simulation(run, background=True):
     # Write the argument file used by metrosim.
     simulation = run.simulation
     metrosim_dir = settings.BASE_DIR + '/metrosim_files/'
-    metrosim_file = '{0}execs/metrosim.py'.format(metrosim_dir)
+    metrosim_file = '{0}execs/metrosim'.format(metrosim_dir)
     arg_file = (
         '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'
     ).format(metrosim_dir, simulation.id, run.id)
@@ -238,8 +228,8 @@ def run_simulation(run, background=True):
             subprocess.call(command, shell=True, stdout=f, stderr=f)
 
 
-#Implemented a run_batch to run the external script.
 def run_batch(batch):
+    """Implemented a run_batch to run the external script"""
 
     if batch.status == "Preparing":
         batch.status = "Running"
@@ -348,8 +338,10 @@ def create_simulation(user, form):
     return simulation
 
 
-#Method to Import a simulation as a zip_file(Calling this method in views.py)
+
 def simulation_import(simulation, file):
+    """Method to Import a simulation as a
+    zip_file(Calling this method in views.py)"""
 
     file = zipfile.ZipFile(file)
     namelist = file.namelist()
@@ -1326,9 +1318,3 @@ def usertype_export_function(simulation, demandsegment=None, dir_name=''):
 
         writer.writerows(values)
     return filename
-
-
-
-
-
-
