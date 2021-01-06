@@ -30,6 +30,8 @@
 	</thead>
         <tbody>
     {% for batch in batchs %}
+    {% if batch.name %}
+
         <tr>
         <td>{{ batch.name }}</td>
 
@@ -45,7 +47,11 @@
                 </tr>
 
 </tbody>
+{% else %}
+
 </table>
+{% endif %}
+
 {% endfor %}
 
 {% endblock %}
