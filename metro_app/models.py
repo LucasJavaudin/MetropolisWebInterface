@@ -1144,7 +1144,7 @@ class Batch(models.Model):
         max_length=100, default='', blank=True, null=True)
     nb_runs = models.IntegerField(default=2, verbose_name='Number of runs')
     simulation = models.ForeignKey(Simulation, on_delete=models.CASCADE)
-    status = models.CharField(max_length=25, default='Over')
+    status = models.CharField(max_length=25, default='Preparing')
     start_time = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(blank=True, null=True)
     time_taken = models.DurationField(blank=True, null=True)
@@ -1157,7 +1157,7 @@ class Batch(models.Model):
 
 
 class BatchRun(models.Model):
-    name = models.CharField(max_length=50, blank=False, null=True)
+    name = models.CharField(max_length=50, blank=False, null=False)
     comment = models.CharField(
         max_length=100, default='', blank=True, null=True)
     centroid_file = models.FileField(
