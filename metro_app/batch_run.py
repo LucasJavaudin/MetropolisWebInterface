@@ -69,6 +69,6 @@ except models.BatchRun.DoesNotExist:
 
 
 
-batch.end_time = timezone.now
+batch.end_time = timezone.now()
 batch.status = "Finished"
 batch.save()
