@@ -28,46 +28,54 @@ except IndexError:
 
 try:
     batch = models.Batch.objects.get(pk=batch_id)
-    batch.batchrun_set.all()
-    simulation = batch.simulation
-
-    for batch_run in batch.batchrun_set.all():
-        if batch_run.centroid_file:
-            functions.object_import_function(batch_run.centroid_file.file, simulation,  "centroid")
-
-        if batch_run.crossing_file:
-            functions.object_import_function( batch_run.crossing_file.file, simulation, "crossing")
-
-        if batch_run.link_file:
-            functions.object_import_function(batch_run.link_file.file, simulation, "link")
-
-        if batch_run.public_transit_file:
-            functions.public_transit_import_function(batch_run.public_transit_file.file, simulation)
-
-        if batch_run.traveler_file:
-            functions.traveler_zip_file(simulation, batch_run.traveler_file)
-
-        if batch_run.pricing_file:
-            functions.pricing_import_function(batch_run.pricing_file.file, simulation)
-
-        if batch_run.function_file:
-            functions.object_import_function(batch_run.function_file.file, simulation, "function")
-
-        if batch_run.zip_file:
-            functions.simulation_import(simulation, batch_run.zip_file)
-
-        run = models.SimulationRun(name=batch_run.name, simulation=simulation)
-        run.save()
-        batch_run.run = run
-        batch_run.save()
-        functions.run_simulation(run, background=False)
-
 
 except models.BatchRun.DoesNotExist:
     raise SystemExit('No BatchRun object corresponding'
                      + ' to the given id.')
 
+batch.batchrun_set.all()
+simulation = batch.simulation
 
+for batch_run in batch.batchrun_set.all():
+
+    if batch_run.centroid_file:
+
+        functions.object_import_function(batch_run.centroid_file.file,
+                                         simulation,  "centroid")
+
+    if batch_run.crossing_file:
+        functions.object_import_function( batch_run.crossing_file.file,
+                                          simulation, "crossing")
+
+    if batch_run.link_file:
+        functions.object_import_function(batch_run.link_file.file, simulation, "link")
+
+    if batch_run.function_file:
+        functions.object_import_function(batch_run.function_file.file,
+                                         simulation, "function")
+
+    if batch_run.public_transit_file:
+        functions.public_transit_import_function(batch_run.public_transit_file.file,
+                                                 simulation)
+
+    if batch_run.traveler_file:
+        functions.traveler_zip_file(simulation,
+                                    batch_run.traveler_file)
+
+    if batch_run.pricing_file:
+        functions.pricing_import_function(batch_run.pricing_file.file,
+                                          simulation)
+
+    if batch_run.zip_file:
+        functions.simulation_import(simulation,
+                                    batch_run.zip_file)
+
+    run = models.SimulationRun(name=batch_run.name,
+                               simulation=simulation)
+    run.save()
+    batch_run.run = run
+    batch_run.save()
+    functions.run_simulation(run, background=False)
 
 batch.end_time = timezone.now()
 batch.status = "Finished"
