@@ -22,24 +22,27 @@ print('Starting script...')
 try:
     batch_id = int(sys.argv[1])
 except IndexError:
+    print('Ending run with error(s)...')
     raise SystemExit('MetroArgError: This script must be executed with the id '
-                     + 'of the SimulationRun has an argument.')
+                     + 'of the batch_id has an argument.')
+
+print('Finding batch_id')
 
 
 try:
     batch = models.Batch.objects.get(pk=batch_id)
-
-except models.BatchRun.DoesNotExist:
-    raise SystemExit('No BatchRun object corresponding'
+except models.Batch.DoesNotExist:
+    print("Batch exist or not")
+    raise SystemExit('MetroDoesNotExist: No Batch object corresponding'
                      + ' to the given id.')
 
-batch.batchrun_set.all()
+
+
 simulation = batch.simulation
 
 for batch_run in batch.batchrun_set.all():
 
     if batch_run.centroid_file:
-
         functions.object_import_function(batch_run.centroid_file.file,
                                          simulation,  "centroid")
 
@@ -48,7 +51,8 @@ for batch_run in batch.batchrun_set.all():
                                           simulation, "crossing")
 
     if batch_run.link_file:
-        functions.object_import_function(batch_run.link_file.file, simulation, "link")
+        functions.object_import_function(batch_run.link_file.file,
+                                         simulation, "link")
 
     if batch_run.function_file:
         functions.object_import_function(batch_run.function_file.file,
@@ -76,7 +80,10 @@ for batch_run in batch.batchrun_set.all():
     batch_run.run = run
     batch_run.save()
     functions.run_simulation(run, background=False)
+    print("Calling SimulationRun...")
 
 batch.end_time = timezone.now()
+print("Ending Run")
 batch.status = "Finished"
 batch.save()
+print("Run Completed")
