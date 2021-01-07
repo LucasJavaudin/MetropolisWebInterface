@@ -105,6 +105,7 @@ def check_demand_relation(view):
     object.
     """
 
+
     def wrap(*args, **kwargs):
         # The decorator is run after public_required or owner_required so
         # simulation_id has already been converted to a Simulation object.
@@ -2001,31 +2002,6 @@ def simulation_run_view(request, simulation, run):
     }
     return render(request, 'metro_app/simulation_run.html', context)
 
-@public_required
-@check_run_relation
-def batch_run_view(request, simulation, batch):
-    """View with the current status, the results and the log of a run."""
-    # Open and read the log file (if it exists).
-    log_file = '{0}/metrosim_files/logs/run_{1}.txt'.format(settings.BASE_DIR,
-                                                            batch.id)
-    log = None
-    if os.path.isfile(log_file):
-        with open(log_file, 'r') as f:
-            log = f.read().replace('\n', '<br>')
-    # Get the results of the run (if any).
-    results = models.SimulationMOEs.objects.filter(runid=batch.id)
-    results = results.order_by('-day')
-    result_table = tables.SimulationMOEsTable(results)
-    context = {
-        'simulation': simulation,
-        'batch': batch,
-        'log': log,
-        'results': results,
-        'result_table': result_table,
-    }
-    return render(request, 'metro_app/batch_run.html', context)
-
-
 
 @public_required
 def simulation_run_list(request, simulation):
@@ -2845,7 +2821,6 @@ def batch_new(request, simulation):
         return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
 
-
 @owner_required
 @check_batch_relation
 def batch_edit(request, simulation, batch):
@@ -2944,7 +2919,8 @@ def batch_save(request, simulation, batch):
     formset = BatchRunFormSet(request.POST, request.FILES)
     if formset.is_valid():
         formset.save()
-        functions.run_batch(batch)
+        if batch.status == "Preparing":
+            functions.run_batch(batch)
         return HttpResponseRedirect(
             reverse('metro:batch_view', args=(simulation.id, batch.id))
         )
@@ -2965,9 +2941,7 @@ def batch_view(request, simulation, batch):
     # Here we should run the batch, if is_owner is True and if the batch is not
     # running already.
     batch_runs = batch.batchrun_set.all()
-    batch_run = functions.get_query('run', simulation)
-    for i in batch_runs:
-        context = {
+    context = {
         'batch': batch,
         'simulation': simulation,
         'batch_runs': batch_runs,
@@ -3047,7 +3021,7 @@ def gen_formset(object_name, simulation, request=None):
     """
     formset = None
     query = functions.get_query(object_name, simulation)
-    if object_name == 'centroidFfunction':
+    if object_name == 'centroid':
         if request:
             if query.exists():
                 formset = forms.CentroidFormSet(
