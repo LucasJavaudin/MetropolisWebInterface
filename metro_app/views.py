@@ -11,7 +11,6 @@ from io import BytesIO
 import zipfile
 import json
 import codecs
-import sys
 from math import sqrt
 
 from django.shortcuts import render, get_object_or_404
@@ -946,7 +945,7 @@ def simulation_view(request, simulation):
     # Check if the simulation has any batch.
     has_batch = nb_batch > 0
 
-    context ={
+    context = {
         'simulation': simulation,
         'owner': owner,
         'copy_form': copy_form,
@@ -2003,6 +2002,32 @@ def simulation_run_view(request, simulation, run):
     return render(request, 'metro_app/simulation_run.html', context)
 
 @public_required
+@check_run_relation
+def batch_run_view(request, simulation, batch):
+    """View with the current status, the results and the log of a run."""
+    # Open and read the log file (if it exists).
+    log_file = '{0}/metrosim_files/logs/run_{1}.txt'.format(settings.BASE_DIR,
+                                                            batch.id)
+    log = None
+    if os.path.isfile(log_file):
+        with open(log_file, 'r') as f:
+            log = f.read().replace('\n', '<br>')
+    # Get the results of the run (if any).
+    results = models.SimulationMOEs.objects.filter(runid=batch.id)
+    results = results.order_by('-day')
+    result_table = tables.SimulationMOEsTable(results)
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'log': log,
+        'results': results,
+        'result_table': result_table,
+    }
+    return render(request, 'metro_app/batch_run.html', context)
+
+
+
+@public_required
 def simulation_run_list(request, simulation):
     """View with a list of the runs of the simulation."""
     runs = functions.get_query('run', simulation).order_by('-id')
@@ -2832,15 +2857,12 @@ def batch_edit(request, simulation, batch):
         extra=0,
     )
     batch_runs = models.BatchRun.objects.filter(batch=batch)
-    print("jhgjygjyjuguy")
     batch_form_set = BatchRunFormSet(queryset=batch_runs)
     batchs = batch.batchrun_set.all()
-    batch_run = functions.get_query('run', simulation)
     counter = 0
-    #Disable the form if the batch is running
+    #Disable the fields if the batch is not started yet
     for i in batchs:
        if not (i.run == None):
-           print(i.run)
            batch_form_set[counter].fields['name'].disabled = True
            batch_form_set[counter].fields['comment'].disabled = True
            batch_form_set[counter].fields['centroid_file'].disabled = True
@@ -2857,8 +2879,6 @@ def batch_edit(request, simulation, batch):
     context = {
         'simulation': simulation,
         'batch': batch,
-        'batch_runs': batchs,
-        'batch_run': batch_run,
         'formset': batch_form_set,
     }
     return render(request, 'metro_app/batch_edit.html', context)
@@ -2879,6 +2899,28 @@ def batch_delete(request, simulation, batch):
     batch_form_set = BatchRunFormSet(queryset=batch_runs)
     if request.user:
         batch.delete()
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'formset': batch_form_set,
+        'is_owner': is_owner,
+    }
+    return render(request, 'metro_app/batch_edit.html', context)
+
+
+@owner_required
+@check_batch_relation
+def batch_run_delete(request, simulation, batch):
+    """View to edit the files of a batch run."""
+    # Create a formset to edit the files.
+    is_owner = functions.can_edit(request.user, simulation)
+    BatchRunFormSet = forms.modelformset_factory(
+        models.BatchRun,
+        form=forms.BatchRunForm,
+        extra=0,
+    )
+    batch_runs = models.BatchRun.objects.filter(batch=batch)
+    batch_form_set = BatchRunFormSet(queryset=batch_runs)
     context = {
         'simulation': simulation,
         'batch': batch,
@@ -2925,13 +2967,10 @@ def batch_view(request, simulation, batch):
     batch_runs = batch.batchrun_set.all()
     batch_run = functions.get_query('run', simulation)
     for i in batch_runs:
-        print(i.run)
-
-    context = {
+        context = {
         'batch': batch,
         'simulation': simulation,
         'batch_runs': batch_runs,
-        'batch_run': batch_run,
         'is_owner': is_owner,
         'status': 'Not Started',
         'start_time': 'None',
