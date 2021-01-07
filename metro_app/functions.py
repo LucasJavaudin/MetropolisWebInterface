@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 
 from django.conf import settings
-from django.contrib.sessions.backends import file
 from django.db.models import Sum
 from django.db import connection
 
@@ -164,7 +163,7 @@ def run_simulation(run, background=True):
     # Write the argument file used by metrosim.
     simulation = run.simulation
     metrosim_dir = settings.BASE_DIR + '/metrosim_files/'
-    metrosim_file = '{0}execs/metrosim'.format(metrosim_dir)
+    metrosim_file = '{0}execs/metrosim.py'.format(metrosim_dir)
     arg_file = (
         '{0}arg_files/simulation_{1!s}_run_{2!s}.txt'
     ).format(metrosim_dir, simulation.id, run.id)
@@ -233,7 +232,11 @@ def run_simulation(run, background=True):
 def run_batch(batch):
     """Implemented a run_batch to run the external script."""
 
+    if batch.status == "Preparing":
+        batch.status = "Running"
+
     batch_run_file = settings.BASE_DIR + '/metro_app/batch_run.py'
+    print("ASASm" + batch_run_file)
     log_file = (
 
         '{0}/website_files/script_logs/batch_{1}.txt'.format(
