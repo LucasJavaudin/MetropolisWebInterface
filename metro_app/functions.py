@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from django.conf import settings
+from django.contrib.sessions.backends import file
 from django.db.models import Sum
 from django.db import connection
 
@@ -71,6 +72,7 @@ def get_query(object_name, simulation):
     elif object_name == 'batch':
         query = models.Batch.objects.filter(simulation=simulation)
     return query
+
 
 def can_view(user, simulation):
     """Check if the user can view a specific simulation.
@@ -229,10 +231,7 @@ def run_simulation(run, background=True):
 
 
 def run_batch(batch):
-    """Implemented a run_batch to run the external script"""
-
-    if batch.status == "Preparing":
-        batch.status = "Running"
+    """Implemented a run_batch to run the external script."""
 
     batch_run_file = settings.BASE_DIR + '/metro_app/batch_run.py'
     log_file = (
@@ -338,10 +337,8 @@ def create_simulation(user, form):
     return simulation
 
 
-
 def simulation_import(simulation, file):
-    """Method to Import a simulation as a
-    zip_file(Calling this method in views.py)"""
+    """Method to import a simulation as a zip file in the Home Button"""
 
     file = zipfile.ZipFile(file)
     namelist = file.namelist()
@@ -408,8 +405,9 @@ def simulation_import(simulation, file):
     return file
 
 
-
 def traveler_zip_file(simulation, file):
+
+    """Method to Implement the traveler zip file in the external script"""
 
     file = zipfile.ZipFile(file)
     namelist = file.namelist()
@@ -437,6 +435,7 @@ def traveler_zip_file(simulation, file):
                 file.open(filename), simulation, demandsegment)
 
     return file
+
 
 def object_import_function(encoded_file, simulation, object_name):
     """Function to import a file representing the input of a simulation.
