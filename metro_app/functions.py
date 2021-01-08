@@ -231,12 +231,9 @@ def run_simulation(run, background=True):
 
 def run_batch(batch):
     """Implemented a run_batch to run the external script."""
-
-    if batch.status == "Preparing":
-        batch.status = "Running"
-
+    
     batch_run_file = settings.BASE_DIR + '/metro_app/batch_run.py'
-    print("ASASm" + batch_run_file)
+    
     log_file = (
 
         '{0}/website_files/script_logs/batch_{1}.txt'.format(
