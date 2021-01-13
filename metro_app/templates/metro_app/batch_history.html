@@ -18,37 +18,37 @@
 
 <br>
 
-    <table class="table table-hover table-bordered">
-	<thead class="thead-light">
-
-		<tr>
-			<th scope="col">Batch Name</th>
-			<th scope="col">Actions</th>
-            <th scope="col">Status</th>
-            <th scope="col">No of Runs</th>
-		</tr>
-	</thead>
-        <tbody>
-    {% for batch in batchs %}
+<table class="table table-hover table-bordered">
+    <thead class="thead-light">
 
         <tr>
-        <td>{{ batch.name }}</td>
+            <th scope="col">Batch Name</th>
+            <th scope="col">Actions</th>
+            <th scope="col">Status</th>
+            <th scope="col">No of Runs</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for batch in batchs %}
 
-                <td>
-             <div class="btn-group my-1" role="group" align="right">
-					<a role="button" class="btn btn-outline-primary" href="{% url 'metro:batch_view' simulation.id batch.id %}">
-						View Batch
-					</a>
-        <td>{{ batch.status }}</td>
-        <td>{{ batch.nb_runs}}</td>
-            </div>
-                </td>
-                </tr>
+        <tr>
+            <td>{{ batch.name }}</td>
 
-</tbody>
+            <td>
+                <div class="btn-group my-1" role="group" align="right">
+                    <a role="button" class="btn btn-outline-primary" href="{% url 'metro:batch_view' simulation.id batch.id %}">
+                        View Batch
+                    </a>
+                    <td>{{ batch.status }}</td>
+                    <td>{{ batch.nb_runs}}</td>
+                </div>
+            </td>
+        </tr>
 
-{% endfor %}
+    </tbody>
 
-    </table>
+    {% endfor %}
+
+</table>
 
 {% endblock %}

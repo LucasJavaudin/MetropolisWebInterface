@@ -4,7 +4,6 @@ Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 import time
-import re
 import os
 import shutil
 from io import BytesIO
@@ -105,7 +104,6 @@ def check_demand_relation(view):
     object.
     """
 
-
     def wrap(*args, **kwargs):
         # The decorator is run after public_required or owner_required so
         # simulation_id has already been converted to a Simulation object.
@@ -117,7 +115,7 @@ def check_demand_relation(view):
             return view(*args, simulation=simulation,
                         demandsegment=demandsegment)
         else:
-            # The demand segment id not related to the simulation.
+            # The demand segment is not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
     return wrap
@@ -158,7 +156,7 @@ def check_run_relation(view):
             return view(*args, simulation=simulation,
                         run=run)
         else:
-            # The run id not related to the simulation.
+            # The run is not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
     return wrap
@@ -177,10 +175,10 @@ def check_batch_relation(view):
         batch_id = kwargs.pop('batch_id')
         batch = get_object_or_404(models.Batch, pk=batch_id)
         if batch.simulation == simulation:
-            return view(*args, simulation=simulation,
+            return view(*args, **kwargs, simulation=simulation,
                         batch=batch)
         else:
-            # The run id not related to the simulation.
+            # The batch is not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
     return wrap
@@ -853,6 +851,7 @@ def copy_simulation(request):
         )
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
+
 @owner_required
 def simulation_delete(request, simulation):
     """View used to delete a simulation.
@@ -867,6 +866,7 @@ def simulation_delete(request, simulation):
     functionset.delete()
     demand.delete()
     return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
 
 @public_required
 def simulation_view(request, simulation):
@@ -934,18 +934,24 @@ def simulation_view(request, simulation):
                 modal_choice = True
         if modal_choice:
             good_pt = False
+    # Count the number of batches.
+    batches = functions.get_query('batch', simulation)
+    batch_dict = dict()
+    batch_dict['nb_batch'] = batches.count()
+    # Check if a batch is in progress.
+    batch_in_progress = batches.filter(status__in=('Preparing', 'Running'))
+    batch_dict['in_progress'] = batch_in_progress.exists()
+    if batch_dict['in_progress']:
+        batch_dict['last'] = batch_in_progress.last()
     # Create a form to run the simulation.
     run_form = None
     if owner and complete_simulation:
         run_form = forms.RunForm(
             initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
     # Create a form to run a batch.
-    nb_batch = functions.get_query('batch', simulation).count()
-    batch_form = forms.BatchForm(
-        initial={'name': 'Batch {}'.format(nb_batch+1)})
-    # Check if the simulation has any batch.
-    has_batch = nb_batch > 0
-
+    if owner and complete_simulation:
+        batch_form = forms.BatchForm(
+            initial={'name': 'Batch {}'.format(batch_dict['nb_batch'] + 1)})
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -956,12 +962,12 @@ def simulation_view(request, simulation):
         'travelers': travelers,
         'policy': policy,
         'runs': runs,
+        'batch_dict': batch_dict,
         'complete_network': complete_network,
         'complete_simulation': complete_simulation,
         'good_pt': good_pt,
         'run_form': run_form,
         'batch_form': batch_form,
-        'has_batch': has_batch,
     }
     return render(request, 'metro_app/simulation_view.html', context)
 
@@ -1946,37 +1952,11 @@ def simulation_run_action(request, simulation):
 @check_run_relation
 def simulation_run_stop(request, simulation, run):
     """View to stop a running simulation."""
-    if run.status == 'Running':
-        # Create the stop file.
-        # The simulation will stop at the end of the current iteration.
-        stop_file = '{0}/metrosim_files/stop_files/run_{1}.stop'.format(
-            settings.BASE_DIR, run.id)
-        open(stop_file, 'a').close()
-        # Change the status of the run.
-        run.status = 'Aborted'
-        run.save()
+    functions.stop_run(run)
     return HttpResponseRedirect(reverse(
         'metro:simulation_run_view', args=(simulation.id, run.id,)
     ))
 
-
-@owner_required
-@check_run_relation
-@check_batch_relation
-def batch_run_stop(request, simulation, batch):
-    """View to stop a running simulation."""
-    if batch.status == 'Running':
-        # Create the stop file.
-        # The simulation will stop at the end of the current iteration.
-        stop_file = '{0}/metrosim_files/stop_files/run_{1}.stop'.format(
-            settings.BASE_DIR, batch.id)
-        open(stop_file, 'a').close()
-        # Change the status of the run.
-        batch.status = 'Aborted'
-        batch.save()
-    return HttpResponseRedirect(reverse(
-        'metro:batch_run_view', args=(simulation.id, batch.id,)
-    ))
 
 @public_required
 @check_run_relation
@@ -2012,6 +1992,7 @@ def simulation_run_list(request, simulation):
         'runs': runs,
     }
     return render(request, 'metro_app/simulation_run_list.html', context)
+
 
 @public_required
 @check_run_relation
@@ -2605,8 +2586,8 @@ def simulation_import_action(request):
         simulation = functions.create_simulation(request.user, form)
         # Import the zipfile data in the simulation.
         encoded_file = form.cleaned_data['zipfile']
-        # function to import the simulation from as a zip_file
-        batch_import = functions.simulation_import(simulation,encoded_file)
+        # function to import the simulation from a zip_file
+        functions.simulation_import(simulation, encoded_file)
         return HttpResponseRedirect(
             reverse('metro:simulation_view', args=(simulation.id,))
         )
@@ -2625,30 +2606,7 @@ def traveler_import_action(request, simulation):
         form = forms.ImportForm(request.POST, request.FILES)
         if form.is_valid():
             encoded_file = form.cleaned_data['import_file']
-            file = zipfile.ZipFile(encoded_file)
-            namelist = file.namelist()
-
-            for filename in namelist:
-                if re.search('/traveler_types.[tc]sv$', filename):
-                    functions.usertype_import_function(
-                        file.open(filename), simulation)
-                    break
-
-            demandsegments = functions.get_query('demandsegment', simulation)
-            for filename in namelist:
-                d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
-                if d:
-                    # Get the demandsegment associated with this OD matrix.
-                    user_id = d.group(1)
-                    try:
-                        demandsegment = demandsegments.get(
-                            usertype__user_id=user_id)
-                    except models.DemandSegment.DoesNotExist:
-                        # Matrix file with an invalid id, ignore it.
-                        continue
-                    # Import the matrix file in the new demandsegment.
-                    functions.matrix_import_function(
-                        file.open(filename), simulation, demandsegment)
+            functions.traveler_zip_file(simulation, encoded_file)
 
     except Exception as e:
         # Catch any exception while importing the file and return an error page
@@ -2809,7 +2767,6 @@ def batch_new(request, simulation):
         for i in range(batch.nb_runs):
             run = models.BatchRun()
             run.batch = batch
-            run.run_order = i+1
             run.name = "Run " + str(i+1)
             run.save()
 
@@ -2831,26 +2788,8 @@ def batch_edit(request, simulation, batch):
         form=forms.BatchRunForm,
         extra=0,
     )
-    batch_runs = models.BatchRun.objects.filter(batch=batch)
+    batch_runs = batch.batchrun_set.all()
     batch_form_set = BatchRunFormSet(queryset=batch_runs)
-    batchs = batch.batchrun_set.all()
-    counter = 0
-    #Disable the fields if the batch is not started yet
-    for i in batchs:
-       if not (i.run == None):
-           batch_form_set[counter].fields['name'].disabled = True
-           batch_form_set[counter].fields['comment'].disabled = True
-           batch_form_set[counter].fields['centroid_file'].disabled = True
-           batch_form_set[counter].fields['crossing_file'].disabled = True
-           batch_form_set[counter].fields['function_file'].disabled = True
-           batch_form_set[counter].fields['link_file'].disabled = True
-           batch_form_set[counter].fields['public_transit_file'].disabled = True
-           batch_form_set[counter].fields['traveler_file'].disabled = True
-           batch_form_set[counter].fields['pricing_file'].disabled = True
-           batch_form_set[counter].fields['zip_file'].disabled = True
-
-       counter = counter + 1
-
     context = {
         'simulation': simulation,
         'batch': batch,
@@ -2862,50 +2801,31 @@ def batch_edit(request, simulation, batch):
 @owner_required
 @check_batch_relation
 def batch_delete(request, simulation, batch):
-    """View to edit the files of a batch run."""
-    # Create a formset to edit the files.
-    is_owner = functions.can_edit(request.user, simulation)
-    BatchRunFormSet = forms.modelformset_factory(
-        models.BatchRun,
-        form=forms.BatchRunForm,
-        extra=0,
+    """View to delete a batch instance."""
+    batch.delete()
+    return HttpResponseRedirect(
+        reverse('metro:simulation_view', args=(simulation.id,))
     )
-    batch_runs = models.BatchRun.objects.filter(batch=batch)
-    batch_form_set = BatchRunFormSet(queryset=batch_runs)
-    if request.user:
-        batch.delete()
-    context = {
-        'simulation': simulation,
-        'batch': batch,
-        'formset': batch_form_set,
-        'is_owner': is_owner,
-    }
-    return render(request, 'metro_app/batch_edit.html', context)
 
 
 @owner_required
 @check_batch_relation
-def batch_run_delete(request, simulation, batch):
-    """View to edit the files of a batch run."""
-    # Create a formset to edit the files.
-    is_owner = functions.can_edit(request.user, simulation)
-    BatchRunFormSet = forms.modelformset_factory(
-        models.BatchRun,
-        form=forms.BatchRunForm,
-        extra=0,
-    )
-    batch_runs = models.BatchRun.objects.filter(batch=batch)
-    batch_form_set = BatchRunFormSet(queryset=batch_runs)
-    context = {
-        'simulation': simulation,
-        'batch': batch,
-        'formset': batch_form_set,
-        'is_owner': is_owner,
-    }
-    return render(request, 'metro_app/batch_edit.html', context)
+def batch_run_cancel(request, simulation, batch, run_id):
+    """View to cancel a batch run."""
+    batch_run = get_object_or_404(models.BatchRun, pk=run_id)
+    if batch_run.batch != batch:
+        # Invalid relation between Batch and BatchRun instances.
+        pass
+    else:
+        if batch_run.run:
+            functions.stop_run(batch_run.run)
+        batch_run.canceled = True
+        batch_run.save()
+    return HttpResponseRedirect(reverse(
+        'metro:batch_view', args=(simulation.id, batch.id,)
+    ))
 
 
-#Method to call the external script in order to run the batch process.
 @require_POST
 @owner_required
 @check_batch_relation
@@ -2927,11 +2847,10 @@ def batch_save(request, simulation, batch):
     else:
         context = {
             'simulation': simulation,
-            'form': formset,
-            'batch': batch,
-
+            'formset': formset,
         }
-        return render(request, 'metro_app/errors.html', context)
+        return render(request, 'metro_app/errors_formset.html', context)
+
 
 @public_required
 @check_batch_relation
@@ -2946,14 +2865,9 @@ def batch_view(request, simulation, batch):
         'simulation': simulation,
         'batch_runs': batch_runs,
         'is_owner': is_owner,
-        'status': 'Not Started',
-        'start_time': 'None',
-        'end_time': 'None',
-        'time_taken': 'None',
-
     }
-
     return render(request, 'metro_app/batch_view.html', context)
+
 
 @public_required
 def batch_history(request, simulation):
@@ -2962,12 +2876,12 @@ def batch_history(request, simulation):
         'simulation': simulation,
         'batchs': batchs,
     }
-
     return render(request, 'metro_app/batch_history.html', context)
 
 # ====================
 # Receivers
 # ====================
+
 
 @receiver(pre_delete, sender=models.FunctionSet)
 def pre_delete_function_set(sender, instance, **kwargs):
@@ -3007,6 +2921,19 @@ def pre_delete_demand(sender, instance, **kwargs):
         tstar.delete()
         # Delete the matrix (the demand segment should be already deleted).
         matrix.delete()
+
+
+@receiver(pre_delete, sender=models.BatchRun)
+def pre_delete_batch_run(sender, instance, **kwargs):
+    """Delete all input files before deleting the batch run."""
+    instance.centroid_file.delete()
+    instance.crossing_file.delete()
+    instance.function_file.delete()
+    instance.link_file.delete()
+    instance.public_transit_file.delete()
+    instance.traveler_file.delete()
+    instance.pricing_file.delete()
+    instance.zip_file.delete()
 
 
 # ====================

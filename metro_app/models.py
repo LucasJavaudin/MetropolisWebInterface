@@ -1176,7 +1176,8 @@ class BatchRun(models.Model):
         upload_to='import_files', blank=True, null=True)
     zip_file = models.FileField(
         upload_to='import_files', blank=True, null=True)
-    run_order = models.IntegerField(default=1)
+    failed = models.BooleanField(default=False)
+    canceled = models.BooleanField(default=False)
     batch = models.ForeignKey(Batch, on_delete=models.CASCADE)
     run = models.ForeignKey(SimulationRun, on_delete=models.CASCADE,
                             blank=True, null=True)

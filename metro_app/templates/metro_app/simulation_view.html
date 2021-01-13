@@ -183,54 +183,71 @@
 				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:simulation_run_view' simulation.id runs.last.id %}" title="View details on the current run">
 					<i class="fas fa-spinner"></i> Current run
 				</a>
-                                <br>
-				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="A run is already running" disabled>
-					<i class="fas fa-play"></i> Batch run
+                                {% elif batch_dict.in_progress %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You cannot run the simulation when a batch is running" disabled>
+					<i class="fas fa-play"></i> Run
 				</button>
-				{% else %}
+                                {% else %}
 				{% if owner %}
 				{% if complete_simulation and good_pt %}
 				<button type="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#runModal" title="Run the simulation">
 					<i class="fas fa-play"></i> Run
 				</button>
-                                <br>
-				<button type="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#batchModal" title="Run the simulation in a batch">
-					<i class="fas fa-play"></i> Batch run
-				</button>
 				{% elif not complete_simulation %}
 				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to create a network or to add travelers in order to run the simulation" disabled>
 					<i class="fas fa-play"></i> Run
 				</button>
-                                <br>
-				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to create a network or to add travelers in order to run the simulation" disabled>
-					<i class="fas fa-play"></i> Batch run
-				</button>
 				{% else %}
 				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="Modal choice is enable but you have not added a public transit system" disabled>
 					<i class="fas fa-play"></i> Run
-				</button>
-                                <br>
-				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="Modal choice is enable but you have not added a public transit system" disabled>
-					<i class="fas fa-play"></i> Batch run
 				</button>
 				{% endif %}
 				{% else %}
 				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to be owner of the simulation to run it" disabled>
 					<i class="fas fa-play"></i> Run
 				</button>
-                                <br>
-				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to be owner of the simulation to run it" disabled>
-					<i class="fas fa-play"></i> Batch run
-				</button>
 				{% endif %}
 				{% endif %}
+
 				{% if runs.nb_run %}
 				<br>
 				<a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:simulation_run_list' simulation.id %}" title="View the previous runs">
                                     Run history
 				</a>
 				{% endif %}
-                                {% if has_batch %}
+
+                                <br>
+				{% if batch_dict.in_progress %}
+				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:batch_view' simulation.id batch_dict.last.id %}" title="View details on the current batch">
+					<i class="fas fa-spinner"></i> Current batch
+				</a>
+                                {% elif runs.in_progress %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You cannot start a batch run when the simulation is already running" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% else %}
+				{% if owner %}
+				{% if complete_simulation and good_pt %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#batchModal" title="Run the simulation in a batch">
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% elif not complete_simulation %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to create a network or to add travelers in order to run the simulation" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="Modal choice is enable but you have not added a public transit system" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% endif %}
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to be owner of the simulation to run it" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% endif %}
+				{% endif %}
+
+                                {% if batch_dict.nb_batch > 0 %}
                                 <br>
                                 <a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:batch_history' simulation.id %}" title="View the previous batch runs">
                                     Batch history
@@ -489,6 +506,7 @@
             </div>
             <form action="{% url 'metro:batch_new' simulation.id  %}" method="post">
                 <div class="modal-body">
+                    Batch runs allow you to easily start multiple runs, with pre-determined inputs.
                     {% csrf_token %}
                     {% bootstrap_form batch_form %}
                 </div>

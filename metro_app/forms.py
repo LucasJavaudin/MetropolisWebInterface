@@ -660,6 +660,34 @@ class EnvironmentUserAddForm(forms.Form):
 
 
 class BatchRunForm(forms.ModelForm):
+    centroid_file = forms.FileField(
+        validators=[functions.ctsv_file], required=False)
+    crossing_file = forms.FileField(
+        validators=[functions.ctsv_file], required=False)
+    function_file = forms.FileField(
+        validators=[functions.ctsv_file], required=False)
+    link_file = forms.FileField(
+        validators=[functions.ctsv_file], required=False)
+    public_transit_file = forms.FileField(
+        validators=[functions.ctsv_file], required=False)
+    traveler_file = forms.FileField(
+        validators=[functions.zip_file], required=False)
+    pricing_file = forms.FileField(
+        validators=[functions.ctsv_file], required=False)
+    zip_file = forms.FileField(
+        validators=[functions.zip_file], required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        disabled = (
+            self.instance.run is not None
+            or self.instance.failed
+            or self.instance.canceled
+        )
+        if disabled:
+            for field in self.fields.values():
+                field.disabled = True
+
     class Meta:
         model = models.BatchRun
         fields = ['name', 'comment', 'centroid_file', 'crossing_file',
