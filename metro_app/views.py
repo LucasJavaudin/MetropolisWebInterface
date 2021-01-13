@@ -4,7 +4,6 @@ Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
 import time
-import re
 import os
 import shutil
 from io import BytesIO
@@ -116,7 +115,7 @@ def check_demand_relation(view):
             return view(*args, simulation=simulation,
                         demandsegment=demandsegment)
         else:
-            # The demand segment id not related to the simulation.
+            # The demand segment is not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
     return wrap
@@ -157,7 +156,29 @@ def check_run_relation(view):
             return view(*args, simulation=simulation,
                         run=run)
         else:
-            # The run id not related to the simulation.
+            # The run is not related to the simulation.
+            return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
+    return wrap
+
+
+def check_batch_relation(view):
+    """Decorator used in the batch views to ensure that the batch and the
+    simulation are related.
+    The decorator also converts the batch id to a Batch object.
+    """
+
+    def wrap(*args, **kwargs):
+        # The decorator is run after public_required or owner_required so
+        # simulation_id has already been converted to a Simulation object.
+        simulation = kwargs.pop('simulation')
+        batch_id = kwargs.pop('batch_id')
+        batch = get_object_or_404(models.Batch, pk=batch_id)
+        if batch.simulation == simulation:
+            return view(*args, **kwargs, simulation=simulation,
+                        batch=batch)
+        else:
+            # The batch is not related to the simulation.
             return HttpResponseRedirect(reverse('metro:simulation_manager'))
 
     return wrap
@@ -913,11 +934,24 @@ def simulation_view(request, simulation):
                 modal_choice = True
         if modal_choice:
             good_pt = False
+    # Count the number of batches.
+    batches = functions.get_query('batch', simulation)
+    batch_dict = dict()
+    batch_dict['nb_batch'] = batches.count()
+    # Check if a batch is in progress.
+    batch_in_progress = batches.filter(status__in=('Preparing', 'Running'))
+    batch_dict['in_progress'] = batch_in_progress.exists()
+    if batch_dict['in_progress']:
+        batch_dict['last'] = batch_in_progress.last()
     # Create a form to run the simulation.
     run_form = None
     if owner and complete_simulation:
         run_form = forms.RunForm(
             initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
+    # Create a form to run a batch.
+    if owner and complete_simulation:
+        batch_form = forms.BatchForm(
+            initial={'name': 'Batch {}'.format(batch_dict['nb_batch'] + 1)})
     context = {
         'simulation': simulation,
         'owner': owner,
@@ -928,10 +962,12 @@ def simulation_view(request, simulation):
         'travelers': travelers,
         'policy': policy,
         'runs': runs,
+        'batch_dict': batch_dict,
         'complete_network': complete_network,
         'complete_simulation': complete_simulation,
         'good_pt': good_pt,
         'run_form': run_form,
+        'batch_form': batch_form,
     }
     return render(request, 'metro_app/simulation_view.html', context)
 
@@ -1916,15 +1952,7 @@ def simulation_run_action(request, simulation):
 @check_run_relation
 def simulation_run_stop(request, simulation, run):
     """View to stop a running simulation."""
-    if run.status == 'Running':
-        # Create the stop file.
-        # The simulation will stop at the end of the current iteration.
-        stop_file = '{0}/metrosim_files/stop_files/run_{1}.stop'.format(
-            settings.BASE_DIR, run.id)
-        open(stop_file, 'a').close()
-        # Change the status of the run.
-        run.status = 'Aborted'
-        run.save()
+    functions.stop_run(run)
     return HttpResponseRedirect(reverse(
         'metro:simulation_run_view', args=(simulation.id, run.id,)
     ))
@@ -2558,66 +2586,8 @@ def simulation_import_action(request):
         simulation = functions.create_simulation(request.user, form)
         # Import the zipfile data in the simulation.
         encoded_file = form.cleaned_data['zipfile']
-        file = zipfile.ZipFile(encoded_file)
-        namelist = file.namelist()
-        for filename in namelist:
-            if re.search('/zones.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'centroid')
-                break
-
-        for filename in namelist:
-            if re.search('/intersections.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'crossing')
-                break
-
-        for filename in namelist:
-            if re.search('/links.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'link')
-                break
-
-        for filename in namelist:
-            if re.search('/congestion_functions.[tc]sv$', filename):
-                functions.object_import_function(
-                    file.open(filename), simulation, 'function')
-                break
-
-        for filename in namelist:
-            if re.search('/public_transit.[tc]sv$', filename):
-                functions.public_transit_import_function(
-                    file.open(filename), simulation)
-                break
-
-        for filename in namelist:
-            if re.search('/traveler_types.[tc]sv$', filename):
-                functions.usertype_import_function(
-                    file.open(filename), simulation)
-                break
-
-        demandsegments = functions.get_query('demandsegment', simulation)
-        for filename in namelist:
-            d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
-            if d:
-                # Get the demandsegment associated with this OD matrix.
-                user_id = d.group(1)
-                try:
-                    demandsegment = demandsegments.get(
-                        usertype__user_id=user_id)
-                except models.DemandSegment.DoesNotExist:
-                    # Matrix file with an invalid id, ignore it.
-                    continue
-                # Import the matrix file in the new demandsegment.
-                functions.matrix_import_function(
-                    file.open(filename), simulation, demandsegment)
-
-        for filename in namelist:
-            if re.search('/pricings.[tc]sv$', filename):
-                functions.pricing_import_function(
-                    file.open(filename), simulation)
-                break
-
+        # function to import the simulation from a zip_file
+        functions.simulation_import(simulation, encoded_file)
         return HttpResponseRedirect(
             reverse('metro:simulation_view', args=(simulation.id,))
         )
@@ -2636,30 +2606,7 @@ def traveler_import_action(request, simulation):
         form = forms.ImportForm(request.POST, request.FILES)
         if form.is_valid():
             encoded_file = form.cleaned_data['import_file']
-            file = zipfile.ZipFile(encoded_file)
-            namelist = file.namelist()
-
-            for filename in namelist:
-                if re.search('/traveler_types.[tc]sv$', filename):
-                    functions.usertype_import_function(
-                        file.open(filename), simulation)
-                    break
-
-            demandsegments = functions.get_query('demandsegment', simulation)
-            for filename in namelist:
-                d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
-                if d:
-                    # Get the demandsegment associated with this OD matrix.
-                    user_id = d.group(1)
-                    try:
-                        demandsegment = demandsegments.get(
-                            usertype__user_id=user_id)
-                    except models.DemandSegment.DoesNotExist:
-                        # Matrix file with an invalid id, ignore it.
-                        continue
-                    # Import the matrix file in the new demandsegment.
-                    functions.matrix_import_function(
-                        file.open(filename), simulation, demandsegment)
+            functions.traveler_zip_file(simulation, encoded_file)
 
     except Exception as e:
         # Catch any exception while importing the file and return an error page
@@ -2809,9 +2756,132 @@ def environment_delete(request, environment):
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
 
+@require_POST
+@owner_required
+def batch_new(request, simulation):
+    """View to create a new batch run."""
+    batch_form = forms.BatchForm(request.POST)
+    if batch_form.is_valid():
+        # Save the batch and its runs.
+        batch = batch_form.save(simulation)
+        for i in range(batch.nb_runs):
+            run = models.BatchRun()
+            run.batch = batch
+            run.name = "Run " + str(i+1)
+            run.save()
+
+        # Return the view to edit the batch.
+        return HttpResponseRedirect(
+            reverse('metro:batch_edit', args=(simulation.id, batch.id,))
+        )
+    else:
+        return HttpResponseRedirect(reverse('metro:simulation_manager'))
+
+
+@owner_required
+@check_batch_relation
+def batch_edit(request, simulation, batch):
+    """View to edit the files of a batch run."""
+    # Create a formset to edit the files.
+    BatchRunFormSet = forms.modelformset_factory(
+        models.BatchRun,
+        form=forms.BatchRunForm,
+        extra=0,
+    )
+    batch_runs = batch.batchrun_set.all()
+    batch_form_set = BatchRunFormSet(queryset=batch_runs)
+    context = {
+        'simulation': simulation,
+        'batch': batch,
+        'formset': batch_form_set,
+    }
+    return render(request, 'metro_app/batch_edit.html', context)
+
+
+@owner_required
+@check_batch_relation
+def batch_delete(request, simulation, batch):
+    """View to delete a batch instance."""
+    batch.delete()
+    return HttpResponseRedirect(
+        reverse('metro:simulation_view', args=(simulation.id,))
+    )
+
+
+@owner_required
+@check_batch_relation
+def batch_run_cancel(request, simulation, batch, run_id):
+    """View to cancel a batch run."""
+    batch_run = get_object_or_404(models.BatchRun, pk=run_id)
+    if batch_run.batch != batch:
+        # Invalid relation between Batch and BatchRun instances.
+        pass
+    else:
+        if batch_run.run:
+            functions.stop_run(batch_run.run)
+        batch_run.canceled = True
+        batch_run.save()
+    return HttpResponseRedirect(reverse(
+        'metro:batch_view', args=(simulation.id, batch.id,)
+    ))
+
+
+@require_POST
+@owner_required
+@check_batch_relation
+def batch_save(request, simulation, batch):
+    """View to save the formset of a batch."""
+    BatchRunFormSet = forms.modelformset_factory(
+        models.BatchRun,
+        form=forms.BatchRunForm,
+        extra=0,
+    )
+    formset = BatchRunFormSet(request.POST, request.FILES)
+    if formset.is_valid():
+        formset.save()
+        if batch.status == "Preparing":
+            functions.run_batch(batch)
+        return HttpResponseRedirect(
+            reverse('metro:batch_view', args=(simulation.id, batch.id))
+        )
+    else:
+        context = {
+            'simulation': simulation,
+            'formset': formset,
+        }
+        return render(request, 'metro_app/errors_formset.html', context)
+
+
+@public_required
+@check_batch_relation
+def batch_view(request, simulation, batch):
+    """View to show data on a batch (runs, status)."""
+    is_owner = functions.can_edit(request.user, simulation)
+    # Here we should run the batch, if is_owner is True and if the batch is not
+    # running already.
+    batch_runs = batch.batchrun_set.all()
+    context = {
+        'batch': batch,
+        'simulation': simulation,
+        'batch_runs': batch_runs,
+        'is_owner': is_owner,
+    }
+    return render(request, 'metro_app/batch_view.html', context)
+
+
+@public_required
+def batch_history(request, simulation):
+    batchs = functions.get_query('batch', simulation)
+    context = {
+        'simulation': simulation,
+        'batchs': batchs,
+    }
+    return render(request, 'metro_app/batch_history.html', context)
+
 # ====================
 # Receivers
 # ====================
+
 
 @receiver(pre_delete, sender=models.FunctionSet)
 def pre_delete_function_set(sender, instance, **kwargs):
@@ -2851,6 +2921,19 @@ def pre_delete_demand(sender, instance, **kwargs):
         tstar.delete()
         # Delete the matrix (the demand segment should be already deleted).
         matrix.delete()
+
+
+@receiver(pre_delete, sender=models.BatchRun)
+def pre_delete_batch_run(sender, instance, **kwargs):
+    """Delete all input files before deleting the batch run."""
+    instance.centroid_file.delete()
+    instance.crossing_file.delete()
+    instance.function_file.delete()
+    instance.link_file.delete()
+    instance.public_transit_file.delete()
+    instance.traveler_file.delete()
+    instance.pricing_file.delete()
+    instance.zip_file.delete()
 
 
 # ====================

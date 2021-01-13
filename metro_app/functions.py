@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """This file defines functions used by the other files.
 
 Author: Lucas Javaudin
@@ -8,15 +7,19 @@ E-mail: lucas.javaudin@ens-paris-saclay.fr
 import os
 import sys
 import subprocess
+import re
 import csv
 from io import StringIO
 import codecs
+import zipfile
 import numpy as np
 import pandas as pd
+import magic
 
 from django.conf import settings
 from django.db.models import Sum
 from django.db import connection
+from django.core.exceptions import ValidationError
 
 from metro_app import models
 
@@ -65,6 +68,8 @@ def get_query(object_name, simulation):
             )
     elif object_name == 'policy':
         query = models.Policy.objects.filter(scenario=simulation.scenario)
+    elif object_name == 'batch':
+        query = models.Batch.objects.filter(simulation=simulation)
     return query
 
 
@@ -148,7 +153,7 @@ def get_node_choices(simulation):
     return node_choices
 
 
-def run_simulation(run):
+def run_simulation(run, background=True):
     """Function to start a SimulationRun.
 
     This function writes the argument file of Metropolis, then runs two scripts
@@ -193,30 +198,66 @@ def run_simulation(run):
             settings.BASE_DIR, run.id
         )
     )
+
     # Command looks like:
     #
-    # python3 ./metro_app/prepare_results.py y
-    # 2>&1 | tee ./website_files/script_logs/run_y.txt
-    # && ./metrosim_files/execs/metrosim
+    # python3 ./metro_app/prepare_results.py y &&
+    # ./metrosim_files/execs/metrosim
     # ./metrosim_files/arg_files/simulation_x_run_y.txt
     # && python3 ./metro_app/build_results.py y
-    # 2>&1 | tee ./website_files/script_logs/run_y.txt
     #
     # The python executable is the same as the one used by Django (i.e.
     # sys.executable).
-    #
-    # 2>&1 | tee is used to redirect output and errors to file.
     command = (
-        '{executable} {first_script} {run_id} 2>&1 | tee {log} && '
+        '{executable} {first_script} {run_id} && '
         '{metrosim} {argfile} && '
-        '{executable} {second_script} {run_id} 2>&1 | tee {log}'
+        '{executable} {second_script} {run_id}'
     )
     command = command.format(
         executable=sys.executable, first_script=prepare_run_file,
-        run_id=run.id, log=log_file, metrosim=metrosim_file, argfile=arg_file,
+        run_id=run.id, metrosim=metrosim_file, argfile=arg_file,
         second_script=build_results_file,
     )
-    subprocess.Popen(command, shell=True)
+    # Call the command in a shell and redirect stdout and stderr to the log
+    # file.
+    with open(log_file, 'w') as f:
+        if background:
+            # Run the command in a background process.
+            subprocess.Popen(command, shell=True, stdout=f, stderr=f)
+        else:
+            # Wait for the command to end before terminating.
+            subprocess.call(command, shell=True, stdout=f, stderr=f)
+
+
+def run_batch(batch):
+    """Implemented a run_batch to run the external script."""
+    batch_run_file = settings.BASE_DIR + '/metro_app/batch_run.py'
+    log_file = (
+        '{0}/website_files/script_logs/batch_{1}.txt'.format(
+            settings.BASE_DIR, batch.id)
+    )
+
+    command = '{executable} {first_script} {batch_id}'
+    command = command.format(
+        executable=sys.executable, first_script=batch_run_file,
+        batch_id=batch.id,
+    )
+    # Call the command in a shell and redirect stdout and stderr to the log
+    # file.
+    with open(log_file, "w") as f:
+        subprocess.Popen(command, shell=True, stderr=f, stdout=f)
+
+
+def stop_run(run):
+    if run.status == 'Running':
+        # Create the stop file.
+        # The simulation will stop at the end of the current iteration.
+        stop_file = '{0}/metrosim_files/stop_files/run_{1}.stop'.format(
+            settings.BASE_DIR, run.id)
+        open(stop_file, 'a').close()
+        # Change the status of the run.
+        run.status = 'Aborted'
+        run.save()
 
 
 def get_export_directory():
@@ -300,9 +341,96 @@ def create_simulation(user, form):
     return simulation
 
 
-######################
-#  Import functions  #
-######################
+def simulation_import(simulation, f):
+    """Method to import a simulation as a zip file in the Home Button"""
+    f = zipfile.ZipFile(f)
+    namelist = f.namelist()
+
+    for filename in namelist:
+        if re.search('/zones.[tc]sv$', filename):
+            object_import_function(
+                f.open(filename), simulation, 'centroid')
+            break
+
+    for filename in namelist:
+        if re.search('/intersections.[tc]sv$', filename):
+            object_import_function(
+                f.open(filename), simulation, 'crossing')
+            break
+
+    for filename in namelist:
+        if re.search('/links.[tc]sv$', filename):
+            object_import_function(
+                f.open(filename), simulation, 'link')
+            break
+
+    for filename in namelist:
+        if re.search('/congestion_functions.[tc]sv$', filename):
+            object_import_function(
+                f.open(filename), simulation, 'function')
+            break
+
+    for filename in namelist:
+        if re.search('/public_transit.[tc]sv$', filename):
+            public_transit_import_function(
+                f.open(filename), simulation)
+            break
+
+    for filename in namelist:
+        if re.search('/traveler_types.[tc]sv$', filename):
+            usertype_import_function(
+                f.open(filename), simulation)
+            break
+
+    demandsegments = get_query('demandsegment', simulation)
+    for filename in namelist:
+        d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+        if d:
+            # Get the demandsegment associated with this OD matrix.
+            user_id = d.group(1)
+            try:
+                demandsegment = demandsegments.get(
+                    usertype__user_id=user_id)
+            except models.DemandSegment.objects.DoesNotExist:
+                # Matrix file with an invalid id, ignore it.
+                continue
+            # Import the matrix file in the new demandsegment.
+            matrix_import_function(
+                f.open(filename), simulation, demandsegment)
+
+    for filename in namelist:
+        if re.search('/pricings.[tc]sv$', filename):
+            pricing_import_function(
+                f.open(filename), simulation)
+            break
+
+
+def traveler_zip_file(simulation, f):
+    """Method to Implement the traveler zip file in the external script"""
+    f = zipfile.ZipFile(f)
+    namelist = f.namelist()
+
+    for filename in namelist:
+        if re.search('/traveler_types.[tc]sv$', filename):
+            usertype_import_function(
+                f.open(filename), simulation)
+            break
+
+    demandsegments = get_query('demandsegment', simulation)
+    for filename in namelist:
+        d = re.search('/matrix_([0-9]+).[tc]sv$', filename)
+        if d:
+            # Get the demandsegment associated with this OD matrix.
+            user_id = d.group(1)
+            try:
+                demandsegment = demandsegments.get(
+                    usertype__user_id=user_id)
+            except models.DemandSegment.objects.DoesNotExist:
+                # Matrix file with an invalid id, ignore it.
+                continue
+            # Import the matrix file in the new demandsegment.
+            matrix_import_function(
+                f.open(filename), simulation, demandsegment)
 
 
 def object_import_function(encoded_file, simulation, object_name):
@@ -1185,3 +1313,26 @@ def usertype_export_function(simulation, demandsegment=None, dir_name=''):
 
         writer.writerows(values)
     return filename
+
+
+################
+#  Validators  #
+################
+
+
+class FileValidator:
+    """Validator used to check the content of uploaded files."""
+    def __init__(self, content_types):
+        self.content_types = content_types
+
+    def __call__(self, data):
+        content_type = magic.from_buffer(data.read(), mime=True)
+        if content_type not in self.content_types:
+            msg = 'Unsupported file type detected: %(content_type)s'
+            params = {'content_type': content_type}
+            raise ValidationError(msg, code='content_type', params=params)
+
+
+ctsv_file = FileValidator(['text/tab-separated-values', 'text/csv',
+                           'text/plain'])
+zip_file = FileValidator(['application/zip'])

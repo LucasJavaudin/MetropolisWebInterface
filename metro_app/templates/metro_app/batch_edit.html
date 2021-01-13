@@ -1,0 +1,113 @@
+{%extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+{% load humanize %}
+
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+
+{% block main %}
+<script src="{% static 'js/jquery.formset.js' %}"></script>
+
+<center>
+    <a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+        <span class="far fa-caret-square-left"></span> Back </a>
+</center>
+
+<form action="{% url 'metro:batch_save' simulation.id batch.id %}" method="post" enctype="multipart/form-data">
+    {{ formset.management_form }}
+    {% csrf_token %}
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover">
+            <thead class="thead-light">
+                <tr>
+                    <th scope="col">Order</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Comment</th>
+                    <th scope="col">Actions</th>
+
+                </tr>
+            </thead>
+            <tbody>
+
+                {% for form in formset %}
+                    <tr>
+                     {% for field in form.hidden_fields %}
+                    {{ field }}
+                     {% endfor %}
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ form.name }}</td>
+                    <td>{{ form.comment }}</td>
+
+                    <td>
+                        <center>
+
+                      <label for="files" class="btn" >Zones: </label>
+                            <br>
+                            {{ form.centroid_file }}
+
+                            </center>
+                        <br>
+                        <center>
+
+                     <label for="files" class="btn">Intersection: </label>
+                            <br>
+                            {{ form.crossing_file }}
+                            </center>
+                        <br>
+
+                        <center>
+                     <label for="files" class="btn">Congestion Function: </label>
+                            <br>
+                            {{ form.function_file }}
+                            </center>
+                        <br>
+
+                        <center>
+                      <label for="files" class="btn">Links: </label>
+                            <br>
+                        {{ form.link_file }}
+                            </center>
+                        <br>
+                         <center>
+                      <label for="files" class="btn">Public Transit: </label>
+                             <br>
+				        {{ form.public_transit_file }}
+                          </center>
+                        <br>
+                          <center>
+                       <label for="files" class="btn"> Travelers (Zip File): </label>
+                              <br>
+                              {{ form.traveler_file }}
+                          </center>
+                        <br>
+                              <center>
+                       <label for="files" class="btn">Road Pricing:</label>
+                                  <br>
+				        {{ form.pricing_file }}
+                                  <br>
+                                  </center>
+
+                        <center>
+                            <label for="files" class="btn"> Zip File: </label>
+                            <br>
+                            {{ form.zip_file }}
+                            <br>
+                        </center>
+                    </td>
+             </tr>
+
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <center>
+        <button type="submit"  class="btn btn-outline-primary btn-lg my-3">Confirm</button>
+    </center>
+</form>
+
+{% endblock %}

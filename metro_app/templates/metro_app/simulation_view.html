@@ -183,7 +183,11 @@
 				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:simulation_run_view' simulation.id runs.last.id %}" title="View details on the current run">
 					<i class="fas fa-spinner"></i> Current run
 				</a>
-				{% else %}
+                                {% elif batch_dict.in_progress %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You cannot run the simulation when a batch is running" disabled>
+					<i class="fas fa-play"></i> Run
+				</button>
+                                {% else %}
 				{% if owner %}
 				{% if complete_simulation and good_pt %}
 				<button type="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#runModal" title="Run the simulation">
@@ -204,12 +208,51 @@
 				</button>
 				{% endif %}
 				{% endif %}
+
 				{% if runs.nb_run %}
 				<br>
-				<a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:simulation_run_list' simulation.id %}" title="View information of the previous runs">
-					Run history
+				<a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:simulation_run_list' simulation.id %}" title="View the previous runs">
+                                    Run history
 				</a>
 				{% endif %}
+
+                                <br>
+				{% if batch_dict.in_progress %}
+				<a role="button" class="btn btn-outline-primary btn-lg my-3" href="{% url 'metro:batch_view' simulation.id batch_dict.last.id %}" title="View details on the current batch">
+					<i class="fas fa-spinner"></i> Current batch
+				</a>
+                                {% elif runs.in_progress %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You cannot start a batch run when the simulation is already running" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% else %}
+				{% if owner %}
+				{% if complete_simulation and good_pt %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" data-toggle="modal" data-target="#batchModal" title="Run the simulation in a batch">
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% elif not complete_simulation %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to create a network or to add travelers in order to run the simulation" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="Modal choice is enable but you have not added a public transit system" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% endif %}
+				{% else %}
+				<button type="button" class="btn btn-outline-primary btn-lg my-3" title="You need to be owner of the simulation to run it" disabled>
+					<i class="fas fa-play"></i> Batch run
+				</button>
+				{% endif %}
+				{% endif %}
+
+                                {% if batch_dict.nb_batch > 0 %}
+                                <br>
+                                <a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:batch_history' simulation.id %}" title="View the previous batch runs">
+                                    Batch history
+                                </a>
+                                {% endif %}
 
 			</center>
 
@@ -429,62 +472,51 @@
 </div>
 {% endif %}
 
-<div class="modal fade" id="copyModal" tabindex="-1" role="dialog" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title">Copy a simulation</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-					<span aria-hidden="true">&times;</span>
-				</button>
-			</div>
-			<form action="{% url 'metro:copy_simulation' %}" method="post">
-				<div class="modal-body">
-					{% csrf_token %}
-					<input type="hidden" name="copy_id" id="copyId" value="">
-					{% bootstrap_form copy_form show_help=False %}
-					<div id="copyDiv" style="display:none;">
-						<div class="progress">
-							<div class="progress-bar progress-bar-striped" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 50%; margin-right: 100%;"></div>
-						</div>
-						<div class="text-warning">
-							Please be patient, this operation can take up to one hour for very large networks due to limitations of the database.
-							<br>
-							If you close this pop-up, you can still browse the website. Your simulation will appear in the list when it will be ready.
-						</div>
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
-					<button type="submit" class="btn btn-primary mx-auto" onclick="runCopyProgressBar()">Copy</button>
-				</div>
-			</form>
-		</div>
-	</div>
-</div>
-
 {% if owner and complete_simulation %}
 <div class="modal fade" id="runModal" tabindex="-1" role="dialog" aria-hidden="true">
-	<div class="modal-dialog modal-dialog-centered" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title">Run the simulation</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-					<span aria-hidden="true">&times;</span>
-				</button>
-			</div>
-			<form action="{% url 'metro:simulation_run_action' simulation.id %}" method="post">
-				<div class="modal-body">
-					{% csrf_token %}
-					{% bootstrap_form run_form %}
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
-					<button type="submit" class="btn btn-primary mx-auto">Run</button>
-				</div>
-			</form>
-		</div>
-	</div>
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Run the simulation</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form action="{% url 'metro:simulation_run_action' simulation.id %}" method="post">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {% bootstrap_form run_form %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary mx-auto">Run</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="batchModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Run the simulation in batch</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form action="{% url 'metro:batch_new' simulation.id  %}" method="post">
+                <div class="modal-body">
+                    Batch runs allow you to easily start multiple runs, with pre-determined inputs.
+                    {% csrf_token %}
+                    {% bootstrap_form batch_form %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary mx-auto" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary mx-auto">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endif %}
 

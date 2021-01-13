@@ -1136,3 +1136,51 @@ class Environment(models.Model):
             return True
         else:
             return False
+
+
+class Batch(models.Model):
+    name = models.CharField(max_length=50)
+    comment = models.CharField(
+        max_length=100, default='', blank=True, null=True)
+    nb_runs = models.IntegerField(default=2, verbose_name='Number of runs')
+    simulation = models.ForeignKey(Simulation, on_delete=models.CASCADE)
+    status = models.CharField(max_length=25, default='Preparing')
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(blank=True, null=True)
+    time_taken = models.DurationField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = 'Batch'
+
+
+class BatchRun(models.Model):
+    name = models.CharField(max_length=50, blank=False, null=False)
+    comment = models.CharField(
+        max_length=100, default='', blank=True, null=True)
+    centroid_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    crossing_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    function_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    link_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    public_transit_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    traveler_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    pricing_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    zip_file = models.FileField(
+        upload_to='import_files', blank=True, null=True)
+    failed = models.BooleanField(default=False)
+    canceled = models.BooleanField(default=False)
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE)
+    run = models.ForeignKey(SimulationRun, on_delete=models.CASCADE,
+                            blank=True, null=True)
+
+    class Meta:
+        db_table = 'BatchRun'

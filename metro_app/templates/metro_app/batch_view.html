@@ -1,0 +1,119 @@
+{%extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+{% load humanize %}
+
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+
+{% block main %}
+<center>
+    <a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+        <span class="far fa-caret-square-left"></span> Back </a>
+</center>
+
+<center>
+    {% if is_owner and not batch.end_time %}
+    <a role="button" class="btn btn-outline-primary my-3" href="{% url 'metro:batch_edit' simulation.id batch.id %}" title="Edit the input files of the batch runs">
+         Edit input files
+    </a>
+    {% endif %}
+</center>
+
+<center>
+    {% if is_owner %}
+    <a role="button" class="btn btn-outline-danger my-3" href="{% url 'metro:batch_delete' simulation.id batch.id %}" title="Delete batch">
+         Delete batch run
+    </a>
+    {% endif %}
+</center>
+
+<div class="table-responsive">
+    <table class="table table-hover table-bordered">
+        <thead class="thead-light">
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Status</th>
+                <th scope="col">Start time</th>
+                <th scope="col">End time</th>
+                <th scope="col">Time taken</th>
+                <th scope="col">Actions</th>
+            </tr>
+
+        </thead>
+        <tbody>
+            {% for batch_run in batch_runs %}
+            <tr>
+                <td>{{ batch_run.name }}</td>
+                {% if batch_run.run %}
+                <td>{{ batch_run.run.status }}</td>
+                <td>{{ batch_run.run.start_time }}</td>
+                <td>{{ batch_run.run.end_time }}</td>
+                <td>{{ batch_run.run.time_taken }}</td>
+                <td>
+                    <center>
+                        <div class="btn-group" role="group">
+                            <a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_view' simulation.id batch_run.run.id %}">
+                                Log and results
+                            </a>
+                            {% if batch_run.run.network_output %}
+                            <a role="button" class="btn btn-outline-primary" href="{% url 'metro:network_view_run' simulation.id batch_run.run.id %}">
+                                Results on network
+                            </a>
+                            {% endif %}
+                            {% if batch_run.run.link_output %}
+                            <a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_link_output' simulation.id batch_run.run.id %}">
+                                Download link-specific results
+                            </a>
+                            {% endif %}
+                            {% if batch_run.run.user_output %}
+                            <a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_user_output' simulation.id batch_run.run.id %}">
+                                Download traveler-specific results
+                            </a>
+                            {% endif %}
+                            {% if batch_run.run.user_path %}
+                            <a role="button" class="btn btn-outline-primary" href="{% url 'metro:simulation_run_user_path' simulation.id batch_run.run.id %}">
+                                Download traveler paths
+                            </a>
+                            {% endif %}
+                        </div>
+                    </center>
+                </td>
+                {% else %}
+                {% if batch_run.canceled %}
+                <td>Canceled</td>
+                {% elif batch_run.failed %}
+                <td>Failed <i class="fas fa-question-circle" title="A problem occured when loading the input files"></i></td>
+                {% else %}
+                <td>Not started</td>
+                {% endif %}
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>
+                    <center>
+                        <div class="btn-group" role="group">
+                            <a role="button" class="btn btn-outline-danger" href="{% url 'metro:batch_run_cancel' simulation.id batch.id batch_run.id %}">
+                                Cancel
+                            </a>
+                        </div>
+                    </center>
+                </td>
+                {% endif %}
+            </tr>
+
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+</div>
+
+
+
+
+{% endblock %}

@@ -1,0 +1,54 @@
+{%extends 'metro_app/base.html' %}
+{% load bootstrap4 %}
+{% load widget_tweaks %}
+{% load static %}
+{% load humanize %}
+
+
+{% block title %}
+{{ simulation.name }} - Metropolis
+{% endblock %}
+
+
+{% block main %}
+<center>
+    <a role="button" class="btn btn-secondary my-3" href="{% url 'metro:simulation_view' simulation.id %}" title="Go back to the simulation view page">
+        <span class="far fa-caret-square-left"></span> Back </a>
+</center>
+
+<br>
+
+<table class="table table-hover table-bordered">
+    <thead class="thead-light">
+
+        <tr>
+            <th scope="col">Batch Name</th>
+            <th scope="col">Actions</th>
+            <th scope="col">Status</th>
+            <th scope="col">No of Runs</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for batch in batchs %}
+
+        <tr>
+            <td>{{ batch.name }}</td>
+
+            <td>
+                <div class="btn-group my-1" role="group" align="right">
+                    <a role="button" class="btn btn-outline-primary" href="{% url 'metro:batch_view' simulation.id batch.id %}">
+                        View Batch
+                    </a>
+                    <td>{{ batch.status }}</td>
+                    <td>{{ batch.nb_runs}}</td>
+                </div>
+            </td>
+        </tr>
+
+    </tbody>
+
+    {% endfor %}
+
+</table>
+
+{% endblock %}
