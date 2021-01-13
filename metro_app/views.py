@@ -949,6 +949,7 @@ def simulation_view(request, simulation):
         run_form = forms.RunForm(
             initial={'name': 'Run {}'.format(runs['nb_run'] + 1)})
     # Create a form to run a batch.
+    batch_form = None
     if owner and complete_simulation:
         batch_form = forms.BatchForm(
             initial={'name': 'Batch {}'.format(batch_dict['nb_batch'] + 1)})
