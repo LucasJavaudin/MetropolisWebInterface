@@ -18,6 +18,31 @@
         <span class="far fa-caret-square-left"></span> Back </a>
 </center>
 
+<div class="container">
+    <div class="alert alert-primary">
+        <h2>Input data</h2>
+
+        On this page, you can define the input data that will be used for each run.
+        Everything is optional and, by default, the current input data of the simulation will be used.
+        For example, if you want to test different policies, with the same network and travelers data, you only need to upload the road-pricing files.
+
+        <br><br>
+
+        Supported formats for the input files are the same as when importing directly the files into the simulation.
+        For travelers, only a zipfile with preferences and O-D matrices is supported (see the Travelers page).
+
+        <br><br>
+
+        Instead of specifying the input data for each input type, you can upload a zip file containing multiple input files (e.g. to only change the road network, you can upload a zipfile containing a <i>zones.tsv</i> file, a <i>intersections.tsv</i> file and a <i>links.tsv</i> file).
+
+        <br><br>
+
+        The first run will start when you click on the <i>Confirm</i> button.
+        Following runs start as soon as the previous run finishes.
+        You can edit the input data of a run as long as it has not started.
+    </div>
+</div>
+
 <form action="{% url 'metro:batch_save' simulation.id batch.id %}" method="post" enctype="multipart/form-data">
     {{ formset.management_form }}
     {% csrf_token %}
