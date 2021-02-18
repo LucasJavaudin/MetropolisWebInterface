@@ -1351,7 +1351,7 @@ def matrix_export(request, simulation, demandsegment):
     filename = functions.matrix_export_function(
         simulation, demandsegment, dir_name)
     if filename is None:
-        return Http404()
+        raise Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
@@ -1486,7 +1486,7 @@ def pricing_export(request, simulation):
     dir_name = functions.get_export_directory()
     filename = functions.pricing_export_function(simulation, dir_name)
     if filename is None:
-        return Http404()
+        raise Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
@@ -1713,7 +1713,7 @@ def public_transit_export(request, simulation):
     dir_name = functions.get_export_directory()
     filename = functions.public_transit_export_function(simulation, dir_name)
     if filename is None:
-        return Http404()
+        raise Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
@@ -1855,7 +1855,7 @@ def object_export(request, simulation, object_name):
     filename = functions.object_export_function(
         simulation, object_name, dir_name)
     if filename is None:
-        return Http404()
+        raise Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.
         response = HttpResponse(f.read())
@@ -2656,7 +2656,7 @@ def usertype_export(request, simulation, demandsegment):
     filename = functions.usertype_export_function(
         simulation, demandsegment, dir_name)
     if filename is None:
-        return Http404()
+        raise Http404()
     with codecs.open(filename, 'r', encoding='utf8') as f:
         # Build a response to send a file.'beta_mean',
         response = HttpResponse(f.read())
