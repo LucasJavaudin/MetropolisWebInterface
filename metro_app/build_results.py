@@ -381,17 +381,17 @@ if os.path.isfile(FILE):
                 reader = csv.reader(f, delimiter='\t')
                 writer = csv.writer(g, delimiter='\t')
                 # Writer a custom header.
-                writer.writerow(['origin', 'destination', 'travelerType',
-                                 'driveCar', 'alphaTI', 'beta', 'gamma',
-                                 'alphaPT',
-                                 'ptPenalty', 'td', 'ta', 'ltstart', 'htstar',
-                                 'fee', 'surplus'])
-                for row in reader:
+                writer.writerow(['traveler_id', 'origin', 'destination',
+                                 'travelerType', 'driveCar', 'alphaTI', 'beta',
+                                 'gamma', 'alphaPT', 'ptPenalty', 'td', 'ta',
+                                 'ltstart', 'htstar', 'fee', 'surplus'])
+                for i, row in enumerate(reader):
                     origin_id = centroid_mapping[int(row[0])]
                     destination_id = centroid_mapping[int(row[1])]
                     traveler_type = usertype_mapping[int(row[2])]
+                    # The id of the traveler is i+1 (id starts at 1).
                     writer.writerow([
-                        origin_id, destination_id, traveler_type, row[3],
+                        i+1, origin_id, destination_id, traveler_type, row[3],
                         row[4], row[5], row[6], row[7], row[8], row[9],
                         row[10], row[11], row[12], row[13], row[14]
                     ])
@@ -424,7 +424,9 @@ if os.path.isfile(FILE):
                 writer.writerow(['traveler_id', 'in_time', 'link_id'])
                 for row in reader:
                     link_id = link_mapping[int(row[2])]
-                    writer.writerow([row[0], row[1], link_id])
+                    # Traveler's id start at 2 in Metrosim.
+                    # I substract 1 here so that they start at 1.
+                    writer.writerow([int(row[0])-1, row[1], link_id])
         os.remove(FILE)
         RUN.user_path = True
     except Exception as e:
