@@ -73,7 +73,7 @@ Metropolis
 		</div>
 	</div>
 </div>
-	{% if user == environment.creator or user.is_superuser%}
+	{% if user == environment.user or user.is_superuser%}
 	<form action="{% url 'metro:environments_add_view' environment.id%}"
 		  method="post">
 		{% csrf_token %}
@@ -94,7 +94,7 @@ Metropolis
 	{% for user_env in environment.users.all %}
 		<tr>
 			<td class="align-middle">{{ user_env }}</td>
-			{% if user_env != user and user.is_superuser or user_env.name == environment.creator and user_env != user %}
+			{% if user.is_superuser and user_env != environment.user or user == environment.user and user_env != environment.user %}
 			<td class="align-middle">
 				<span class="btn-group">
 					<form action="{% url 'metro:environment_user_delete' environment.id user_env.id %}" method="post">

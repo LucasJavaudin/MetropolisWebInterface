@@ -2694,13 +2694,11 @@ def environment_create(request):
     my_form = forms.EnvironmentForm(request.POST or None)
     if my_form.is_valid():
         env_name = my_form.cleaned_data['name']
-        env_user = {request.user}
 
         environment = models.Environment.objects.create(
-            name=env_name, creator=env_user)
-        environment.users.set(env_user)
+            name=env_name, user=request.user)
+        environment.users.add(request.user)
 
-        my_form = forms.EnvironmentForm()
     return HttpResponseRedirect(reverse('metro:environments_view'))
 
 

@@ -105,7 +105,7 @@ def can_edit(user, simulation):
 def can_edit_environment(user, environment):
     """Check if the user can edit a specific environment.
     """
-    if environment.creator == user or user.is_superuser:
+    if environment.user == user or user.is_superuser:
         return True
     else:
         return False
