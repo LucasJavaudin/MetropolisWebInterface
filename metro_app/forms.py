@@ -162,6 +162,9 @@ class ParametersSimulationForm(forms.ModelForm):
         self.fields['iterations'].widget.attrs['min'] = 0
         self.fields['jamDensity'].widget.attrs['min'] = 0
         self.fields['random_seed'].widget.attrs['min'] = 0
+        self.fields['advancedLearningSpeed'].widget.attrs['min'] = 0
+        self.fields['advancedLearningSpeed'].widget.attrs['max'] = 1
+        self.fields['advancedLearningSpeed'].widget.attrs['step'] = .1
         # Add tooltips.
         for bound_field in self:
             bound_field.field.widget.attrs['title'] = bound_field.help_text
@@ -171,8 +174,8 @@ class ParametersSimulationForm(forms.ModelForm):
         fields = [
             'stacLim', 'iterations', 'startTime', 'lastRecord',
             'recordsInterval', 'jamDensity', 'advancedLearningProcess',
-            'horizontalQueueing', 'stac_check', 'iterations_check',
-            'random_seed_check', 'random_seed'
+            'advancedLearningSpeed', 'horizontalQueueing', 'stac_check',
+            'iterations_check', 'random_seed_check', 'random_seed',
         ]
         # Metropolis booleans should be checkboxes.
         widgets = {
