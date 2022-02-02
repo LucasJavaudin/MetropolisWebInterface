@@ -20,7 +20,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/1.11/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'CHANGE THIS'
+SECRET_KEY = '-auietj/-t"edpj/è-v"»(jdteb-/ej/-t-TJ9-89j-J8Tj/-28TE2t'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -84,10 +84,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'CONN_MAX_AGE': 45,
-        'NAME': 'CHANGE THIS',
-        'USER': 'CHANGE THIS',
-        'PASSWORD': 'CHANGE THIS',
-        'HOST': 'localhost',
+        'NAME': 'metropolis',
+        'USER': 'metropolis',
+        'PASSWORD': 'metropolis-password',
+        'HOST': 'db',
         'PORT': '3306',
         'OPTIONS': {'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"},
     }
@@ -131,9 +131,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = '/home/lucas_javaudin/GitRepositories/metropolis_web_interface/static/'
+STATIC_ROOT = '/code/static/'
 
-MEDIA_ROOT = '/home/lucas_javaudin/GitRepositories/metropolis_web_interface/website_files/'
+MEDIA_ROOT = '/code/website_files/'
 
 LOGGING = {
     'version': 1,
@@ -142,7 +142,7 @@ LOGGING = {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': 'CHANGE THIS, for example, /path/to/metropolis_web_interface/debug.log',
+            'filename': '/code/debug.log',
             # Note: logging is not supported for now.
         },
     },
