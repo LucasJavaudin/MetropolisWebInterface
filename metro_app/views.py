@@ -538,13 +538,13 @@ def copy_simulation(request):
             # Add the ids of the new functions.
             cursor.execute(
                 "UPDATE function_ids, "
-                "(SELECT @i:=@i+1 as row, `Function`.id "
+                "(SELECT @i:=@i+1 as r, `Function`.id "
                 "FROM (SELECT @i:=0) AS a, `Function` "
                 "JOIN FunctionSet_Function "
                 "ON `Function`.id = FunctionSet_Function.function_id "
                 "WHERE FunctionSet_Function.functionset_id = %s) AS src "
                 "SET function_ids.new = src.id "
-                "WHERE function_ids.id = src.row;",
+                "WHERE function_ids.id = src.r;",
                 [functionset.id]
             )
             # Update the function of the new links using the mapping table.
@@ -600,13 +600,13 @@ def copy_simulation(request):
             # Add the id of the old centroids.
             cursor.execute(
                 "UPDATE centroid_ids, "
-                "(SELECT @i:=@i+1 as row, Centroid.id "
+                "(SELECT @i:=@i+1 as r, Centroid.id "
                 "FROM (SELECT @i:=0) AS a, Centroid "
                 "JOIN Network_Centroid "
                 "ON Centroid.id = Network_Centroid.centroid_id "
                 "WHERE Network_Centroid.network_id = %s) AS src "
                 "SET centroid_ids.new = src.id "
-                "WHERE centroid_ids.id = src.row;",
+                "WHERE centroid_ids.id = src.r;",
                 [network.id]
             )
             # Update the origin and destination of the new links using the
@@ -669,13 +669,13 @@ def copy_simulation(request):
             # Add the id of the old crossings.
             cursor.execute(
                 "UPDATE crossing_ids, "
-                "(SELECT @i:=@i+1 as row, Crossing.id "
+                "(SELECT @i:=@i+1 as r, Crossing.id "
                 "FROM (SELECT @i:=0) AS a, Crossing "
                 "JOIN Network_Crossing "
                 "ON Crossing.id = Network_Crossing.crossing_id "
                 "WHERE Network_Crossing.network_id = %s) AS src "
                 "SET crossing_ids.new = src.id "
-                "WHERE crossing_ids.id = src.row;",
+                "WHERE crossing_ids.id = src.r;",
                 [network.id]
             )
             # Update the origin and destination of the new links using the
