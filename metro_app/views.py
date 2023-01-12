@@ -1,5 +1,5 @@
 """This file defines the views of the website.
-test
+
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
