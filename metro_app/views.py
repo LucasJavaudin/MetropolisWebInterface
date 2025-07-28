@@ -1,5 +1,5 @@
 """This file defines the views of the website.
-test
+
 Author: Lucas Javaudin
 E-mail: lucas.javaudin@ens-paris-saclay.fr
 """
@@ -491,11 +491,11 @@ def copy_simulation(request):
             last_id = models.Function.objects.last().id
             # Copy all functions.
             cursor.execute(
-                "INSERT INTO Function (name, expression, user_id, vdf_id) "
-                "SELECT Function.name, Function.expression, Function.user_id, "
-                " Function.vdf_id "
-                "FROM Function JOIN FunctionSet_Function "
-                "ON Function.id = FunctionSet_Function.function_id "
+                "INSERT INTO `Function` (name, expression, user_id, vdf_id) "
+                "SELECT `Function`.name, `Function`.expression, `Function`.user_id, "
+                " `Function`.vdf_id "
+                "FROM `Function` JOIN FunctionSet_Function "
+                "ON `Function`.id = FunctionSet_Function.function_id "
                 "WHERE FunctionSet_Function.functionset_id = %s;",
                 [simulation.scenario.supply.functionset.id]
             )
@@ -505,16 +505,16 @@ def copy_simulation(request):
             # functionset.
             cursor.execute(
                 "INSERT INTO FunctionSet_Function "
-                "(functionset_id, function_id) SELECT '%s', id FROM Function "
+                "(functionset_id, function_id) SELECT '%s', id FROM `Function` "
                 "WHERE id > %s and id <= %s;",
                 [functionset.id, last_id, new_last_id]
             )
             # Set vdf_id equal to the id of the functions.
             cursor.execute(
-                "UPDATE Function "
+                "UPDATE `Function` "
                 "JOIN FunctionSet_Function "
-                "ON Function.id = FunctionSet_Function.function_id "
-                "SET Function.vdf_id = Function.id "
+                "ON `Function`.id = FunctionSet_Function.function_id "
+                "SET `Function`.vdf_id = `Function`.id "
                 "WHERE FunctionSet_Function.functionset_id = %s;",
                 [functionset.id]
             )
@@ -528,23 +528,23 @@ def copy_simulation(request):
             # Add the id of the old functions.
             cursor.execute(
                 "INSERT INTO function_ids (old) "
-                "SELECT Function.id "
-                "FROM Function "
+                "SELECT `Function`.id "
+                "FROM `Function` "
                 "JOIN FunctionSet_Function "
-                "ON Function.id = FunctionSet_Function.function_id "
+                "ON `Function`.id = FunctionSet_Function.function_id "
                 "WHERE FunctionSet_Function.functionset_id = %s;",
                 [simulation.scenario.supply.functionset.id]
             )
             # Add the ids of the new functions.
             cursor.execute(
                 "UPDATE function_ids, "
-                "(SELECT @i:=@i+1 as row, Function.id "
-                "FROM (SELECT @i:=0) AS a, Function "
+                "(SELECT @i:=@i+1 as r, `Function`.id "
+                "FROM (SELECT @i:=0) AS a, `Function` "
                 "JOIN FunctionSet_Function "
-                "ON Function.id = FunctionSet_Function.function_id "
+                "ON `Function`.id = FunctionSet_Function.function_id "
                 "WHERE FunctionSet_Function.functionset_id = %s) AS src "
                 "SET function_ids.new = src.id "
-                "WHERE function_ids.id = src.row;",
+                "WHERE function_ids.id = src.r;",
                 [functionset.id]
             )
             # Update the function of the new links using the mapping table.
@@ -600,13 +600,13 @@ def copy_simulation(request):
             # Add the id of the old centroids.
             cursor.execute(
                 "UPDATE centroid_ids, "
-                "(SELECT @i:=@i+1 as row, Centroid.id "
+                "(SELECT @i:=@i+1 as r, Centroid.id "
                 "FROM (SELECT @i:=0) AS a, Centroid "
                 "JOIN Network_Centroid "
                 "ON Centroid.id = Network_Centroid.centroid_id "
                 "WHERE Network_Centroid.network_id = %s) AS src "
                 "SET centroid_ids.new = src.id "
-                "WHERE centroid_ids.id = src.row;",
+                "WHERE centroid_ids.id = src.r;",
                 [network.id]
             )
             # Update the origin and destination of the new links using the
@@ -669,13 +669,13 @@ def copy_simulation(request):
             # Add the id of the old crossings.
             cursor.execute(
                 "UPDATE crossing_ids, "
-                "(SELECT @i:=@i+1 as row, Crossing.id "
+                "(SELECT @i:=@i+1 as r, Crossing.id "
                 "FROM (SELECT @i:=0) AS a, Crossing "
                 "JOIN Network_Crossing "
                 "ON Crossing.id = Network_Crossing.crossing_id "
                 "WHERE Network_Crossing.network_id = %s) AS src "
                 "SET crossing_ids.new = src.id "
-                "WHERE crossing_ids.id = src.row;",
+                "WHERE crossing_ids.id = src.r;",
                 [network.id]
             )
             # Update the origin and destination of the new links using the
