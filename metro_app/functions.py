@@ -1240,9 +1240,9 @@ def object_export_function(simulation, object_name, dir_name):
             values = query.values_list('user_id', 'name', 'expression')
         elif object_name == 'link':
             writer.writerow(['id', 'name', 'lanes', 'length', 'speed',
-                             'capacity', 'function', 'origin', 'destination'])
+                             'capacity', 'function', 'origin', 'destination', 'db_id'])
             values = query.values_list('user_id', 'name', 'lanes', 'length',
-                                       'speed', 'capacity', 'vdf__user_id')
+                                       'speed', 'capacity', 'vdf__user_id', 'id')
             # Origin and destination id must be converted to user_id.
             centroids = get_query('centroid', simulation)
             crossings = get_query('crossing', simulation)
